@@ -1,0 +1,28 @@
+# Capture files — can be large, machine-specific
+captures/
+
+# Database — user data, not source
+*.db
+
+# Compiled binaries
+*.exe
+*.exe~
+
+# API documentation PDFs
+*.pdf
+
+# Test / coverage artifacts
+coverage.out
+coverage.html
+
+# Local config — may contain API keys and machine-specific paths
+config.toml
+
+# IDE
+.idea/
+
+# Runtime log (written by the app when the console is suppressed)
+*.log
+
+# Claude Code project memory
+.claude/

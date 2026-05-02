@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OOF RL</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg:        '#0a0b0e',
+          surface:   '#111318',
+          surface2:  '#191c23',
+          line:      '#1f2433',
+          'rl-blue':   '#4a9eff',
+          'rl-orange': '#ff8c2a',
+        },
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="bg-bg text-gray-200 font-sans text-sm min-h-screen">
+
+<!-- Header -->
+<header class="flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
+  <span class="text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
+  <nav class="flex gap-1 flex-1">
+    <button class="nav-btn active" data-view="live">Live</button>
+    <button class="nav-btn" data-view="history">History</button>
+    <button class="nav-btn" data-view="players">Players</button>
+    <button class="nav-btn" data-view="replay">Replay</button>
+    <button class="nav-btn" data-view="bc">Ballchasing</button>
+    <button class="nav-btn" data-view="settings">Settings</button>
+  </nav>
+  <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
+</header>
+
+<main class="px-5 py-6 max-w-5xl mx-auto">
+
+  <!-- LIVE VIEW -->
+  <section id="view-live" class="view active">
+    <div id="live-waiting" class="text-center text-gray-500 py-20 text-base">Waiting for a match to start…</div>
+    <div id="live-match" class="hidden">
+
+      <!-- Scoreboard -->
+      <div class="flex items-center justify-between bg-surface border border-line rounded-xl px-8 py-5 mb-3">
+        <div class="flex items-center gap-4">
+          <span class="font-semibold text-lg" id="team0-name">Blue</span>
+          <span class="text-6xl font-extrabold tabular-nums leading-none" id="score0">0</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 text-center">
+          <span class="text-gray-500 text-xs tracking-wide" id="live-arena">—</span>
+          <span class="text-2xl font-bold tabular-nums" id="live-clock">5:00</span>
+          <div class="flex items-center gap-2">
+            <span id="live-overtime" class="hidden bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded">OT</span>
+            <span id="live-replay-badge" class="hidden text-purple-400 text-xs font-bold tracking-widest">REPLAY</span>
+          </div>
+          <span id="live-ball-speed" class="text-gray-600 text-xs tabular-nums mt-0.5"></span>
+        </div>
+        <div class="flex items-center gap-4 flex-row-reverse">
+          <span class="font-semibold text-lg" id="team1-name">Orange</span>
+          <span class="text-6xl font-extrabold tabular-nums leading-none" id="score1">0</span>
+        </div>
+      </div>
+
+      <!-- Possession bar -->
+      <div class="flex items-center gap-3 mb-4 px-1">
+        <span class="text-xs font-semibold w-10 text-right tabular-nums" id="possession-pct-blue" style="color:var(--rl-blue)">—</span>
+        <div class="flex flex-1 h-1.5 bg-surface2 rounded-full overflow-hidden">
+          <div id="possession-bar-blue" class="h-full bg-rl-blue transition-[width] duration-500" style="width:50%"></div>
+          <div id="possession-bar-orange" class="h-full bg-rl-orange transition-[width] duration-500" style="width:50%"></div>
+        </div>
+        <span class="text-xs font-semibold w-10 tabular-nums" id="possession-pct-orange" style="color:var(--rl-orange)">—</span>
+        <span class="text-gray-600 text-xs ml-1">touches</span>
+      </div>
+
+      <!-- Players grid -->
+      <div id="players-grid" class="players-grid"></div>
+      <div class="player-legend">
+        <span><b>G</b> Goals</span>
+        <span><b>A</b> Assists</span>
+        <span><b>Sv</b> Saves</span>
+        <span><b>Sh</b> Shots</span>
+        <span><b>Dm</b> Demos</span>
+        <span><b>Tch</b> Ball touches</span>
+        <span class="legend-sep">|</span>
+        <span class="status-chip status-chip-ss">SS</span><span>Supersonic</span>
+        <span class="status-chip status-chip-demo">DEMO</span><span>Demolished</span>
+        <span class="status-chip status-chip-boost">BOOST</span><span>Boosting</span>
+        <span class="status-chip">WALL</span><span>On wall</span>
+        <span class="status-chip">PS</span><span>Powersliding</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY VIEW -->
+  <section id="view-history" class="view">
+    <div class="mb-4">
+      <select id="history-player-filter" class="bg-surface border border-line text-gray-200 px-3 py-2 rounded-lg text-sm min-w-[200px] cursor-pointer">
+        <option value="">All Players</option>
+      </select>
+    </div>
+    <div id="matches-list"></div>
+  </section>
+
+  <!-- PLAYERS VIEW -->
+  <section id="view-players" class="view">
+    <div id="players-list"></div>
+    <div id="player-detail" class="hidden"></div>
+  </section>
+
+  <!-- REPLAY VIEW -->
+  <section id="view-replay" class="view">
+    <div class="bg-surface border border-line rounded-xl p-6 max-w-4xl">
+      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Capture Replay</h2>
+
+      <!-- Controls -->
+      <div class="flex flex-wrap gap-2 items-center mb-3">
+        <select id="replay-capture" class="bg-surface2 border border-line text-gray-200 px-3 py-2 rounded-lg text-xs flex-1 min-w-[180px] cursor-pointer"></select>
+        <button id="replay-load" class="btn-primary">Load</button>
+        <button id="replay-play" class="btn-primary">▶ Play</button>
+        <button id="replay-pause" class="btn-primary">⏸ Pause</button>
+        <select id="replay-speed" class="bg-surface2 border border-line text-gray-200 px-3 py-2 rounded-lg text-xs cursor-pointer">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="8">8×</option>
+        </select>
+      </div>
+
+      <input type="range" id="replay-seek" min="0" max="0" value="0" class="w-full mb-3 accent-rl-blue h-1 cursor-pointer">
+      <div id="replay-msg" class="msg hidden mb-3"></div>
+
+      <!-- Replay scoreboard -->
+      <div class="flex items-center justify-between bg-surface2 border border-line rounded-lg px-6 py-3 mb-3">
+        <div class="flex items-center gap-3">
+          <span class="font-semibold" id="replay-team0">Blue</span>
+          <span class="text-4xl font-extrabold tabular-nums leading-none" id="replay-score0">0</span>
+        </div>
+        <div class="text-center">
+          <div class="text-gray-500 text-xs" id="replay-arena">—</div>
+          <div class="text-xl font-bold tabular-nums" id="replay-clock">5:00</div>
+          <div class="text-gray-600 text-xs mt-0.5" id="replay-match-type"></div>
+        </div>
+        <div class="flex items-center gap-3 flex-row-reverse">
+          <span class="font-semibold" id="replay-team1">Orange</span>
+          <span class="text-4xl font-extrabold tabular-nums leading-none" id="replay-score1">0</span>
+        </div>
+      </div>
+
+      <div id="replay-players-grid" class="players-grid"></div>
+      <div class="player-legend" style="margin-bottom:1rem">
+        <span><b>G</b> Goals</span>
+        <span><b>A</b> Assists</span>
+        <span><b>Sv</b> Saves</span>
+        <span><b>Sh</b> Shots</span>
+        <span><b>Dm</b> Demos</span>
+        <span><b>Tch</b> Ball touches</span>
+        <span class="legend-sep">|</span>
+        <span class="status-chip status-chip-ss">SS</span><span>Supersonic</span>
+        <span class="status-chip status-chip-demo">DEMO</span><span>Demolished</span>
+        <span class="status-chip status-chip-boost">BOOST</span><span>Boosting</span>
+        <span class="status-chip">WALL</span><span>On wall</span>
+        <span class="status-chip">PS</span><span>Powersliding</span>
+        <span class="status-chip status-chip-touch">TOUCH</span><span>Recent touch</span>
+      </div>
+
+      <pre id="replay-event" class="bg-surface2 border border-line rounded-lg p-3 text-xs max-h-44 overflow-auto mb-5 text-gray-400"></pre>
+
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Local Replay Files</h3>
+      <div id="replay-files" class="replay-files-list"></div>
+    </div>
+  </section>
+
+  <!-- BALLCHASING VIEW -->
+  <section id="view-bc" class="view">
+    <div id="bc-status" class="bc-status-bar mb-4"></div>
+
+    <div class="bc-section-block">
+      <h2 class="bc-section-title">Uploaded Replays</h2>
+      <div id="bc-uploaded"></div>
+    </div>
+
+    <div class="bc-section-block" style="margin-top:20px">
+      <h2 class="bc-section-title">Not Uploaded</h2>
+      <div id="bc-not-uploaded"></div>
+    </div>
+
+    <div class="bc-section-block" style="margin-top:20px">
+      <h2 class="bc-section-title">Replay Groups</h2>
+      <div id="bc-groups"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS VIEW -->
+  <section id="view-settings" class="view">
+    <div class="bg-surface border border-line rounded-xl p-6 max-w-lg flex flex-col gap-3">
+      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide">App Settings</h2>
+      <label class="flex items-center gap-3 text-sm">App Port
+        <input type="number" id="cfg-port" class="cfg-input ml-auto w-28">
+      </label>
+      <label class="flex items-center gap-3 text-sm">RL Install Path
+        <input type="text" id="cfg-rl-path" class="cfg-input ml-auto w-64">
+      </label>
+      <label class="flex items-center gap-3 text-sm">Database Path
+        <input type="text" id="cfg-db-path" class="cfg-input ml-auto w-48">
+      </label>
+      <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-open-browser" class="accent-rl-blue"> Open in system browser (enables DevTools)
+        <span class="text-gray-600 text-xs ml-1">— requires restart</span>
+      </label>
+      <label class="flex items-center gap-3 text-sm">Tracker cache TTL (minutes)
+        <input type="number" id="cfg-tracker-ttl" step="1" min="0" class="cfg-input ml-auto w-24">
+        <span class="text-gray-600 text-xs">0 = disabled</span>
+      </label>
+      <label class="flex items-center gap-3 text-sm">Ballchasing API Key
+        <input type="text" id="cfg-bc-key" class="cfg-input ml-auto w-64" placeholder="your-api-key" autocomplete="off">
+      </label>
+      <label class="flex items-center gap-3 text-sm">Overlay hotkey
+        <button id="cfg-hotkey-btn" class="cfg-input ml-auto w-28 text-center cursor-pointer select-none"
+                title="Click, then press a key (F1–F12, Insert, Delete, Home, End, PageUp, PageDown, Pause, ScrollLock)">F9</button>
+        <span class="text-gray-600 text-xs">click to change</span>
+      </label>
+
+      <div class="border-t border-line pt-3">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Storage</h3>
+        <div class="flex flex-col gap-2">
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-match-meta" class="accent-rl-blue"> Match metadata</label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-player-stats" class="accent-rl-blue"> Player match stats</label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-goals" class="accent-rl-blue"> Goal events</label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-ball-hits" class="accent-rl-blue"> Ball hit events</label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-ticks" class="accent-rl-blue"> Tick snapshots</label>
+          <label class="flex items-center gap-3 text-sm">Tick rate (per second)
+            <input type="number" id="cfg-tick-rate" step="0.5" min="0" max="120" class="cfg-input ml-auto w-24">
+          </label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-other-events" class="accent-rl-blue"> Other events (crossbar, pause…)</label>
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="cfg-raw-packets" class="accent-rl-blue"> Capture raw packets</label>
+          <label class="flex items-center gap-3 text-sm">Packets dir
+            <input type="text" id="cfg-raw-packets-dir" placeholder="captures" class="cfg-input ml-auto w-40">
+          </label>
+        </div>
+      </div>
+
+      <button id="save-cfg" class="btn-primary self-start">Save App Config</button>
+      <div id="cfg-msg" class="msg hidden"></div>
+
+      <div class="border-t border-line pt-3">
+        <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-2">Rocket League Stats API</h2>
+        <p class="text-xs text-gray-500 mb-3">Configures <code class="text-gray-400">DefaultStatsAPI.ini</code>. Requires a Rocket League restart.</p>
+        <div class="flex flex-col gap-2">
+          <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="ini-enabled" class="accent-rl-blue"> Enable Stats API</label>
+          <label class="flex items-center gap-3 text-sm">Send rate (1–120)
+            <input type="number" id="ini-rate" step="1" min="1" max="120" value="60" class="cfg-input ml-auto w-24">
+          </label>
+          <label class="flex items-center gap-3 text-sm">Port
+            <input type="number" id="ini-port" value="49123" class="cfg-input ml-auto w-24">
+          </label>
+        </div>
+      </div>
+
+      <button id="save-ini" class="btn-primary self-start">Save INI</button>
+      <div id="ini-msg" class="msg hidden"></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

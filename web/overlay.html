@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: rgba(10, 10, 14, 0.90);
+  color: #d4d4d4;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── score bar ── */
+#score-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 5px 10px;
+  background: rgba(0,0,0,0.45);
+  gap: 4px;
+}
+#score-blue  { color: #4da6ff; font-size: 18px; font-weight: 700; text-align: left; }
+#score-orange{ color: #ff9933; font-size: 18px; font-weight: 700; text-align: right; }
+#clock-wrap  { text-align: center; }
+#clock       { color: #ccc; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#ot-badge    { color: #ffd700; font-size: 9px; font-weight: 700; letter-spacing: .05em; margin-left: 4px; }
+
+/* ── player rows ── */
+#players { padding: 3px 0; }
+
+.team-sep { height: 1px; background: rgba(255,255,255,0.07); margin: 2px 8px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  gap: 6px;
+  line-height: 1;
+}
+.row.demo { opacity: 0.35; }
+
+.name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.name.blue   { color: #6db8ff; }
+.name.orange { color: #ffb060; }
+
+.boost-track {
+  width: 56px;
+  height: 6px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.boost-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.12s ease;
+}
+.boost-fill.empty { background: #666; }
+.boost-fill.low   { background: #e74c3c; }
+.boost-fill.mid   { background: #e67e22; }
+.boost-fill.full  { background: #2ecc71; }
+
+.boost-num {
+  width: 22px;
+  text-align: right;
+  color: #777;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── status bar ── */
+#status-bar {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  gap: 5px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.on  { background: #27ae60; }
+.dot.off { background: #c0392b; }
+#status-text { color: #555; font-size: 10px; }
+
+/* idle state */
+#idle {
+  padding: 18px 10px;
+  text-align: center;
+  color: #444;
+  font-size: 11px;
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<div id="score-bar">
+  <span id="score-blue">0</span>
+  <span id="clock-wrap">
+    <span id="clock">–:––</span><span id="ot-badge"></span>
+  </span>
+  <span id="score-orange">0</span>
+</div>
+
+<div id="players"><div id="idle">waiting for match…</div></div>
+
+<div id="status-bar">
+  <span class="dot off" id="dot"></span>
+  <span id="status-text">disconnected</span>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const scoreBlue   = $('score-blue');
+const scoreOrange = $('score-orange');
+const clock       = $('clock');
+const otBadge     = $('ot-badge');
+const playersEl   = $('players');
+const dot         = $('dot');
+const statusText  = $('status-text');
+const idleEl      = $('idle');
+
+function fmtClock(secs) {
+  if (secs == null) return '–:––';
+  const m = Math.floor(secs / 60);
+  const s = String(secs % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function boostClass(v) {
+  if (v === 0)  return 'empty';
+  if (v < 20)   return 'low';
+  if (v < 60)   return 'mid';
+  return 'full';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderPlayers(players) {
+  if (!players || players.length === 0) {
+    playersEl.innerHTML = '';
+    idleEl.style.display = 'block';
+    playersEl.appendChild(idleEl);
+    return;
+  }
+  idleEl.style.display = 'none';
+
+  const blue   = players.filter(p => p.TeamNum === 0).sort((a,b) => b.Score - a.Score);
+  const orange = players.filter(p => p.TeamNum === 1).sort((a,b) => b.Score - a.Score);
+
+  let html = '';
+  for (const p of blue) {
+    const boost = p.Boost ?? 0;
+    html += playerRow(p, 'blue', boost);
+  }
+  if (blue.length && orange.length) html += '<div class="team-sep"></div>';
+  for (const p of orange) {
+    const boost = p.Boost ?? 0;
+    html += playerRow(p, 'orange', boost);
+  }
+  playersEl.innerHTML = html;
+}
+
+function playerRow(p, team, boost) {
+  const demo = p.bDemolished ? ' demo' : '';
+  return `<div class="row${demo}">
+    <span class="name ${team}">${esc(p.Name)}</span>
+    <div class="boost-track"><div class="boost-fill ${boostClass(boost)}" style="width:${boost}%"></div></div>
+    <span class="boost-num">${boost}</span>
+  </div>`;
+}
+
+function resetScoreboard() {
+  scoreBlue.textContent   = '0';
+  scoreOrange.textContent = '0';
+  clock.textContent       = '–:––';
+  otBadge.textContent     = '';
+  renderPlayers([]);
+}
+
+let ws = null;
+
+function connect() {
+  const url = `ws://${location.host}/ws`;
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    dot.className   = 'dot on';
+    statusText.textContent = 'connected';
+  };
+
+  ws.onclose = () => {
+    dot.className   = 'dot off';
+    statusText.textContent = 'reconnecting…';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    switch (msg.Event) {
+      case 'UpdateState': {
+        const d = msg.Data;
+        if (!d) break;
+        const t0 = (d.Game?.Teams || []).find(t => t.TeamNum === 0);
+        const t1 = (d.Game?.Teams || []).find(t => t.TeamNum === 1);
+        scoreBlue.textContent   = t0?.Score ?? 0;
+        scoreOrange.textContent = t1?.Score ?? 0;
+        clock.textContent       = fmtClock(d.Game?.TimeSeconds);
+        otBadge.textContent     = d.Game?.bOvertime ? 'OT' : '';
+        renderPlayers(d.Players);
+        break;
+      }
+      case 'MatchEnded':
+      case 'MatchDestroyed':
+        resetScoreboard();
+        break;
+      case '_Status':
+        if (!msg.Data?.connected) resetScoreboard();
+        break;
+    }
+  };
+}
+
+connect();
+</script>
+</body>
+</html>
