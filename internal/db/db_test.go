@@ -6,11 +6,91 @@ import (
 	"time"
 )
 
+// testSchema creates the plugin-owned tables so db query-method tests work without importing plugins.
+const testSchema = `
+CREATE TABLE IF NOT EXISTS hist_players (
+	primary_id TEXT PRIMARY KEY,
+	name       TEXT NOT NULL,
+	last_seen  DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hist_matches (
+	id              INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_guid      TEXT UNIQUE,
+	arena           TEXT,
+	started_at      DATETIME NOT NULL,
+	ended_at        DATETIME,
+	winner_team_num INTEGER,
+	overtime        BOOLEAN DEFAULT 0,
+	playlist_type   INTEGER
+);
+CREATE TABLE IF NOT EXISTS hist_player_match_stats (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_id    INTEGER NOT NULL REFERENCES hist_matches(id),
+	primary_id  TEXT    NOT NULL REFERENCES hist_players(primary_id),
+	team_num    INTEGER,
+	score       INTEGER DEFAULT 0,
+	goals       INTEGER DEFAULT 0,
+	shots       INTEGER DEFAULT 0,
+	assists     INTEGER DEFAULT 0,
+	saves       INTEGER DEFAULT 0,
+	touches     INTEGER DEFAULT 0,
+	car_touches INTEGER DEFAULT 0,
+	demos       INTEGER DEFAULT 0,
+	UNIQUE(match_id, primary_id)
+);
+CREATE TABLE IF NOT EXISTS hist_goal_events (
+	id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_id             INTEGER NOT NULL REFERENCES hist_matches(id),
+	scorer_id            TEXT REFERENCES hist_players(primary_id),
+	scorer_name          TEXT NOT NULL DEFAULT '',
+	assister_id          TEXT REFERENCES hist_players(primary_id),
+	assister_name        TEXT NOT NULL DEFAULT '',
+	ball_last_touch_id   TEXT REFERENCES hist_players(primary_id),
+	goal_speed           REAL,
+	goal_time            REAL,
+	impact_x             REAL,
+	impact_y             REAL,
+	impact_z             REAL,
+	scored_at            DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hist_ball_hit_events (
+	id             INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_id       INTEGER NOT NULL REFERENCES hist_matches(id),
+	player_id      TEXT REFERENCES hist_players(primary_id),
+	pre_hit_speed  REAL,
+	post_hit_speed REAL,
+	loc_x          REAL,
+	loc_y          REAL,
+	loc_z          REAL,
+	hit_at         DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hist_tick_snapshots (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	match_id    INTEGER NOT NULL REFERENCES hist_matches(id),
+	captured_at DATETIME NOT NULL,
+	raw_json    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bc_uploads (
+	replay_name    TEXT PRIMARY KEY,
+	ballchasing_id TEXT NOT NULL,
+	bc_url         TEXT NOT NULL,
+	uploaded_at    DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hist_pms_primary_id ON hist_player_match_stats(primary_id);
+CREATE INDEX IF NOT EXISTS idx_hist_goal_scorer     ON hist_goal_events(scorer_id);
+CREATE INDEX IF NOT EXISTS idx_hist_goal_match      ON hist_goal_events(match_id);
+CREATE INDEX IF NOT EXISTS idx_hist_bh_player       ON hist_ball_hit_events(player_id);
+CREATE INDEX IF NOT EXISTS idx_hist_tick_match      ON hist_tick_snapshots(match_id);
+`
+
 func newTestDB(t *testing.T) *DB {
 	t.Helper()
 	d, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
+	}
+	if err := d.RunMigration(testSchema); err != nil {
+		t.Fatalf("RunMigration(testSchema): %v", err)
 	}
 	t.Cleanup(func() { d.Close() })
 	return d

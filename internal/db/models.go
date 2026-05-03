@@ -54,6 +54,35 @@ type GoalEvent struct {
 	ScoredAt     time.Time
 }
 
+type SessionMatch struct {
+	MatchID       int64     `json:"match_id"`
+	Arena         string    `json:"arena"`
+	StartedAt     time.Time `json:"started_at"`
+	WinnerTeamNum int       `json:"winner_team_num"` // -1 if not finished
+	PlayerTeam    int       `json:"player_team"`
+	Goals         int       `json:"goals"`
+	Assists       int       `json:"assists"`
+	Saves         int       `json:"saves"`
+	Shots         int       `json:"shots"`
+	Demos         int       `json:"demos"`
+	Score         int       `json:"score"`
+}
+
+type SavedSession struct {
+	ID        int64     `json:"id"`
+	PlayerID  string    `json:"player_id"`
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   time.Time `json:"ended_at"`
+	Games     int       `json:"games"`
+	Wins      int       `json:"wins"`
+	Losses    int       `json:"losses"`
+	Goals     int       `json:"goals"`
+	Assists   int       `json:"assists"`
+	Saves     int       `json:"saves"`
+	Shots     int       `json:"shots"`
+	Demos     int       `json:"demos"`
+}
+
 type PlayerAggregate struct {
 	PrimaryID string
 	Name      string

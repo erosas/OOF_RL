@@ -1,0 +1,74 @@
+<!-- Suggestion banner — shown when auto-detect finds a likely player -->
+<div id="session-suggest-banner" class="hidden bg-surface2 border border-rl-blue/30 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+  <span class="text-sm text-gray-300">Is this you? <span id="session-suggest-name" class="font-medium text-white"></span></span>
+  <div class="flex gap-2 shrink-0">
+    <button id="session-suggest-yes" class="text-xs bg-rl-blue text-white rounded px-3 py-1 hover:bg-rl-blue/80">Yes</button>
+    <button id="session-suggest-dismiss" class="text-xs text-gray-500 hover:text-gray-300">Dismiss</button>
+  </div>
+</div>
+
+<!-- Player picker + session controls -->
+<div class="flex items-start gap-3 mb-4">
+  <div class="flex-1">
+    <label class="text-xs text-gray-500 uppercase tracking-widest block mb-1">Tracking player</label>
+    <select id="session-player-select" class="w-full bg-surface2 border border-line rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-rl-blue">
+      <option value="">— select a player —</option>
+    </select>
+  </div>
+  <div class="flex flex-col items-end gap-1 shrink-0 pt-5">
+    <label class="text-xs text-gray-500 self-start">Session start</label>
+    <input type="datetime-local" id="session-since-input"
+      class="bg-surface2 border border-line rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-rl-blue">
+    <button id="session-reset-btn" class="text-xs text-rl-blue hover:underline">New session</button>
+  </div>
+</div>
+
+<!-- No player selected -->
+<div id="session-no-player" class="text-center text-gray-500 py-14 text-sm hidden">
+  Select a player above to track session stats.
+</div>
+
+<!-- Stats panel -->
+<div id="session-stats-panel" class="hidden">
+
+  <!-- Summary row -->
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    <div class="bg-surface border border-line rounded-xl p-4 text-center">
+      <div class="text-4xl font-extrabold tabular-nums" id="session-games">0</div>
+      <div class="text-xs text-gray-500 mt-1">Games</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl p-4 text-center">
+      <div class="flex items-baseline justify-center gap-2">
+        <span class="text-4xl font-extrabold tabular-nums text-green-400" id="session-wins">0</span>
+        <span class="text-gray-600 text-2xl">:</span>
+        <span class="text-4xl font-extrabold tabular-nums text-red-400" id="session-losses">0</span>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">W / L</div>
+    </div>
+    <div class="bg-surface border border-line rounded-xl p-4 text-center">
+      <div class="text-4xl font-extrabold tabular-nums text-rl-blue" id="session-elapsed">0m</div>
+      <div class="text-xs text-gray-500 mt-1">Duration</div>
+    </div>
+  </div>
+
+  <!-- Stat totals -->
+  <div class="bg-surface border border-line rounded-xl p-4 mb-4">
+    <div class="grid grid-cols-5 gap-2 text-center">
+      <div><div class="text-2xl font-bold" id="session-goals">0</div><div class="text-xs text-gray-500 mt-0.5">Goals</div></div>
+      <div><div class="text-2xl font-bold" id="session-assists">0</div><div class="text-xs text-gray-500 mt-0.5">Assists</div></div>
+      <div><div class="text-2xl font-bold" id="session-saves">0</div><div class="text-xs text-gray-500 mt-0.5">Saves</div></div>
+      <div><div class="text-2xl font-bold" id="session-shots">0</div><div class="text-xs text-gray-500 mt-0.5">Shots</div></div>
+      <div><div class="text-2xl font-bold" id="session-demos">0</div><div class="text-xs text-gray-500 mt-0.5">Demos</div></div>
+    </div>
+  </div>
+
+  <!-- Match list -->
+  <div class="text-xs text-gray-500 uppercase tracking-widest mb-2">Matches</div>
+  <div id="session-match-list" class="flex flex-col gap-1"></div>
+</div>
+
+<!-- Previous sessions -->
+<div id="session-history-section" class="hidden mt-6">
+  <div class="text-xs text-gray-500 uppercase tracking-widest mb-2">Previous Sessions</div>
+  <div id="session-history-list" class="flex flex-col gap-1"></div>
+</div>

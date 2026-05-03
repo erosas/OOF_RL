@@ -16,6 +16,7 @@ import (
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/mmr"
 )
 
 type Client struct {
@@ -23,6 +24,7 @@ type Client struct {
 	db           *db.DB
 	hub          *hub.Hub
 	kick         chan struct{}
+	dispatch     func(events.Envelope)
 	matchID      int64
 	matchGuid    string
 	overtime     bool
@@ -52,35 +54,30 @@ type capturePlayerMeta struct {
 }
 
 type captureMeta struct {
-	MetaVersion         int                  `json:"meta_version"`
-	MatchGuid           string               `json:"match_guid"`
-	StartedAtUTC        string               `json:"started_at_utc"`
-	EndedAtUTC          string               `json:"ended_at_utc"`
-	EndReason           string               `json:"end_reason"`
-	DurationMs          int64                `json:"duration_ms"`
-	PacketCount         int                  `json:"packet_count"`
-	ChunkSize           int                  `json:"chunk_size"`
-	ChunkCount          int                  `json:"chunk_count"`
-	NormalizedFiles     []string             `json:"normalized_files"`
-	WireFiles           []string             `json:"wire_files"`
-	CaptureDirectory    string               `json:"capture_directory"`
-	CaptureDirectoryUTC string               `json:"capture_directory_utc"`
-	Players             []capturePlayerMeta  `json:"players,omitempty"`
+	MetaVersion         int                 `json:"meta_version"`
+	MatchGuid           string              `json:"match_guid"`
+	StartedAtUTC        string              `json:"started_at_utc"`
+	EndedAtUTC          string              `json:"ended_at_utc"`
+	EndReason           string              `json:"end_reason"`
+	DurationMs          int64               `json:"duration_ms"`
+	PacketCount         int                 `json:"packet_count"`
+	ChunkSize           int                 `json:"chunk_size"`
+	ChunkCount          int                 `json:"chunk_count"`
+	NormalizedFiles     []string            `json:"normalized_files"`
+	WireFiles           []string            `json:"wire_files"`
+	CaptureDirectory    string              `json:"capture_directory"`
+	CaptureDirectoryUTC string              `json:"capture_directory_utc"`
+	Players             []capturePlayerMeta `json:"players,omitempty"`
 }
 
-// trnPlatformNorm normalises RL Stats API platform slugs to tracker.gg slugs.
-func trnPlatformNorm(platform string) string {
-	switch platform {
-	case "ps4", "ps5", "playstation":
-		return "psn"
-	case "xboxone", "xbox":
+// trnSlug returns the tracker.gg URL path segment for a given raw platform string.
+// Xbox uses "xbl" in tracker.gg URLs even though the canonical Platform value is "xbox".
+func trnSlug(raw string) string {
+	p := mmr.NormalizePlatform(raw)
+	if p == mmr.PlatformXbox {
 		return "xbl"
-	case "epicgames":
-		return "epic"
-	case "nintendo":
-		return "switch"
 	}
-	return platform
+	return string(p)
 }
 
 // trnProfileURL builds a tracker.gg profile URL from a RL primary ID and display name.
@@ -89,7 +86,7 @@ func trnProfileURL(primaryID, name string) string {
 	if sep < 1 {
 		return ""
 	}
-	plat := trnPlatformNorm(strings.ToLower(primaryID[:sep]))
+	plat := trnSlug(strings.ToLower(primaryID[:sep]))
 	rest := primaryID[sep+1:]
 	if end := strings.IndexAny(rest, "|:_"); end >= 0 {
 		rest = rest[:end]
@@ -131,6 +128,8 @@ type indexMarker struct {
 func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Client {
 	return &Client{cfg: cfg, db: database, hub: h, kick: make(chan struct{}, 1)}
 }
+
+func (c *Client) SetDispatch(fn func(events.Envelope)) { c.dispatch = fn }
 
 func (c *Client) Reconnect() {
 	select {
@@ -250,6 +249,9 @@ func (c *Client) handle(env events.Envelope, rawWire, normalized []byte) {
 		c.overtime = false
 		c.playlistType = nil
 	}
+	if c.dispatch != nil {
+		c.dispatch(env)
+	}
 }
 
 func (c *Client) handleMatchStart(env events.Envelope) {
@@ -261,9 +263,6 @@ func (c *Client) handleMatchStart(env events.Envelope) {
 		}
 	}
 
-	if !c.cfg.Storage.MatchMetadata {
-		return
-	}
 	if d.MatchGuid == "" {
 		return
 	}
@@ -288,7 +287,7 @@ func (c *Client) handleUpdateState(env events.Envelope) {
 	c.overtime = d.Game.BOvertime
 
 	// Only write match record once per match, not every tick.
-	if c.matchID == 0 && c.cfg.Storage.MatchMetadata && d.MatchGuid != "" {
+	if c.matchID == 0 && d.MatchGuid != "" {
 		id, err := c.db.UpsertMatch(d.MatchGuid, d.Game.Arena, time.Now())
 		if err == nil {
 			c.matchID = id
@@ -316,7 +315,7 @@ func (c *Client) handleUpdateState(env events.Envelope) {
 }
 
 func (c *Client) handleGoalScored(env events.Envelope) {
-	if !c.cfg.Storage.GoalEvents || c.matchID == 0 {
+	if c.matchID == 0 {
 		return
 	}
 	var d events.GoalScoredData
@@ -364,7 +363,7 @@ func (c *Client) handleMatchEnded(env events.Envelope) {
 	if c.matchID != 0 {
 		_ = c.db.EndMatch(c.matchID, d.WinnerTeamNum, c.overtime)
 	}
-	if c.cfg.Storage.PlayerMatchStats && c.matchID != 0 {
+	if c.matchID != 0 {
 		for _, p := range c.lastPlayers {
 			_ = c.db.UpsertPlayer(p.PrimaryId, p.Name)
 			_ = c.db.UpsertPlayerMatchStats(c.matchID, p.PrimaryId,
@@ -423,10 +422,7 @@ func (c *Client) flushRawPacketCapture() {
 		return
 	}
 
-	baseDir := strings.TrimSpace(c.cfg.Storage.RawPacketsDir)
-	if baseDir == "" {
-		baseDir = "captures"
-	}
+	baseDir := c.cfg.CapturesDir()
 	matchPart := sanitizePathPart(c.rawPacketGuid)
 	if matchPart == "" {
 		matchPart = "unknown_match"
@@ -502,7 +498,7 @@ func (c *Client) flushRawPacketCapture() {
 		sep := strings.IndexAny(p.PrimaryId, "|:_")
 		plat := ""
 		if sep >= 1 {
-			plat = trnPlatformNorm(strings.ToLower(p.PrimaryId[:sep]))
+			plat = trnSlug(strings.ToLower(p.PrimaryId[:sep]))
 		}
 		players = append(players, capturePlayerMeta{
 			Name:      p.Name,

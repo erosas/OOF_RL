@@ -1,0 +1,52 @@
+<div id="live-waiting" class="text-center text-gray-500 py-20 text-base">Waiting for a match to start…</div>
+<div id="live-match" class="hidden">
+
+  <!-- Scoreboard -->
+  <div class="flex items-center justify-between bg-surface border border-line rounded-xl px-8 py-5 mb-3">
+    <div class="flex items-center gap-4">
+      <span class="font-semibold text-lg" id="team0-name">Blue</span>
+      <span class="text-6xl font-extrabold tabular-nums leading-none" id="score0">0</span>
+    </div>
+    <div class="flex flex-col items-center gap-1 text-center">
+      <span class="text-gray-500 text-xs tracking-wide" id="live-arena">—</span>
+      <span class="text-2xl font-bold tabular-nums" id="live-clock">5:00</span>
+      <div class="flex items-center gap-2">
+        <span id="live-overtime" class="hidden bg-purple-700 text-white text-xs font-bold px-2 py-0.5 rounded">OT</span>
+        <span id="live-replay-badge" class="hidden text-purple-400 text-xs font-bold tracking-widest">REPLAY</span>
+      </div>
+      <span id="live-ball-speed" class="text-gray-600 text-xs tabular-nums mt-0.5"></span>
+    </div>
+    <div class="flex items-center gap-4 flex-row-reverse">
+      <span class="font-semibold text-lg" id="team1-name">Orange</span>
+      <span class="text-6xl font-extrabold tabular-nums leading-none" id="score1">0</span>
+    </div>
+  </div>
+
+  <!-- Possession bar -->
+  <div class="flex items-center gap-3 mb-4 px-1">
+    <span class="text-xs font-semibold w-10 text-right tabular-nums" id="possession-pct-blue" style="color:var(--rl-blue)">—</span>
+    <div class="flex flex-1 h-1.5 bg-surface2 rounded-full overflow-hidden">
+      <div id="possession-bar-blue" class="h-full bg-rl-blue transition-[width] duration-500" style="width:50%"></div>
+      <div id="possession-bar-orange" class="h-full bg-rl-orange transition-[width] duration-500" style="width:50%"></div>
+    </div>
+    <span class="text-xs font-semibold w-10 tabular-nums" id="possession-pct-orange" style="color:var(--rl-orange)">—</span>
+    <span class="text-gray-600 text-xs ml-1">touches</span>
+  </div>
+
+  <!-- Players grid -->
+  <div id="players-grid" class="players-grid"></div>
+  <div class="player-legend">
+    <span><b>G</b> Goals</span>
+    <span><b>A</b> Assists</span>
+    <span><b>Sv</b> Saves</span>
+    <span><b>Sh</b> Shots</span>
+    <span><b>Dm</b> Demos</span>
+    <span><b>Tch</b> Ball touches</span>
+    <span class="legend-sep">|</span>
+    <span class="status-chip status-chip-ss">SS</span><span>Supersonic</span>
+    <span class="status-chip status-chip-demo">DEMO</span><span>Demolished</span>
+    <span class="status-chip status-chip-boost">BOOST</span><span>Boosting</span>
+    <span class="status-chip">WALL</span><span>On wall</span>
+    <span class="status-chip">PS</span><span>Powersliding</span>
+  </div>
+</div>

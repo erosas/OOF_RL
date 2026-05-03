@@ -2,7 +2,7 @@ package rl
 
 import "testing"
 
-func TestTRNPlatformNorm(t *testing.T) {
+func TestTRNSlug(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"steam", "steam"},
 		{"ps4", "psn"},
@@ -16,9 +16,9 @@ func TestTRNPlatformNorm(t *testing.T) {
 		{"", ""},
 	}
 	for _, c := range cases {
-		got := trnPlatformNorm(c.in)
+		got := trnSlug(c.in)
 		if got != c.want {
-			t.Errorf("trnPlatformNorm(%q) = %q, want %q", c.in, got, c.want)
+			t.Errorf("trnSlug(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }

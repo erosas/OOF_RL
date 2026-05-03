@@ -395,156 +395,6 @@
 .detail-table .blue-row   { border-left: 3px solid var(--rl-blue);   }
 .detail-table .orange-row { border-left: 3px solid var(--rl-orange); }
 
-/* ─── Players view ──────────────────────────────────────────── */
-.player-expand-chevron {
-  font-size: 18px;
-  color: var(--muted);
-  transition: transform .15s;
-  flex-shrink: 0;
-}
-.player-card.expanded .player-expand-chevron { transform: rotate(90deg); color: var(--rl-blue); }
-.player-card { cursor: pointer; }
-
-.player-inline-panel {
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  border-top: none;
-  border-radius: 0 0 10px 10px;
-  padding: 16px 18px;
-  margin-bottom: 8px;
-}
-
-
-.player-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px 18px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: border-color .12s;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.player-card:hover        { border-color: var(--rl-blue); }
-.player-card-name         { font-weight: 600; font-size: 14px; }
-.player-card-id           { color: var(--muted); font-size: 11px; margin-top: 2px; }
-
-.player-stats-row { display: flex; gap: 16px; flex-wrap: wrap; }
-.stat-pill        { text-align: center; }
-.stat-pill .val   { font-size: 18px; font-weight: 700; }
-.stat-pill .lbl   { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
-
-/* ─── Tracker.gg profile section ───────────────────────────── */
-.trn-section {
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-}
-
-.trn-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.trn-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.trn-handle-wrap { flex: 1; }
-.trn-handle      { font-weight: 600; font-size: 0.875rem; }
-.trn-link        { font-size: 0.75rem; color: var(--rl-blue); }
-.trn-link:hover  { text-decoration: underline; }
-
-.trn-season-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.trn-ranks {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.trn-rank-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 8px;
-  text-align: center;
-}
-
-.trn-rank-icon {
-  width: 36px;
-  height: 36px;
-  margin: 0 auto 4px;
-  display: block;
-}
-
-.trn-rank-icon-placeholder {
-  width: 36px;
-  height: 36px;
-  margin: 0 auto 4px;
-  background: var(--line);
-  border-radius: 50%;
-}
-
-.trn-rank-name     { font-size: 0.75rem; font-weight: 600; color: var(--text); }
-.trn-rank-playlist { font-size: 0.65rem; color: var(--muted); margin-top: 1px; }
-.trn-rank-rating   { font-size: 0.75rem; color: var(--rl-blue); font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
-
-.trn-unavailable {
-  font-size: 0.7rem;
-  color: var(--muted);
-  margin-bottom: 12px;
-  font-style: italic;
-}
-
-.trn-lifetime-label {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-/* ─── Replay-only elements ──────────────────────────────────── */
-.replay-subtle { font-size: 10px; color: var(--muted); }
-
-.replay-summary-row { display: flex; flex-wrap: wrap; gap: 10px; }
-
-.replay-files-list {
-  max-height: 200px;
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.replay-file-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 10px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-}
-.replay-file-row:first-child { border-top: none; }
-.replay-file-name { font-family: Consolas, monospace; font-size: 11px; }
-
 /* ─── Ballchasing tab ───────────────────────────────────────── */
 .bc-status-bar {
   display: flex;
@@ -684,3 +534,259 @@
   text-decoration: none;
 }
 .bc-link:hover { text-decoration: underline; }
+
+/* Auto-upload notification banner */
+.bc-notify {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: rgba(62,207,114,.12);
+  color: var(--green);
+  border: 1px solid rgba(62,207,114,.2);
+}
+
+/* New-upload badge and card highlight */
+.bc-new-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(62,207,114,.15);
+  color: var(--green);
+}
+.bc-card-new {
+  border-color: rgba(62,207,114,.35);
+}
+
+/* Pagination buttons */
+.bc-page-btn {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  font-family: inherit;
+  transition: border-color .1s, color .1s;
+}
+.bc-page-btn:hover:not(:disabled) { border-color: var(--rl-blue); color: var(--rl-blue); }
+.bc-page-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ─── Settings panel layout ─────────────────────────────────── */
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.settings-panel-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-row:last-child { border-bottom: none; }
+
+.settings-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.settings-subhead {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding-top: 13px;
+  padding-bottom: 5px;
+  background: rgba(0,0,0,.15);
+  pointer-events: none;
+}
+
+.settings-input {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color .1s;
+  -moz-appearance: textfield;
+}
+.settings-input:focus { outline: none; border-color: var(--rl-blue); }
+.settings-input::-webkit-inner-spin-button { opacity: 0.4; }
+
+.settings-suffix {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  background: rgba(0,0,0,.1);
+}
+
+.settings-key-btn {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'Consolas', monospace;
+  cursor: pointer;
+  min-width: 52px;
+  text-align: center;
+  transition: border-color .1s;
+}
+.settings-key-btn:hover { border-color: var(--rl-blue); }
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-action {
+  background: var(--rl-blue);
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity .12s;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.btn-action:hover { opacity: 0.82; }
+
+.settings-details-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 4px 2px;
+  transition: color .1s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.settings-details-summary::before {
+  content: '›';
+  font-size: 15px;
+  transition: transform .15s;
+  display: inline-block;
+}
+details[open] .settings-details-summary::before { transform: rotate(90deg); }
+.settings-details-summary:hover { color: var(--text); }
+.settings-details-summary::-webkit-details-marker { display: none; }
+
+/* ─── Plugin list items ──────────────────────────────────────── */
+.plugin-item { border-bottom: 1px solid var(--line); }
+.plugin-item:last-child { border-bottom: none; }
+
+.plugin-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s;
+}
+.plugin-item-header:hover { background: rgba(255,255,255,.025); }
+
+.plugin-item-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background .2s, box-shadow .2s;
+}
+.plugin-item-dot.on  { background: var(--green); box-shadow: 0 0 5px rgba(62,207,114,.5); }
+.plugin-item-dot.off { background: var(--line); }
+
+.plugin-item-name {
+  font-size: 13px;
+  flex: 1;
+  transition: color .15s;
+}
+.plugin-item-name.disabled { color: var(--muted); }
+
+.plugin-item-arrow {
+  font-size: 14px;
+  color: var(--muted);
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+.plugin-item-arrow.open { transform: rotate(90deg); }
+
+.plugin-item-body {
+  border-top: 1px solid var(--line);
+  background: rgba(0,0,0,.1);
+}
+
+/* Help tooltip icon */
+.help-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid #374151; color: #6b7280; font-size: 10px;
+  cursor: help; position: relative; flex-shrink: 0; user-select: none;
+  vertical-align: middle; margin-left: 2px;
+}
+.help-icon .help-tip {
+  display: none; position: absolute; bottom: calc(100% + 4px); left: 50%;
+  transform: translateX(-50%); background: #111318; border: 1px solid #1f2433;
+  color: #9ca3af; font-size: 11px; line-height: 1.5;
+  padding: 6px 10px; border-radius: 6px; white-space: normal;
+  min-width: 180px; max-width: 260px; z-index: 200; pointer-events: none;
+}
+.help-icon:hover .help-tip { display: block; }
+
+/* Overlay drag/resize chrome — only shown in overlay-mode */
+.overlay-drag-bar {
+  display: none; position: fixed; top: 0; left: 0; right: 0; height: 30px;
+  background: rgba(10,11,14,0.9); border-bottom: 1px solid #1f2433;
+  align-items: center; padding: 0 8px; gap: 8px;
+  cursor: grab; z-index: 9999; user-select: none;
+}
+.overlay-mode .overlay-drag-bar { display: flex; }
+/* Push the sticky header below the fixed drag bar so nav tabs aren't obscured. */
+.overlay-mode header { margin-top: 30px; top: 30px; }
+.overlay-resize-grip {
+  display: none; position: fixed; bottom: 0; right: 0;
+  width: 18px; height: 18px; cursor: se-resize; z-index: 9999;
+  background: linear-gradient(135deg, transparent 50%, #374151 50%);
+}
+.overlay-mode .overlay-resize-grip { display: block; }
