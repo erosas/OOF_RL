@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,10 +15,13 @@ const (
 )
 
 // FallbackProvider tries providers sequentially in round-robin order.
+// A cursor advances on each call so no single provider is always hit first.
+// Providers that don't support the requested platform are skipped.
 // A short delay separates each provider within a round; a longer delay
-// is applied before cycling back to re-hit the same provider, to avoid throttling.
+// is applied before cycling back to re-hit the same provider.
 type FallbackProvider struct {
 	providers []Provider
+	cursor    atomic.Uint64
 }
 
 func NewFallbackProvider(providers ...Provider) *FallbackProvider {
@@ -42,36 +46,43 @@ func (f *FallbackProvider) Supports(platform Platform) bool {
 }
 
 func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
-	var supported []Provider
-	for _, p := range f.providers {
-		if p.Supports(id.Platform) {
-			supported = append(supported, p)
-		}
+	n := len(f.providers)
+	if n == 0 {
+		return nil, fmt.Errorf("mmr: no providers configured")
 	}
-	if len(supported) == 0 {
-		return nil, fmt.Errorf("mmr: no provider supports platform %s", id.Platform)
-	}
+
+	// Advance cursor so each call starts on a different provider.
+	start := int(f.cursor.Add(1)-1) % n
 
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
-			// Sleep before cycling back to re-hit the same providers.
 			delay := time.Duration(attempt) * retryBaseDelay
 			log.Printf("[mmr] all providers failed for %s|%s — retry %d/%d in %s",
 				id.Platform, id.PrimaryID, attempt, maxAttempts-1, delay)
 			time.Sleep(delay)
 		}
 
-		for i, p := range supported {
-			if i > 0 {
+		tried := 0
+		for i := 0; i < n; i++ {
+			p := f.providers[(start+i)%n]
+			if !p.Supports(id.Platform) {
+				continue
+			}
+			if tried > 0 {
 				time.Sleep(providerDelay)
 			}
+			tried++
 			ranks, err := p.Lookup(id)
 			if err == nil {
 				return ranks, nil
 			}
 			log.Printf("[mmr] %s failed for %s|%s: %v", p.Name(), id.Platform, id.PrimaryID, err)
 			lastErr = err
+		}
+
+		if tried == 0 {
+			return nil, fmt.Errorf("mmr: no provider supports platform %s", id.Platform)
 		}
 	}
 	return nil, lastErr

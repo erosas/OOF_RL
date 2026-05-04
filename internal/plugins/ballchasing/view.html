@@ -1,17 +1,32 @@
 <div id="bc-status" class="bc-status-bar mb-4"></div>
 <div id="bc-notify" class="bc-notify hidden"></div>
 
+<!-- Match Replays -->
 <div class="bc-section-block">
+  <div class="flex items-center justify-between mb-1">
+    <h2 class="bc-section-title">Match Replays</h2>
+    <div class="flex items-center gap-2">
+      <button id="bc-sync-btn" class="bc-sync-btn">Sync from Ballchasing</button>
+      <button id="bc-purge-btn" class="bc-purge-btn hidden">Delete Uploaded</button>
+      <div id="bc-matches-pager" class="flex items-center gap-2"></div>
+    </div>
+  </div>
+  <div id="bc-matches"></div>
+</div>
+
+<!-- Your Replays on Ballchasing -->
+<div class="bc-section-block mt-5">
   <div class="flex items-center justify-between mb-3">
-    <h2 class="bc-section-title">Uploaded Replays</h2>
+    <h2 class="bc-section-title">Your Replays on Ballchasing</h2>
     <div id="bc-uploaded-pager" class="flex items-center gap-2"></div>
   </div>
   <div id="bc-uploaded"></div>
 </div>
 
+<!-- Groups -->
 <div class="bc-section-block mt-5">
   <div class="flex items-center justify-between mb-3">
-    <h2 class="bc-section-title">Replay Groups</h2>
+    <h2 class="bc-section-title">Groups</h2>
     <div id="bc-groups-pager" class="flex items-center gap-2"></div>
   </div>
   <div id="bc-groups"></div>

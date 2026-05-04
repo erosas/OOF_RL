@@ -13,27 +13,53 @@ type store struct {
 // --- Models ---
 
 type BCUpload struct {
-	ReplayName    string    `json:"replay_name"`
-	BallchasingID string    `json:"ballchasing_id"`
-	BCURL         string    `json:"bc_url"`
-	UploadedAt    time.Time `json:"uploaded_at"`
+	ReplayName    string `json:"replay_name"`
+	BallchasingID string `json:"ballchasing_id"`
+}
+
+// MatchUploadStatus is returned by recentMatches.
+type MatchUploadStatus struct {
+	MatchGUID string    `json:"match_guid"`
+	Arena     string    `json:"arena"`
+	StartedAt time.Time `json:"started_at"`
 }
 
 // --- Queries ---
 
-func (s *store) upsertBCUpload(replayName, bcID, bcURL string) error {
+func (s *store) upsertBCUpload(replayName, bcID string) error {
 	_, err := s.conn.Exec(`
-		INSERT INTO bc_uploads(replay_name, ballchasing_id, bc_url, uploaded_at) VALUES(?,?,?,?)
+		INSERT INTO bc_uploads(replay_name, ballchasing_id) VALUES(?,?)
 		ON CONFLICT(replay_name) DO UPDATE SET
-			ballchasing_id=excluded.ballchasing_id,
-			bc_url=excluded.bc_url,
-			uploaded_at=excluded.uploaded_at`,
-		replayName, bcID, bcURL, time.Now())
+			ballchasing_id=excluded.ballchasing_id`,
+		replayName, bcID)
 	return err
 }
 
+// recentMatches returns matches that started at or after since, newest-first.
+func (s *store) recentMatches(since time.Time) ([]MatchUploadStatus, error) {
+	rows, err := s.conn.Query(`
+		SELECT match_guid, COALESCE(arena,''), started_at
+		FROM hist_matches
+		WHERE match_guid IS NOT NULL AND match_guid != '' AND started_at >= ?
+		ORDER BY started_at DESC
+		LIMIT 200`, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MatchUploadStatus
+	for rows.Next() {
+		var m MatchUploadStatus
+		if err := rows.Scan(&m.MatchGUID, &m.Arena, &m.StartedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func (s *store) allBCUploads() (map[string]BCUpload, error) {
-	rows, err := s.conn.Query(`SELECT replay_name, ballchasing_id, bc_url, uploaded_at FROM bc_uploads`)
+	rows, err := s.conn.Query(`SELECT replay_name, ballchasing_id FROM bc_uploads`)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +67,7 @@ func (s *store) allBCUploads() (map[string]BCUpload, error) {
 	out := map[string]BCUpload{}
 	for rows.Next() {
 		var u BCUpload
-		if err := rows.Scan(&u.ReplayName, &u.BallchasingID, &u.BCURL, &u.UploadedAt); err != nil {
+		if err := rows.Scan(&u.ReplayName, &u.BallchasingID); err != nil {
 			return nil, err
 		}
 		out[u.ReplayName] = u
