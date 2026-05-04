@@ -13,9 +13,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"OOF_RL/internal/config"
@@ -35,6 +35,7 @@ type Plugin struct {
 	cfg           *config.Config
 	store         *store
 	hub           *hub.Hub
+	startupTime   time.Time
 	mu            sync.Mutex
 	uploadPending bool
 }
@@ -43,14 +44,12 @@ func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Plugin {
 	if err := database.RunMigration(`
 	CREATE TABLE IF NOT EXISTS bc_uploads (
 		replay_name    TEXT PRIMARY KEY,
-		ballchasing_id TEXT NOT NULL,
-		bc_url         TEXT NOT NULL,
-		uploaded_at    DATETIME NOT NULL
+		ballchasing_id TEXT NOT NULL
 	);
 `); err != nil {
 		log.Printf("[ballchasing] migrate: %v", err)
 	}
-	return &Plugin{cfg: cfg, store: &store{conn: database.Conn()}, hub: h}
+	return &Plugin{cfg: cfg, store: &store{conn: database.Conn()}, hub: h, startupTime: time.Now()}
 }
 
 func (p *Plugin) ID() string         { return "ballchasing" }
@@ -63,10 +62,12 @@ func (p *Plugin) NavTab() plugin.NavTab {
 
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ballchasing/ping", p.handlePing)
+	mux.HandleFunc("/api/ballchasing/local-replays/purge", p.handlePurgeReplays)
+	mux.HandleFunc("/api/ballchasing/matches", p.handleBCMatches)
+	mux.HandleFunc("/api/ballchasing/sync", p.handleSync)
 	mux.HandleFunc("/api/ballchasing/replays", p.handleReplays)
 	mux.HandleFunc("/api/ballchasing/groups", p.handleGroups)
 	mux.HandleFunc("/api/ballchasing/upload", p.handleUpload)
-	mux.HandleFunc("/api/ballchasing/uploads", p.handleUploads)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting {
@@ -79,6 +80,13 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 			Default:     "",
 			Placeholder: "your-api-key",
 		},
+		{
+			Key:         "ballchasing_delete_after_upload",
+			Label:       "Delete replay after upload",
+			Type:        plugin.SettingTypeCheckbox,
+			Description: "Automatically delete the local .replay file from disk after it has been successfully uploaded to Ballchasing.",
+			Default:     "false",
+		},
 	}
 }
 
@@ -86,32 +94,44 @@ func (p *Plugin) ApplySettings(values map[string]string) error {
 	if v, ok := values["ballchasing_api_key"]; ok {
 		p.cfg.BallchasingAPIKey = v
 	}
+	if v, ok := values["ballchasing_delete_after_upload"]; ok {
+		p.cfg.BallchasingDeleteAfterUpload = v == "true" || v == "1" || v == "on"
+	}
 	return nil
 }
 
-// HandleEvent triggers auto-upload 5 seconds after each match ends.
+// HandleEvent fires the save-replay reminder on MatchEnded (while the user is
+// still on the post-match screen), and triggers auto-upload on MatchDestroyed.
 func (p *Plugin) HandleEvent(env events.Envelope) {
-	if env.Event != "MatchDestroyed" || p.cfg.BallchasingAPIKey == "" {
-		return
-	}
-	p.mu.Lock()
-	if p.uploadPending {
-		p.mu.Unlock()
-		return
-	}
-	p.uploadPending = true
-	p.mu.Unlock()
+	switch env.Event {
+	case "MatchEnded":
+		// Remind user to save the replay while they can still act on it.
+		evt, _ := json.Marshal(map[string]any{"Event": "bc:save-replay-reminder"})
+		p.hub.Broadcast(evt)
 
-	go func() {
-		defer func() {
-			p.mu.Lock()
-			p.uploadPending = false
+	case "MatchDestroyed":
+		if p.cfg.BallchasingAPIKey == "" {
+			return
+		}
+		p.mu.Lock()
+		if p.uploadPending {
 			p.mu.Unlock()
+			return
+		}
+		p.uploadPending = true
+		p.mu.Unlock()
+
+		go func() {
+			defer func() {
+				p.mu.Lock()
+				p.uploadPending = false
+				p.mu.Unlock()
+			}()
+			// Give RL time to finish writing the replay file to disk.
+			time.Sleep(12 * time.Second)
+			p.autoUpload()
 		}()
-		// Give RL time to finish writing the replay file to disk.
-		time.Sleep(12 * time.Second)
-		p.autoUpload()
-	}()
+	}
 }
 
 func (p *Plugin) Assets() fs.FS { return viewFS }
@@ -134,9 +154,8 @@ func (p *Plugin) bcDo(ctx context.Context, method, path string, body io.Reader, 
 // -- Auto-upload after match end --
 
 type autoUploadResult struct {
-	Name  string `json:"name"`
-	BcID  string `json:"bc_id"`
-	BcURL string `json:"bc_url"`
+	Name string `json:"name"`
+	BcID string `json:"bc_id"`
 }
 
 func (p *Plugin) autoUpload() {
@@ -169,11 +188,13 @@ func (p *Plugin) autoUpload() {
 		if _, ok := existing[name]; ok {
 			continue
 		}
-		// Only auto-upload recent replays — older ones can be uploaded manually.
-		if info, err2 := e.Info(); err2 == nil && time.Since(replayCreatedAt(info)) > 30*time.Minute {
+		// Only auto-upload recent replays (written since startup).
+		info, err2 := e.Info()
+		if err2 != nil || info.ModTime().Before(p.startupTime) {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, name))
+		fullPath := filepath.Join(dir, name)
+		data, err := os.ReadFile(fullPath)
 		if err != nil {
 			log.Printf("[bc] auto-upload read %s: %v", name, err)
 			continue
@@ -185,7 +206,7 @@ func (p *Plugin) autoUpload() {
 		_, _ = fw.Write(data)
 		mw.Close()
 
-		resp, err := p.bcDo(ctx, http.MethodPost, "/api/v2/upload?visibility=public-team", &buf, mw.FormDataContentType())
+		resp, err := p.bcDo(ctx, http.MethodPost, "/api/v2/upload?visibility=unlisted", &buf, mw.FormDataContentType())
 		if err != nil {
 			log.Printf("[bc] auto-upload %s: %v", name, err)
 			continue
@@ -198,10 +219,14 @@ func (p *Plugin) autoUpload() {
 				ID string `json:"id"`
 			}
 			if json.Unmarshal(body, &res) == nil && res.ID != "" {
-				bcURL := "https://ballchasing.com/replay/" + res.ID
-				_ = p.store.upsertBCUpload(name, res.ID, bcURL)
-				uploaded = append(uploaded, autoUploadResult{Name: name, BcID: res.ID, BcURL: bcURL})
+				_ = p.store.upsertBCUpload(name, res.ID)
+				uploaded = append(uploaded, autoUploadResult{Name: name, BcID: res.ID})
 				log.Printf("[bc] auto-uploaded %s → %s", name, res.ID)
+				if p.cfg.BallchasingDeleteAfterUpload {
+					if rmErr := os.Remove(fullPath); rmErr != nil {
+						log.Printf("[bc] auto-upload delete %s: %v", name, rmErr)
+					}
+				}
 			}
 		} else {
 			log.Printf("[bc] auto-upload %s: BC returned %d", name, resp.StatusCode)
@@ -225,7 +250,7 @@ func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}
-	resp, err := p.bcDo(r.Context(), http.MethodGet, "/api/replays?count=1", nil, "")
+	resp, err := p.bcDo(r.Context(), http.MethodGet, "/api/", nil, "")
 	if err != nil {
 		httputil.JSONError(w, 502, err.Error())
 		return
@@ -239,17 +264,12 @@ func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var result struct {
-		List []struct {
-			Uploader struct {
-				Name    string `json:"name"`
-				SteamID string `json:"steam_id"`
-				Avatar  string `json:"avatar"`
-			} `json:"uploader"`
-		} `json:"list"`
+		Name    string `json:"name"`
+		SteamID string `json:"steam_id"`
+		Avatar  string `json:"avatar"`
 	}
-	if err := json.Unmarshal(body, &result); err == nil && len(result.List) > 0 {
-		u := result.List[0].Uploader
-		httputil.WriteJSON(w, map[string]string{"name": u.Name, "steam_id": u.SteamID, "avatar": u.Avatar})
+	if err := json.Unmarshal(body, &result); err == nil && result.Name != "" {
+		httputil.WriteJSON(w, map[string]string{"name": result.Name, "steam_id": result.SteamID, "avatar": result.Avatar})
 		return
 	}
 	httputil.WriteJSON(w, map[string]string{"name": "(connected)"})
@@ -264,7 +284,7 @@ func (p *Plugin) handleReplays(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.RawQuery; q != "" {
 		path += "?" + q
 	} else {
-		path += "?count=50&sort-by=replay-date&sort-dir=desc"
+		path += "?uploader=me&count=50&sort-by=replay-date&sort-dir=desc"
 	}
 	resp, err := p.bcDo(r.Context(), http.MethodGet, path, nil, "")
 	if err != nil {
@@ -324,7 +344,13 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Visibility == "" {
-		req.Visibility = "public-team"
+		req.Visibility = "unlisted"
+	}
+	switch req.Visibility {
+	case "public", "unlisted", "private":
+	default:
+		httputil.JSONError(w, 400, "invalid visibility")
+		return
 	}
 	if filepath.Base(req.ReplayName) != req.ReplayName {
 		httputil.JSONError(w, 400, "invalid replay name")
@@ -375,8 +401,12 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 			ID string `json:"id"`
 		}
 		if json.Unmarshal(body, &uploadResp) == nil && uploadResp.ID != "" {
-			bcURL := "https://ballchasing.com/replay/" + uploadResp.ID
-			_ = p.store.upsertBCUpload(req.ReplayName, uploadResp.ID, bcURL)
+			_ = p.store.upsertBCUpload(req.ReplayName, uploadResp.ID)
+			if p.cfg.BallchasingDeleteAfterUpload {
+				if rmErr := os.Remove(fullPath); rmErr != nil {
+					log.Printf("[bc] upload delete %s: %v", req.ReplayName, rmErr)
+				}
+			}
 		}
 	}
 
@@ -385,21 +415,220 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-func (p *Plugin) handleUploads(w http.ResponseWriter, r *http.Request) {
-	uploads, err := p.store.allBCUploads()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+// handlePurgeReplays deletes local .replay files that have already been uploaded to BC.
+func (p *Plugin) handlePurgeReplays(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
 		return
 	}
-	httputil.WriteJSON(w, uploads)
+	dir := detectReplayDir()
+	if dir == "" {
+		httputil.JSONError(w, 500, "replay directory not found")
+		return
+	}
+	uploaded, err := p.store.allBCUploads()
+	if err != nil {
+		httputil.JSONError(w, 500, err.Error())
+		return
+	}
+	deleted := 0
+	for name := range uploaded {
+		if err := os.Remove(filepath.Join(dir, name)); err == nil {
+			deleted++
+		}
+	}
+	httputil.WriteJSON(w, map[string]int{"deleted": deleted})
 }
 
-// replayCreatedAt returns the Windows file creation time, falling back to ModTime.
-func replayCreatedAt(info os.FileInfo) time.Time {
-	if stat, ok := info.Sys().(*syscall.Win32FileAttributeData); ok {
-		return time.Unix(0, stat.CreationTime.Nanoseconds())
+// handleBCMatches returns matches from this app session with their replay/upload status.
+func (p *Plugin) handleBCMatches(w http.ResponseWriter, r *http.Request) {
+	matches, err := p.store.recentMatches(p.startupTime)
+	if err != nil {
+		httputil.JSONError(w, 500, err.Error())
+		return
 	}
-	return info.ModTime()
+	uploads, err := p.store.allBCUploads()
+	if err != nil {
+		httputil.JSONError(w, 500, err.Error())
+		return
+	}
+
+	// Only consider replay files written since startup — keeps the assignment
+	// pool small and prevents matching files from old sessions.
+	dir := detectReplayDir()
+	allFiles := scanReplayFiles(dir)
+	var sessionFiles []replayFileEntry
+	for _, f := range allFiles {
+		if !f.modTime.Before(p.startupTime) {
+			sessionFiles = append(sessionFiles, f)
+		}
+	}
+
+	// One-to-one greedy assignment: each file goes to the latest eligible match.
+	fileForMatch := matchReplayFiles(sessionFiles, matches)
+
+	type matchRow struct {
+		MatchGUID    string    `json:"match_guid"`
+		Arena        string    `json:"arena"`
+		StartedAt    time.Time `json:"started_at"`
+		ReplayExists bool      `json:"replay_exists"`
+		ReplayName   string    `json:"replay_name,omitempty"`
+		Uploaded     bool      `json:"uploaded"`
+		BcID         string    `json:"bc_id,omitempty"`
+		BcURL        string    `json:"bc_url,omitempty"`
+	}
+	out := make([]matchRow, 0, len(matches))
+	for i, m := range matches {
+		normGUID := normalizeGUID(m.MatchGUID)
+		replayName := fileForMatch[i]
+
+		// Check bc_uploads by actual filename first, then by normalised GUID
+		// (GUID key is written by the sync-from-BC handler).
+		var bcID string
+		if replayName != "" {
+			if u, ok := uploads[replayName]; ok {
+				bcID = u.BallchasingID
+			}
+		}
+		if bcID == "" {
+			if u, ok := uploads[normGUID+".replay"]; ok {
+				bcID = u.BallchasingID
+			}
+		}
+
+		var bcURL string
+		if bcID != "" {
+			bcURL = "https://ballchasing.com/replay/" + bcID
+		}
+
+		out = append(out, matchRow{
+			MatchGUID:    normGUID,
+			Arena:        m.Arena,
+			StartedAt:    m.StartedAt,
+			ReplayExists: replayName != "",
+			ReplayName:   replayName,
+			Uploaded:     bcID != "",
+			BcID:         bcID,
+			BcURL:        bcURL,
+		})
+	}
+	httputil.WriteJSON(w, out)
+}
+
+// handleSync fetches the caller's replays from Ballchasing and backfills
+// bc_uploads for any that match a known hist_matches entry.
+func (p *Plugin) handleSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	if p.cfg.BallchasingAPIKey == "" {
+		httputil.JSONError(w, 400, "ballchasing API key not configured")
+		return
+	}
+
+	// BC paginates; fetch up to 200 most-recent replays for now.
+	resp, err := p.bcDo(r.Context(), http.MethodGet,
+		"/api/replays?uploader=me&count=200&sort-by=replay-date&sort-dir=desc", nil, "")
+	if err != nil {
+		httputil.JSONError(w, 502, err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		List []struct {
+			ID             string `json:"id"`
+			RocketLeagueID string `json:"rocket_league_id"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("[bc] sync: failed to parse response body: %s", string(body))
+		httputil.JSONError(w, 502, "failed to parse BC response")
+		return
+	}
+
+	log.Printf("[bc] sync: BC returned %d replays", len(result.List))
+	if len(result.List) > 0 {
+		first, _ := json.Marshal(result.List[0])
+		log.Printf("[bc] sync: first entry fields: %s", string(first))
+	}
+
+	synced := 0
+	for _, rp := range result.List {
+		guid := normalizeGUID(rp.RocketLeagueID)
+		if guid == "" || rp.ID == "" {
+			continue
+		}
+		if err := p.store.upsertBCUpload(guid+".replay", rp.ID); err != nil {
+			log.Printf("[bc] sync upsert %s: %v", guid, err)
+			continue
+		}
+		synced++
+	}
+	log.Printf("[bc] sync: %d replays backfilled from Ballchasing", synced)
+	httputil.WriteJSON(w, map[string]int{"synced": synced})
+}
+
+// normalizeGUID uppercases and strips dashes so BC's rocket_league_id format
+// matches the RL replay filenames (e.g. "024690394AE0B6BB20BBD1A3EFB2DA1E").
+func normalizeGUID(s string) string {
+	return strings.ToUpper(strings.ReplaceAll(s, "-", ""))
+}
+
+// --- Replay file helpers ---
+
+type replayFileEntry struct {
+	name    string
+	modTime time.Time
+}
+
+func scanReplayFiles(dir string) []replayFileEntry {
+	if dir == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var files []replayFileEntry
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".replay") {
+			continue
+		}
+		if info, err := e.Info(); err == nil {
+			files = append(files, replayFileEntry{name: e.Name(), modTime: info.ModTime()})
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].modTime.Before(files[j].modTime) })
+	return files
+}
+
+// matchReplayFiles does a one-to-one greedy assignment of replay files to matches.
+// Each file is assigned to the most-recently-started eligible match (started before
+// file modTime, within a 30-min window) that hasn't already claimed a file.
+// This prevents a single file matching multiple back-to-back matches.
+func matchReplayFiles(files []replayFileEntry, matches []MatchUploadStatus) map[int]string {
+	result := make(map[int]string)
+	const window = 30 * time.Minute
+	for _, f := range files {
+		bestIdx := -1
+		for i, m := range matches {
+			if _, taken := result[i]; taken {
+				continue
+			}
+			if m.StartedAt.Before(f.modTime) && f.modTime.Before(m.StartedAt.Add(window)) {
+				if bestIdx == -1 || m.StartedAt.After(matches[bestIdx].StartedAt) {
+					bestIdx = i
+				}
+			}
+		}
+		if bestIdx >= 0 {
+			result[bestIdx] = f.name
+		}
+	}
+	return result
 }
 
 func detectReplayDir() string {
@@ -421,12 +650,9 @@ func detectReplayDir() string {
 
 	home := os.Getenv("USERPROFILE")
 	if home != "" {
-		// OneDrive-synced Documents (most common on modern Windows)
 		add(filepath.Join(home, "OneDrive", "Documents"))
-		// Standard Documents
 		add(filepath.Join(home, "Documents"))
 	}
-	// OneDrive environment variables (personal and work accounts)
 	if od := os.Getenv("OneDriveConsumer"); od != "" {
 		add(filepath.Join(od, "Documents"))
 	}

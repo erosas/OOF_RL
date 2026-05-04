@@ -11,23 +11,6 @@ func NewPlayerIdentity(platform, primaryID, displayName string) PlayerIdentity {
 	return PlayerIdentity{
 		PrimaryID:   primaryID,
 		DisplayName: displayName,
-		Platform:    normalizePlatform(platform),
-	}
-}
-
-func normalizePlatform(raw string) Platform {
-	switch raw {
-	case "Steam":
-		return PlatformSteam
-	case "Epic":
-		return PlatformEpic
-	case "PS4", "PS5", "PSN":
-		return PlatformPSN
-	case "XboxOne", "Xbox":
-		return PlatformXbox
-	case "Switch":
-		return PlatformSwitch
-	default:
-		return Platform(raw)
+		Platform:    NormalizePlatform(platform),
 	}
 }

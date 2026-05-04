@@ -23,7 +23,8 @@ type Config struct {
 	DataDir                string          `toml:"data_dir"                  json:"data_dir"`
 	RLInstallPath          string          `toml:"rl_install_path"           json:"rl_install_path"`
 	TrackerCacheTTLMinutes int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
-	BallchasingAPIKey      string          `toml:"ballchasing_api_key"       json:"-"`
+	BallchasingAPIKey             string          `toml:"ballchasing_api_key"              json:"-"`
+	BallchasingDeleteAfterUpload  bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
 	OverlayHotkey          string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
 	OverlayX               int             `toml:"overlay_x"                 json:"overlay_x"`
 	OverlayY               int             `toml:"overlay_y"                 json:"overlay_y"`
