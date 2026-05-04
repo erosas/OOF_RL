@@ -107,11 +107,11 @@ func platformAndLookup(id mmr.PlayerIdentity) (platform, lookup string) {
 	case mmr.PlatformSteam:
 		return "steam", id.PrimaryID
 	case mmr.PlatformEpic:
-		return "epic", orFallback(id.DisplayName, id.PrimaryID)
+		return "epic", mmr.OrFallback(id.DisplayName, id.PrimaryID)
 	case mmr.PlatformPSN:
-		return "PS4", orFallback(id.DisplayName, id.PrimaryID)
+		return "PS4", mmr.OrFallback(id.DisplayName, id.PrimaryID)
 	case mmr.PlatformXbox:
-		return "xbox", orFallback(id.DisplayName, id.PrimaryID)
+		return "xbox", mmr.OrFallback(id.DisplayName, id.PrimaryID)
 	case mmr.PlatformSwitch:
 		return "", "" // rlstats.net dropped Switch support
 	default:
@@ -282,23 +282,4 @@ func parseMMRFallback(html string) ([]mmr.PlaylistRank, error) {
 		return nil, fmt.Errorf("rlstats: no valid MMR values found")
 	}
 	return ranks, nil
-}
-
-func orFallback(s, fallback string) string {
-	if s != "" {
-		return s
-	}
-	return fallback
-}
-
-func isAllAsterisks(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, c := range s {
-		if c != '*' {
-			return false
-		}
-	}
-	return true
 }

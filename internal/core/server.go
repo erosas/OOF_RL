@@ -363,7 +363,7 @@ func (s *Server) handleTrackerProfile(w http.ResponseWriter, r *http.Request) {
 		primaryID = primaryID[:end]
 	}
 
-	if trackerIsAllAsterisks(primaryID) || (rawPlatform != "steam" && trackerIsAllAsterisks(playerName)) {
+	if mmr.IsAllAsterisks(primaryID) || (rawPlatform != "steam" && mmr.IsAllAsterisks(playerName)) {
 		httputil.JSONError(w, 400, "masked player name")
 		return
 	}
@@ -408,20 +408,10 @@ func (s *Server) handleTrackerProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func trackerWriteRankResponse(w http.ResponseWriter, cached bool, fetchedAt time.Time, ranks []mmr.PlaylistRank, source string) {
-	w.Header().Set("Content-Type", "application/json")
-	b, _ := json.Marshal(ranks)
-	fmt.Fprintf(w, `{"cached":%t,"fetched_at":%q,"source":%q,"ranks":%s}`,
-		cached, fetchedAt.UTC().Format(time.RFC3339), source, b)
-}
-
-func trackerIsAllAsterisks(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, c := range s {
-		if c != '*' {
-			return false
-		}
-	}
-	return true
+	httputil.WriteJSON(w, map[string]any{
+		"cached":     cached,
+		"fetched_at": fetchedAt.UTC().Format(time.RFC3339),
+		"source":     source,
+		"ranks":      ranks,
+	})
 }
