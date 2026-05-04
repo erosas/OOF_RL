@@ -206,7 +206,7 @@ func (p *Plugin) autoUpload() {
 		_, _ = fw.Write(data)
 		mw.Close()
 
-		resp, err := p.bcDo(ctx, http.MethodPost, "/api/v2/upload?visibility=public-team", &buf, mw.FormDataContentType())
+		resp, err := p.bcDo(ctx, http.MethodPost, "/api/v2/upload?visibility=unlisted", &buf, mw.FormDataContentType())
 		if err != nil {
 			log.Printf("[bc] auto-upload %s: %v", name, err)
 			continue
@@ -344,7 +344,13 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Visibility == "" {
-		req.Visibility = "public-team"
+		req.Visibility = "unlisted"
+	}
+	switch req.Visibility {
+	case "public", "unlisted", "private":
+	default:
+		httputil.JSONError(w, 400, "invalid visibility")
+		return
 	}
 	if filepath.Base(req.ReplayName) != req.ReplayName {
 		httputil.JSONError(w, 400, "invalid replay name")

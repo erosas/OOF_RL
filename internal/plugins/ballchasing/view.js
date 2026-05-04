@@ -115,7 +115,7 @@ async function uploadMatchReplay(replayName, btn) {
     const res = await fetch('/api/ballchasing/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ replay_name: replayName, visibility: 'public-team' }),
+      body: JSON.stringify({ replay_name: replayName, visibility: 'unlisted' }),
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
