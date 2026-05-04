@@ -141,3 +141,13 @@ type CrossbarHitData struct {
 	ImpactForce   float64   `json:"ImpactForce"`
 	BallLastTouch LastTouch `json:"BallLastTouch"`
 }
+
+// StatfeedEvent fires for each in-game stat notification.
+// EventName values: "Goal", "OwnGoal", "Save", "EpicSave", "Assist", "Demolish", "Shot".
+// MainTarget is the actor; SecondaryTarget is the victim (only present for Demolish).
+type StatfeedEventData struct {
+	MatchGuid       string     `json:"MatchGuid"`
+	EventName       string     `json:"EventName"`
+	MainTarget      PlayerRef  `json:"MainTarget"`
+	SecondaryTarget *PlayerRef `json:"SecondaryTarget,omitempty"`
+}

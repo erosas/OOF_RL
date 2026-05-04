@@ -28,6 +28,27 @@
   Select a player above to track session stats.
 </div>
 
+<!-- Player selected but session not yet started -->
+<div id="session-not-started" class="hidden text-center py-14">
+  <div class="text-gray-500 text-sm mb-4">Waiting for first game to start session.</div>
+  <button id="session-start-btn" class="text-xs bg-rl-blue text-white rounded-lg px-4 py-2 hover:bg-rl-blue/80">Start Now</button>
+</div>
+
+<!-- This Game (live — shown only while a match is active) -->
+<div id="session-live-game" class="hidden bg-rl-blue/5 border border-rl-blue/30 rounded-xl p-4 mb-4">
+  <div class="text-xs text-rl-blue uppercase tracking-widest mb-3 flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-rl-blue animate-pulse inline-block"></span>
+    This Game
+  </div>
+  <div class="grid grid-cols-5 gap-2 text-center">
+    <div><div class="text-2xl font-bold" id="live-game-goals">0</div><div class="text-xs text-gray-500 mt-0.5">Goals</div></div>
+    <div><div class="text-2xl font-bold" id="live-game-assists">0</div><div class="text-xs text-gray-500 mt-0.5">Assists</div></div>
+    <div><div class="text-2xl font-bold" id="live-game-saves">0</div><div class="text-xs text-gray-500 mt-0.5">Saves</div></div>
+    <div><div class="text-2xl font-bold" id="live-game-shots">0</div><div class="text-xs text-gray-500 mt-0.5">Shots</div></div>
+    <div><div class="text-2xl font-bold" id="live-game-demos">0</div><div class="text-xs text-gray-500 mt-0.5">Demos</div></div>
+  </div>
+</div>
+
 <!-- Stats panel -->
 <div id="session-stats-panel" class="hidden">
 

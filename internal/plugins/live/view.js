@@ -161,7 +161,8 @@ function boostClass(b) {
 }
 
 function flashGoal(data) {
-  const scorer = data.Scorer ? data.Scorer.Name : '?';
+  if (!data.Scorer || !data.Scorer.Name) return;
+  const scorer = data.Scorer.Name;
   const banner = document.createElement('div');
   banner.style.cssText = `
     position:fixed;top:60px;left:50%;transform:translateX(-50%);

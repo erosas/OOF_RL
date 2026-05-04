@@ -20,6 +20,9 @@ type Setting struct {
 	Default     string         `json:"default"`
 	Options     []SelectOption `json:"options,omitempty"`
 	Placeholder string         `json:"placeholder,omitempty"`
+	// Developer marks the setting as intended for developers/debugging only.
+	// The UI hides these in a collapsed section to discourage casual enabling.
+	Developer bool `json:"developer,omitempty"`
 }
 
 // SelectOption is one item in a SettingTypeSelect control.

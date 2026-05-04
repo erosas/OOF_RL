@@ -13,23 +13,20 @@ import (
 	"time"
 
 	"OOF_RL/internal/config"
-	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
 )
 
 type Client struct {
-	cfg          *config.Config
-	db           *db.DB
-	hub          *hub.Hub
-	kick         chan struct{}
-	dispatch     func(events.Envelope)
-	matchID      int64
-	matchGuid    string
-	overtime     bool
-	playlistType *int
-	lastPlayers  map[string]events.Player // accumulated player state keyed by PrimaryId, flushed to DB at match end
+	cfg      *config.Config
+	hub      *hub.Hub
+	kick     chan struct{}
+	dispatch func(events.Envelope)
+	// matchGuid and lastPlayers are tracked solely for raw-packet-capture metadata.
+	// All match/player/event DB persistence is owned by the history plugin via HandleEvent.
+	matchGuid   string
+	lastPlayers map[string]events.Player
 
 	rawPacketCapture    []capturedPacket
 	rawPacketGuid       string
@@ -125,8 +122,8 @@ type indexMarker struct {
 	GoalTime    float64 `json:"goal_time,omitempty"`
 }
 
-func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Client {
-	return &Client{cfg: cfg, db: database, hub: h, kick: make(chan struct{}, 1)}
+func New(cfg *config.Config, h *hub.Hub) *Client {
+	return &Client{cfg: cfg, hub: h, kick: make(chan struct{}, 1)}
 }
 
 func (c *Client) SetDispatch(fn func(events.Envelope)) { c.dispatch = fn }
@@ -208,8 +205,8 @@ func (c *Client) connect() error {
 
 		// Re-encode normalised envelope for browser clients
 		normalized, _ := json.Marshal(env)
-		c.hub.Broadcast(normalized)
 		c.handle(env, rawWire, normalized)
+		c.hub.Broadcast(normalized)
 	}
 }
 
@@ -235,19 +232,12 @@ func (c *Client) handle(env events.Envelope, rawWire, normalized []byte) {
 		if !capturedBefore {
 			c.captureRawPacketIfActive(rawWire, normalized)
 		}
-	case "GoalScored":
-		c.handleGoalScored(env)
-	case "BallHit":
-		c.handleBallHit(env)
 	case "MatchEnded":
 		c.handleMatchEnded(env)
 	case "MatchDestroyed":
 		c.closeRawPacketCapture("MatchDestroyed")
 		c.lastPlayers = nil
-		c.matchID = 0
 		c.matchGuid = ""
-		c.overtime = false
-		c.playlistType = nil
 	}
 	if c.dispatch != nil {
 		c.dispatch(env)
@@ -262,16 +252,6 @@ func (c *Client) handleMatchStart(env events.Envelope) {
 			c.matchGuid = d.MatchGuid
 		}
 	}
-
-	if d.MatchGuid == "" {
-		return
-	}
-	id, err := c.db.UpsertMatch(d.MatchGuid, "", time.Now())
-	if err != nil {
-		log.Printf("[rl] upsert match: %v", err)
-		return
-	}
-	c.matchID = id
 }
 
 func (c *Client) handleUpdateState(env events.Envelope) {
@@ -284,18 +264,7 @@ func (c *Client) handleUpdateState(env events.Envelope) {
 		c.matchGuid = d.MatchGuid
 	}
 
-	c.overtime = d.Game.BOvertime
-
-	// Only write match record once per match, not every tick.
-	if c.matchID == 0 && d.MatchGuid != "" {
-		id, err := c.db.UpsertMatch(d.MatchGuid, d.Game.Arena, time.Now())
-		if err == nil {
-			c.matchID = id
-		}
-	}
-
-	// Merge player state into the accumulation map so players who leave
-	// mid-match are still captured at end-of-match DB flush.
+	// Accumulate player state for raw-packet-capture metadata only.
 	if len(d.Players) > 0 {
 		if c.lastPlayers == nil {
 			c.lastPlayers = make(map[string]events.Player)
@@ -306,77 +275,12 @@ func (c *Client) handleUpdateState(env events.Envelope) {
 			}
 		}
 	}
-
-	// Persist playlist type once per match when first seen.
-	if c.matchID != 0 && d.Game.Playlist != nil && c.playlistType == nil {
-		c.playlistType = d.Game.Playlist
-		_ = c.db.UpdateMatchPlaylist(c.matchID, *d.Game.Playlist)
-	}
 }
 
-func (c *Client) handleGoalScored(env events.Envelope) {
-	if c.matchID == 0 {
-		return
-	}
-	var d events.GoalScoredData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
-		return
-	}
-	// RL fires GoalScored twice per goal; the second (during goal replay) has an empty scorer.
-	if d.Scorer.PrimaryId == "" {
-		return
-	}
-	assisterID, assisterName := "", ""
-	if d.Assister != nil {
-		assisterID = d.Assister.PrimaryId
-		assisterName = d.Assister.Name
-	}
-	_ = c.db.InsertGoal(c.matchID,
-		d.Scorer.PrimaryId, d.Scorer.Name, assisterID, assisterName, d.BallLastTouch.Player.PrimaryId,
-		d.GoalSpeed, d.GoalTime,
-		d.ImpactLocation.X, d.ImpactLocation.Y, d.ImpactLocation.Z)
-}
-
-func (c *Client) handleBallHit(env events.Envelope) {
-	if !c.cfg.Storage.BallHitEvents || c.matchID == 0 {
-		return
-	}
-	var d events.BallHitData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
-		return
-	}
-	playerID := ""
-	if len(d.Players) > 0 {
-		playerID = d.Players[0].PrimaryId
-	}
-	_ = c.db.InsertBallHit(c.matchID, playerID,
-		d.Ball.PreHitSpeed, d.Ball.PostHitSpeed,
-		d.Ball.Location.X, d.Ball.Location.Y, d.Ball.Location.Z)
-}
-
-func (c *Client) handleMatchEnded(env events.Envelope) {
-	var d events.MatchEndedData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
-		return
-	}
-
-	if c.matchID != 0 {
-		_ = c.db.EndMatch(c.matchID, d.WinnerTeamNum, c.overtime)
-	}
-	if c.matchID != 0 {
-		for _, p := range c.lastPlayers {
-			_ = c.db.UpsertPlayer(p.PrimaryId, p.Name)
-			_ = c.db.UpsertPlayerMatchStats(c.matchID, p.PrimaryId,
-				p.TeamNum, p.Score, p.Goals, p.Shots, p.Assists, p.Saves,
-				p.Touches, p.CarTouches, p.Demos)
-		}
-	}
+func (c *Client) handleMatchEnded(_ events.Envelope) {
 	c.closeRawPacketCapture("MatchEnded")
 	c.lastPlayers = nil
-	c.matchID = 0
 	c.matchGuid = ""
-	c.overtime = false
-	c.playlistType = nil
 }
 
 func (c *Client) startRawPacketCapture(matchGuid string) {

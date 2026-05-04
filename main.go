@@ -72,7 +72,7 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Register(mux)
 
-	rlClient := rl.New(&cfg, database, h)
+	rlClient := rl.New(&cfg, h)
 	rlReconnect = rlClient.Reconnect
 	rlClient.SetDispatch(srv.DispatchEvent)
 	go rlClient.Run()
