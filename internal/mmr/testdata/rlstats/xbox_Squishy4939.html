@@ -1,0 +1,443 @@
+
+<!doctype html>
+<html lang="en">
+	<head>
+			<!-- Global site tag (gtag.js) - Google Analytics -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-V5B8YVZ90S"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+
+	  gtag('config', 'G-V5B8YVZ90S');
+	</script>
+			<title>Squishy4939's Profile | RLStats</title>
+		<link rel="icon" href="/favicon.ico">
+		
+			<link rel="canonical" href="https://rlstats.net/profile/xbox/Squishy4939">
+	<meta charset="utf-8">
+	<meta name="language" content="english">
+	<meta http-equiv="content-language" content="EN">
+	<meta http-equiv="language" content="EN">
+	<meta name="keywords" content="Rocket League,Rocket,League,RL,Stats,Tracker,Ranks,MMR,Titles,Population,Player Count,Club Details,Clubs,Details,Steam,PS4,Xbox,Epic,Switch">
+	<meta name="viewport" content="width=device-width, initial-scale=0.86, maximum-scale=3.0, minimum-scale=0.86">
+	<meta name="theme-color" content="#FF0000">
+	<link rel="preload" href="/fonts/glyphicons-halflings-regular.ttf" as="font" type="font/ttf" crossorigin>
+	<link rel="preconnect" href="https://pagead2.googlesyndication.com">
+	
+	<link rel="stylesheet" href="/styles/global.css">
+	<script defer type="text/javascript" src="/scripts/notification.js"></script>
+	<script defer type="text/javascript" src="/scripts/header.js"></script>
+	
+	<!--<meta name="msapplication-TileImage" content="//rlstats.net/favicon.ico">
+	<meta name="msapplication-TileColor" content="#00aced" style=">-->
+	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2546555076309388" crossorigin="anonymous"></script>
+	
+			<meta name="description" content="Rocket League Stats, Ranks, Titles and Club Details for Squishy4939">
+		
+		<meta property="og:title" content="Squishy4939's Profile on RLStats" />
+		<meta property="og:description" content="Rocket League Stats, Ranks, Titles and Club Details for Squishy4939" />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://rlstats.net/Xbox/Squishy4939" />
+		<meta property="og:image" content="https://images-eds-ssl.xboxlive.com/image?url=wHwbXKif8cus8csoZ03RW8ke8ralOdP9BGd4wzwl0MKiS_22MVIPEwJP9TvepJ8uiqQmwZhkYDM5J70iJ6atqcPguRBH.2j_H3dO43wpYeDK3fC1chi6egLcbh1T0B4sugJdC5x3hoAO1apHjFBLiTI4bS7zmdsQnonUyQmOP_OsZ9mnMHDjxY_mjF_oV7EW&format=png&forma" />
+		<meta property="og:site_name" content="RLStats" />
+		
+		<link rel="stylesheet" href="/styles/lookup.css"/>
+		<link rel="stylesheet" href="/styles/profile.css"/>
+		<link rel="stylesheet" href="/styles/leaderboards.css"/>
+				
+		<!-- Google Charts -->
+		<script defer type="text/javascript" src="https://www.gstatic.com/charts/loader.js" onload="createChart()"></script>
+		<script defer type="text/javascript">
+		function createChart(){
+			google.charts.load('current', {'packages':['line', 'corechart']});
+			google.charts.setOnLoadCallback(drawChart);
+
+			function drawChart() {
+	
+				var chartDiv = document.getElementById('chart_div');
+	
+				var data = new google.visualization.DataTable();
+				data.addColumn('date', 'Day');
+				data.addColumn('number', "Duel");
+				data.addColumn('number', "Doubles");
+				data.addColumn('number', "Standard");
+				//data.addColumn('number', "Solo Standard");
+				data.addColumn('number', "Tournament");
+				data.addColumn('number', "Quads");
+				data.addColumn('number', "Heatseeker");
+				data.addColumn('number', "Hoops");
+				data.addColumn('number', "Rumble");
+				data.addColumn('number', "Dropshot");
+				data.addColumn('number', "Snow Day");
+					
+				data.addRows([
+					[new Date(1777843552*1000), 730, 933, 912, 975, 868, 741, 685, 928, 586, 684,],				]);
+	
+				var cols = ['#3366CC', '#DC3912', '#FF9900', '#109618', 'black', '#ffb8ff', '#990099', '#0099C6', '#DD4477', '#66AA00', 'grey'];
+				var classicOptions = {
+					vAxis: {
+						title: 'Rating',
+						viewWindowMode: 'maximized'
+					},
+					hAxis: {
+						format: 'MMM d'
+					},
+					legend: {
+						position: 'top',
+						maxLines: 9
+					},
+					focusTarget: 'category',
+					colors: cols.slice(),
+					chartArea: {left: 60, right: 10, top: 60, bottom: 60}
+				};
+				
+				var chart = new google.visualization.LineChart(chartDiv);
+				
+				function drawChart(){
+					chart.clearChart();
+					chart.draw(data, classicOptions);
+				}
+				
+				function selectHandler() {
+					var selectedItem = chart.getSelection()[0];
+					if (selectedItem && selectedItem.column) {
+						var value = selectedItem.column -1;
+						if(classicOptions.colors[value] == 'transparent')
+							classicOptions.colors[value] = cols[value];
+						else
+							classicOptions.colors[value] = 'transparent';
+						drawChart();
+					}
+				}
+				
+				google.visualization.events.addListener(chart, 'select', selectHandler);
+				
+				drawChart();
+			}
+		}
+		</script>
+		
+	</head>
+	
+		
+	<body>
+	
+			<div id="rlsnotes" class="notifications"><div class="center"><div class="vertical-center text-center" style="background: rgb(51, 51, 51); padding: 1em; border: 2px solid red; border-radius: 20px;"><h1>RL Creator Code</h1><p>Rocket League is adding creator codes in their next update.<br>We need 1,000 followers to be eligible for one.<br>We got a long way to go but we hope we'll get there.<br>please show us your support by following our <a href="https://twitter.com/RLStatsNet" target="_blank">Twitter</a>.<br>It costs you $0 to do this, so please help us out :)</p><button style="margin: 1em; padding: 0.5em;">Go to Twitter</button><button style="margin: 1em; padding: 0.5em;">Don't support us :(</button></div></div></div>
+	<header id="header" style="top: 0px;">
+		<ul style="padding-left: calc(20% - 56px);">
+			<li class="brand"><a href="/" title="Home"><img src="/images/logo.svg" height="54px" width="54px" alt="Rocket League Stats"/></a></li>
+		</ul>
+		<nav>
+			<ul id="nav-bar" class="center closed">
+				<li><a href="/" title="Home">Home</a></li>
+				<li><a href="/profile" title="Profile Lookup" class="active">Profiles</a></li>
+				<li hidden><a href="/YIR" title="Year in Review Lookup" style="color:gold;font-weight:bold;text-decoration:italic;text-decoration:underline">Year in Review</a></li>
+				<li class="dropdown active">
+					<p title="Global">Global<span class="caret"></span></p>
+					<ul class="dropdown-menu">
+						<li><a href="/leaderboards/skills" title="Skill Leaderboards">Skill Leaderboards</a></li>
+						<li><a href="/leaderboards/stats" title="Stat Leaderboards">Stats Leaderboards</a></li>
+						<li><a href="/population" title="Population">Population</a></li>
+						<li><a href="/distribution" title="Skill Distribution">Skill Distribution</a></li>
+					</ul>
+				</li>
+				<li class="dropdown active">
+					<p title="Game Info">Game Info<span class="caret"></span></p>
+					<ul class="dropdown-menu">
+						<li><a href="/gameinfo/maps" title="Maps">Maps</a></li>
+						<li><a href="/gameinfo/mapsets" title="Map Sets">Map Sets</a></li>
+					</ul>
+				</li>
+				<li hidden><a href="/fanclash" title="Hogwarts House Rivalry Leaderboard" style="color:gold;font-weight:bold;text-decoration:italic;text-decoration:underline">Hogwarts House Rivalry!</a></li>
+				<li hidden class="dropdown active">
+					<p title="Events">Events<span class="caret"></span></p>
+					<ul class="dropdown-menu">
+						<li><a href="/events/shops" title="Shops">Shops</a></li>
+						<li><a href="/events/challenges" title="Challenges">Challenges</a></li>
+					</ul>
+				</li>
+				<li hidden><a href="/signup" title="Sign up">Sign Up</a></li>
+				<li hidden><a href="/tournaments/info" title="Tournaments">Tournaments</a></li>
+			</ul>
+		</nav>
+		<ul class="mob-nav-bar">
+			<li>
+				<div type="button" onclick="NavBarToggle()"><img src="/images/togglenav.png" height="54px" width="54px" alt="Open Navigation Bar"></div>
+			</li>
+		</ul>
+		<ul style="padding-right: 20%;">
+			<li>
+				<div class="donate"><a href="https://www.patreon.com/RLStatsNet" title="Donate" target="new">Donate</a></div>
+			</li>
+		</ul>
+	</header>
+			
+		<main class="body">
+				<section id="lookup" class="top">
+		<div class="center">
+			<div class="block">
+				<div class="block-heading block-heading-small">
+					<form name="lookup" class="form-horizontal center" action="/profile/" method="post">
+						
+						<h3 class="text-center">Profile Lookup:&nbsp;</h3>
+						<div class="flexible">
+							<label for="username" class="control-label" hidden>Username</label>
+							<div style="display:flex;">
+								<span class="glyphicon" aria-hidden="true" onclick="document.forms['lookup'].submit();">&#xe003;</span>
+								<input type="text" class="form-control" name="username" id="username" placeholder="Vanity, PSN, GT or an ID" value="">
+							</div>
+							
+							<label for="platform" class="control-label" hidden>Platform</label>
+							<div>
+								<select name="platform" id="platform" class="center">
+									<option value="Steam">Steam</option>
+									<option value="PS4">PlayStation</option>
+									<option value="Xbox">Xbox</option>
+									<option value="Epic">Epic</option>
+									<option hidden disabled value="Switch">Switch</option>
+								</select>
+							</div>
+						</div>
+						
+					</form>
+				</div>
+			</div>
+		</div>
+	</section>
+			
+			<section id="userinfo">
+				<div class="center">
+										<div class="block">
+						<div class="block-heading">
+							<h1>
+								<img src="/images/Xbox.svg" alt="Xbox" height="24px" width="24px"/>
+								Squishy4939								<span title="May/3/2026 21:37:23 GMT"> Updated 0 minutes ago</span><span><button title="Switch to Compact Version" onclick="SwitchCompact()">Compact Version</button></span>
+							</h1>
+						</div>
+						<div class="block-body">
+							<div class="block-user" onmouseout="scrolld(this)" onmouseover="scrollu(this)">
+								<img class="user-img" src="https://images-eds-ssl.xboxlive.com/image?url=wHwbXKif8cus8csoZ03RW8ke8ralOdP9BGd4wzwl0MKiS_22MVIPEwJP9TvepJ8uiqQmwZhkYDM5J70iJ6atqcPguRBH.2j_H3dO43wpYeDK3fC1chi6egLcbh1T0B4sugJdC5x3hoAO1apHjFBLiTI4bS7zmdsQnonUyQmOP_OsZ9mnMHDjxY_mjF_oV7EW&format=png&forma" alt="Avatar" height="184px" width="184px"/>
+								<p class="title-place">&nbsp;</p>
+								<div id="titles">
+									<p class="title" style="color: #2C9EFF;">No Miss Just Fake</p><p class="title" style="color: #2C9EFF;">Sangre Caliente</p><p class="title" style="color: #9BFF00;">S21 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title" style="color: #9BFF00;">S20 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title" style="color: #9BFF00;">S13 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title" style="color: #9BFF00;">S9 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title" style="color: #E1F8FF;text-shadow: 0 0 0.5em #4B99F7;">Aura Farmer</p><p class="title" style="color: #C31334;text-shadow: 0 0 0.5em #4A0000;">-1000 Aura</p><p class="title" style="color: #BF5FFF;">Shot Like The Dop</p><p class="title" style="color: #BF5FFF;">CARTOGRAPHER</p><p class="title" style="color: #BF5FFF;">I'm Zen</p><p class="title" style="color: #BF5FFF;">First Touch Crew</p><p class="title" style="color: #BF5FFF;">We Are Chalked</p><p class="title" style="color: #BF5FFF;">Kickoff Merchant</p><p class="title" style="color: #BF5FFF;">Squishy Saver</p><p class="title" style="color: #BF5FFF;">Crossbar Queen</p><p class="title" style="color: #FF0000;">MENA LEGEND</p><p class="title" style="color: #FF0000;">Baguettes</p><p class="title" style="color: #BEBEBE;text-shadow: 0 0 0.5em #C80752;">Gryffindor</p><p class="title" style="color: #BEBEBE;text-shadow: 0 0 0.5em #006351;">Slytherin</p><p class="title" style="color: #BEBEBE;text-shadow: 0 0 0.5em #4D90CD;">Ravenclaw</p><p class="title" style="color: #BEBEBE;text-shadow: 0 0 0.5em #4D90CD;">Ravenclaw</p><p class="title" style="color: #BEBEBE;text-shadow: 0 0 0.5em #FFD046;">Hufflepuff</p><p class="title">CALL ME CLUTCH</p><p class="title">IT’S CALLED MOTION</p><p class="title">FLOW STATE</p><p class="title">DRIPPY</p><p class="title">S22 <img class="title_img" src="/images/ranks/title_Champion.png" height="24px" width="24px" alt="Champion"/> Pentathlon Winner</p><p class="title">S22 <img class="title_img" src="/images/ranks/title_Champion.png" height="24px" width="24px" alt="Champion"/> Tournament Winner</p><p class="title">Final Boss</p><p class="title">Mid</p><p class="title">S22 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">INSANE PULL</p><p class="title">KNOWLEDGE DROPPER</p><p class="title">ELITE BALL KNOWLEDGE</p><p class="title">I KNOW BALL</p><p class="title">Pinch Pro</p><p class="title">Cracked Captain</p><p class="title">Goalmaxxing</p><p class="title">Retirement Home</p><p class="title">I GOT IT, HABIBI!</p><p class="title">Massive Gains</p><p class="title">Low Level</p><p class="title">Arch Nemesis</p><p class="title">All Gas, No Brakes</p><p class="title">Cracked</p><p class="title">Washed</p><p class="title">Wicked Good</p><p class="title">Heartbreaker</p><p class="title">Main Character</p><p class="title">NPC</p><p class="title">S21 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">GRYFFINDOR WINS!</p><p class="title">Crème De La Crème</p><p class="title">Rat</p><p class="title">Cat Burglar</p><p class="title">Heatseeker Hero</p><p class="title">C'est La Vie</p><p class="title">S20 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Pentathlon Winner</p><p class="title">BATHROOM CODE 9914</p><p class="title">& Knuckles</p><p class="title">Zoinks!</p><p class="title">Meddling Kid</p><p class="title">6 7</p><p class="title">S20 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Physical Media Collector</p><p class="title">S20 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">Gotta Go Fast</p><p class="title">You're Too Slow</p><p class="title">Retail Therapist</p><p class="title">Food Court Fiend</p><p class="title">Mallrat</p><p class="title">PERSONAL TRAINER</p><p class="title">10th Anniversary Pentathlete</p><p class="title">That is unavailable.</p><p class="title">S19 <img class="title_img" src="/images/ranks/title_Champion.png" height="24px" width="24px" alt="Champion"/> Tournament Winner</p><p class="title">S19 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Hawaiian Shirt Connoisseur</p><p class="title">Maddening Mutator</p><p class="title">This Is Rocket League</p><p class="title">Rocket Zoomer</p><p class="title">Rocket Boomer</p><p class="title">Gift Giver</p><p class="title">FORCE SENSITIVE</p><p class="title">SITH LORD</p><p class="title">PIZZA TIME</p><p class="title">Backup Plan</p><p class="title">Time Traveler</p><p class="title">Artificially Intelligent</p><p class="title">Telepath</p><p class="title">120 FPS or Bust</p><p class="title">S17 Launch Survivor</p><p class="title">Lan Partier</p><p class="title">Button Masher	</p><p class="title">Power of Friendship</p><p class="title">High Scorer</p><p class="title">I Got Next</p><p class="title">Next Level</p><p class="title">S16 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Off The Grid</p><p class="title">Happy Camper</p><p class="title">Outdoorsy</p><p class="title">Cryptozoologist</p><p class="title">Elder Emo</p><p class="title">Indie Artist</p><p class="title">Mutant</p><p class="title">Rocket Demigod</p><p class="title">S14 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Beach Bum</p><p class="title">Swag Surfer</p><p class="title">Cool Captain</p><p class="title">S13 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Ultimate Baller</p><p class="title">Mad Millennial</p><p class="title">S13 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">90's Kid</p><p class="title">Pumpkin King</p><p class="title">Highly Technical</p><p class="title">Gooooal!</p><p class="title">Hacktivist</p><p class="title">Fully Encrypted</p><p class="title">RAINBOW ICON</p><p class="title">Dragon Rider</p><p class="title">Tuna, No Crust</p><p class="title">Dungeon Master</p><p class="title">Whiff Wizard</p><p class="title">Rocketeer</p><p class="title">Legend</p><p class="title">Finely Tuned</p><p class="title">Block Partier</p><p class="title">Urbanite</p><p class="title">Red Carpet Ready</p><p class="title">Elite Challenger</p><p class="title">Expert</p><p class="title">Chic Geek</p><p class="title">Veteran</p><p class="title">Party Planner</p><p class="title">Supreme Rival</p><p class="title">Big City Baller</p><p class="title">Recovery Whiz</p><p class="title">S9 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">S10 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">Tireless Tryhard</p><p class="title">S11 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">Transcendent Master</p><p class="title">Fire Flier</p><p class="title">Sky Scraper</p><p class="title">Street Genius</p><p class="title">Credit Hoarder</p><p class="title">A-Lister</p><p class="title">S8 <img class="title_img" src="/images/ranks/title_Gold.png" height="24px" width="24px" alt="Gold"/> Tournament Winner</p><p class="title">Aspiring Influencer</p><p class="title">Crit Hitter</p><p class="title">S9 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">S18 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">S18 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">Futurist</p><p class="title">S17 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Virtual Singer</p><p class="title">S17 <img class="title_img" src="/images/ranks/title_Champion.png" height="24px" width="24px" alt="Champion"/> Tournament Winner</p><p class="title">Ice Cold</p><p class="title">Rocket Passer</p><p class="title">S16 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">GOAT IN TRAINING</p><p class="title">FOREVER. FASTER.</p><p class="title">Vocalist</p><p class="title">Shoobie</p><p class="title">S15 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">Mosh Maniac</p><p class="title">Solid Swimmer</p><p class="title">Rocketeer Elite</p><p class="title">This is the Way</p><p class="title">Cold As Ice</p><p class="title">Retrofitted</p><p class="title">Y2K Ready</p><p class="title">Obsolete Version</p><p class="title">Data Driven</p><p class="title">Legendary Nemesis</p><p class="title">S12 <img class="title_img" src="/images/ranks/title_Diamond.png" height="24px" width="24px" alt="Diamond"/> Tournament Winner</p><p class="title">ROBOT IN DISGUISE</p><p class="title">AUTOBOT</p><p class="title">Dusty Dunker</p><p class="title">Master</p><p class="title">Choku-Dori Chief</p><p class="title">Fully Flourished</p><p class="title">Rust Bucket</p><p class="title">The Inspector</p><p class="title">All-Star</p><p class="title">50/50 Magician</p><p class="title">Comeback Kid</p><p class="title">Frostbitten</p><p class="title">Master Crafter</p><p class="title">Revivalist</p><p class="title">Frost Boss</p><p class="title">Hot Hoonigan</p><p class="title">Kinda Big Deal</p><p class="title">Blossoming Bud</p><p class="title">Twilight Trainer</p><p class="title">Superstar</p><p class="title">Cosmopolitan</p><p class="title">Sole Survivor</p><p class="title">S7 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">E-Brake Expert</p><p class="title">S8 <img class="title_img" src="/images/ranks/title_Platinum.png" height="24px" width="24px" alt="Platinum"/> Tournament Winner</p><p class="title">Golden Goalkeeper</p><p class="title">Lunkhead</p>								</div>
+							</div>
+							<div class="block-club" style="display:block">
+															</div>
+						</div>
+					</div>
+				</div>
+							</section>
+			
+			<section id="stats">
+				<div class="center">
+					<div class="block">
+						<div class="block-heading block-heading-small">
+							<h4>Stats (Total)<span><button title="Switch to Seasonal Stats" onclick="SwitchSeasonalStats()">Show Seasonal Stats</button></span></h4>
+						</div>
+						<div class="block-body" style="display:block">
+															<div class="block-stats" data-season="36" style="display: block;">
+																		<table>
+										<tr>
+											<th><img src="/images/wins.png" alt="Wins" height="64px" width="64px"/></th>
+											<th><img src="/images/mvps.png" alt="MVPs" height="64px" width="64px"/></th>
+											<th><img src="/images/goals.png" alt="Goals" height="64px" width="64px"/></th>
+											<th><img src="/images/assists.png" alt="Assists" height="64px" width="64px"/></th>
+											<th><img src="/images/saves.png" alt="Saves" height="64px" width="64px"/></th>
+											<th><img src="/images/shots.png" alt="Shots" height="64px" width="64px"/></th>
+										</tr>
+										<tr>
+											<td>4,679 Wins</td>
+											<td>2,498 MVPs</td>
+											<td>10,044 Goals</td>
+											<td>4,004 Assists</td>
+											<td>13,017 Saves</td>
+											<td>22,955 Shots</td>
+										</tr>
+									</table>
+								</div>
+													</div>
+					</div>
+				</div>
+							</section>
+			
+						
+			<section id="skills">
+				<div class="btn-group" style="padding-bottom:1em;">
+					<span class="center">
+						<span class="btn btn-default season-selector active" onclick="SelectSeason(36)">Season 22</span>					</span>
+				</div>
+				<div class="center">
+					<div class="block">
+						<div class="block-heading block-heading-small">
+							<h4>Skill Rating</h4>
+						</div>
+													<div class="block-body" data-season="36" style="display: block;">
+								<div class="block-reward">
+									<div>
+										<img src="/images/ranks/s32rl5.png" alt="Diamond" height="150px" width="150px"/>
+									</div>
+									<div class="fullwidth"><div class="flex center-ver">
+										<progress class="center-ver pbs32r5" value=0 max=10></progress>
+										<div class="fullwidth">
+											<h2 style="color: #66CBFF;">Diamond</h2>
+											<p>Season Reward Level</p>
+										</div>
+																					<div class="fullwidth" style="text-align: right;">
+												<h2><span style="color: #FF99FF;">0</span>/<span style="color: #FF99FF;">10</span> Wins</h2>
+												<p>Win at <span style="color: #FF99FF;">Champion</span> Rank to Advance</p>
+											</div>
+																			</div></div>
+								</div>
+								<div class="block-skills">
+																		<table>
+										<tr><th>1v1 Duel</th><th>2v2 Doubles</th><th>3v3 Standard</th></tr><tr><td>Platinum II</td><td>Diamond II</td><td>Diamond I</td></tr><tr><td>Division III</td><td>Division II</td><td>Division IV</td></tr><tr><td><mmr style="color:red">~26</mmr> 730 <mmr style="color:green">~23</mmr></td><td><mmr style="color:red">~28</mmr> 933 <mmr style="color:green">~37</mmr></td><td><mmr style="color:red">~22</mmr> 912 <mmr style="color:green">~4</mmr></td></tr><tr><th><img src="/images/ranks/s32rank11.png" alt="Platinum II" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank14.png" alt="Diamond II" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank13.png" alt="Diamond I" height="150px" width="150px"/></th></tr><tr><td>Matches Played: 17</td><td>Matches Played: 426</td><td>Matches Played: 15</td></tr><tr><td>Win Streak: 3</td><td>Win Streak: 1</td><td>Win Streak: 1</td></tr>									</table>
+									<div class="line"></div>
+									<table>
+										<tr><th>Tournaments</th><th>2v2 Heatseeker</th><th>2v2 Hoops</th></tr><tr><td>Diamond II</td><td>Platinum III</td><td>Platinum II</td></tr><tr><td>Division IV</td><td>Division II</td><td>Division II</td></tr><tr><td><mmr style="color:red">~5</mmr> 975 <mmr style="color:green">~21</mmr></td><td><mmr style="color:red">~22</mmr> 741 <mmr style="color:green">~33</mmr></td><td><mmr style="color:red">~24</mmr> 685 <mmr style="color:green">~25</mmr></td></tr><tr><th><img src="/images/ranks/s32rank14.png" alt="Diamond II" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank0.png" alt="Unranked" height="150px" width="150px"/><img class="unranked-estimate" src="/images/ranks/s32rank12.png" alt="Platinum III" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank0.png" alt="Unranked" height="150px" width="150px"/><img class="unranked-estimate" src="/images/ranks/s32rank11.png" alt="Platinum II" height="150px" width="150px"/></th></tr><tr><td>Matches Played: 62</td><td>Matches Played: 4</td><td>Matches Played: 8</td></tr><tr><td>Loss Streak: 2</td><td>Win Streak: 1</td><td>Win Streak: 6</td></tr>									</table>
+																			<div class="line"></div>
+										<table>
+											<tr><th>3v3 Rumble</th><th>3v3 Dropshot</th><th>3v3 Snow Day</th></tr><tr><td>Diamond III</td><td>Platinum I</td><td>Platinum II</td></tr><tr><td>Division I</td><td>Division I</td><td>Division II</td></tr><tr><td><mmr style="color:red">~9</mmr> 928 <mmr style="color:green">~12</mmr></td><td><mmr style="color:red">~7</mmr> 586 <mmr style="color:green">~14</mmr></td><td><mmr style="color:red">~23</mmr> 684 <mmr style="color:green">~30</mmr></td></tr><tr><th><img src="/images/ranks/s32rank15.png" alt="Diamond III" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank10.png" alt="Platinum I" height="150px" width="150px"/></th><th><img src="/images/ranks/s32rank0.png" alt="Unranked" height="150px" width="150px"/><img class="unranked-estimate" src="/images/ranks/s32rank11.png" alt="Platinum II" height="150px" width="150px"/></th></tr><tr><td>Matches Played: 15</td><td>Matches Played: 15</td><td>Matches Played: 0</td></tr><tr><td>Loss Streak: 2</td><td>Loss Streak: 1</td><td>Loss Streak: 2</td></tr>										</table>
+																		<div class="line"></div>
+									<div class="unranked-block center">
+										<img src="/images/ranks/s32rank0.png" alt="Unranked" height="150px" width="150px"/>
+										<table>
+											<tr><td>&nbsp;</td></tr>
+											<tr>
+												<th>Casual</th>
+											</tr>
+											<tr>
+												<td>Rating 1376</td>
+											</tr>
+											<tr><td>&nbsp;</td></tr>
+										</table>
+									</div>
+								</div>
+							</div>
+											</div>
+				</div>
+							</section>
+			
+						
+			<section id="history">
+				<div class="center">
+					<div class="flex-blocks" style="width:60%;">
+						<div class="block">
+							<div class="block-heading block-heading-small">
+								<h4>Rating Progress<span><button title="Toggle Casual Display" onclick="SwitchCasualHistory()">Show Casual</button></span></h4>
+							</div>
+							<div class="block-body" style="height: 100%;">
+								<div class="block-graph fullwidth">
+									<div id="chart_div" style="width: 100%; height: 100%; min-height: 200px; max-height: 600px">
+										W.I.P.
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="block">
+							<div class="block-heading block-heading-small">
+								<h4>Update History</h4>
+							</div>
+							<div class="block-body">
+								<div class="block-updates">
+									<table>
+										<tr>
+											<th>Updated</th>
+											<th>Playlist</th>
+											<th>Matches</th>
+											<th>Rating</th>
+											<th>Change</th>
+										</tr>
+																			</table>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+							</section>
+		</main>
+	<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"e28f8208e2cd44a8b6ee24777d76cbd7","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+		
+		<footer>
+		<p>Made with <span style="color:red;">❤</span> by Drogings</p>
+		<div>
+			<p><a href="https://play.google.com/store/apps/details?id=com.drogebot.rocketleaguestats" title="Download the App" target="new"><img class="icon" src="/images/logo.svg" height="16px" width="16px" alt="App">Download the App</a></p>
+			<p><a href="/about" title="About"><img class="icon" src="/images/info.svg" height="16px" width="16px" alt="About">About us</a></p>
+		</div>
+		<div>
+			<p><a href="https://discord.gg/FSxNPQd" title="Join our Discord" target="new"><img class="icon" src="/images/discord.svg" height="16px" width="16px" alt="Discord">Join our Discord</a></p>
+			<p><a href="mailto:Drogings@RLStats.net" title="Mail Drogings" target="_blank"><span class="glyphicon" style="top:2px" aria-hidden="true">&#x2709;</span> Contact us</a></p>
+		</div>
+		<div>
+			<p><a href="https://twitter.com/RLStatsNet" title="Follow us on Twitter" target="new"><img class="icon" src="/images/twitter.svg" height="16px" width="16px" alt="Twitter">Follow us on Twitter</a></p>
+			<p></p>
+		</div>
+		<div>
+			<p><a href="https://www.twitch.tv/RLStatsNet" title="Follow us on Twitch" target="new"><img class="icon" src="/images/twitch.png" height="16px" width="16px" alt="Twitch">Follow us on Twitch</a></p>
+			<p></p>
+		</div>
+		<p style="padding-top: 1em;">Rocket League is a registered trademark of Psyonix. This is an unofficial fan site. I'm not affiliated with Psyonix. Psyonix owns everything Rocket League related.</p>
+	</footer>
+		
+	<script type="text/javascript">
+		var lastAction = 0;
+		setTimeout(scrolld, 100);
+		function scrollu(){
+			titles = document.getElementById("titles");
+			titles.scrollTop = 0;
+		}
+		function scrolld(){
+			titles = document.getElementById("titles");
+			titles.scrollTop = 0;
+		}
+		
+		function SwitchCompact(){
+			document.cookie = "compact=1; expires=Thu, 31 Dec 2026 11:59:59 PM UTC; path=/profile";
+			location.reload(true);
+		}
+		
+		var cookies = {};
+		var c = document.cookie.split(';');
+		for(var i in c){
+			cookie = c[i].split('=');
+			cookies[cookie[0].replace(' ','')] = cookie[1];
+		}
+		
+		function SwitchCasualHistory(){
+			if(cookies['casualhist'] != 1)
+				document.cookie = "casualhist=1; expires=Thu, 31 Dec 2026 11:59:59 PM UTC; path=/profile";
+			else
+				document.cookie = "casualhist=0; expires=Thu, 31 Dec 2026 11:59:59 PM UTC; path=/profile";
+			location.reload(true);
+		}
+		
+		function SwitchSeasonalStats(){
+			if(cookies['seasonalstats'] != 1)
+				document.cookie = "seasonalstats=1; expires=Thu, 31 Dec 2026 11:59:59 PM UTC; path=/profile";
+			else
+				document.cookie = "seasonalstats=0; expires=Thu, 31 Dec 2026 11:59:59 PM UTC; path=/profile";
+			location.reload(true);
+		}
+		
+		var curseason = 36;
+		function SelectSeason(season){
+			curseason = season;
+			var seasons = [36];
+			var selectors = document.getElementsByClassName("season-selector");
+			for(var i = 0; i < selectors.length; i++){
+				selectors[i].classList.remove("active");
+				var tables = document.querySelectorAll("div[data-season]");
+				for(var j = 0; j < tables.length; j++){
+					tables[j].setAttribute("style","display:none;");
+				}
+				var tables = document.querySelectorAll('div[data-season="'+curseason+'"]');
+				for(var j = 0; j < tables.length; j++){
+					tables[j].setAttribute("style","display:block;");
+				}
+				if(seasons[i] == season)
+					selectors[i].classList.add("active");
+			}
+		}
+	</script>
+</html>

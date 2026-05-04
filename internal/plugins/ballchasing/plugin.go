@@ -33,7 +33,7 @@ const bcBase = "https://ballchasing.com"
 
 type Plugin struct {
 	cfg           *config.Config
-	db            *db.DB
+	store         *store
 	hub           *hub.Hub
 	mu            sync.Mutex
 	uploadPending bool
@@ -50,7 +50,7 @@ func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Plugin {
 `); err != nil {
 		log.Printf("[ballchasing] migrate: %v", err)
 	}
-	return &Plugin{cfg: cfg, db: database, hub: h}
+	return &Plugin{cfg: cfg, store: &store{conn: database.Conn()}, hub: h}
 }
 
 func (p *Plugin) ID() string         { return "ballchasing" }
@@ -152,7 +152,7 @@ func (p *Plugin) autoUpload() {
 		log.Printf("[bc] auto-upload read dir: %v", err)
 		return
 	}
-	existing, err := p.db.AllBCUploads()
+	existing, err := p.store.allBCUploads()
 	if err != nil {
 		log.Printf("[bc] auto-upload db: %v", err)
 		return
@@ -199,7 +199,7 @@ func (p *Plugin) autoUpload() {
 			}
 			if json.Unmarshal(body, &res) == nil && res.ID != "" {
 				bcURL := "https://ballchasing.com/replay/" + res.ID
-				_ = p.db.UpsertBCUpload(name, res.ID, bcURL)
+				_ = p.store.upsertBCUpload(name, res.ID, bcURL)
 				uploaded = append(uploaded, autoUploadResult{Name: name, BcID: res.ID, BcURL: bcURL})
 				log.Printf("[bc] auto-uploaded %s → %s", name, res.ID)
 			}
@@ -376,7 +376,7 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.Unmarshal(body, &uploadResp) == nil && uploadResp.ID != "" {
 			bcURL := "https://ballchasing.com/replay/" + uploadResp.ID
-			_ = p.db.UpsertBCUpload(req.ReplayName, uploadResp.ID, bcURL)
+			_ = p.store.upsertBCUpload(req.ReplayName, uploadResp.ID, bcURL)
 		}
 	}
 
@@ -386,7 +386,7 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) handleUploads(w http.ResponseWriter, r *http.Request) {
-	uploads, err := p.db.AllBCUploads()
+	uploads, err := p.store.allBCUploads()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

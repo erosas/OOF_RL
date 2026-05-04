@@ -4,16 +4,17 @@ let _sessionSince           = null;
 let _sessionPlayerID        = '';
 let _sessionElapsedTimer    = null;
 let _sessionExpandedMatchId = null;
+let _liveStats              = null; // non-null only while a match is active
 
 window.pluginInit_session = async function() {
   _sessionPlayerID = localStorage.getItem('oof_session_player') || '';
 
-  // Fetch server-side session start time (resets on each app launch)
+  // Fetch server-side session start time
   try {
     const data = await fetch('/api/session/start').then(r => r.json());
-    _sessionSince = new Date(data.since);
+    _sessionSince = data.active ? new Date(data.since) : null;
   } catch(_) {
-    _sessionSince = new Date();
+    _sessionSince = null;
   }
 
   // Populate player dropdown
@@ -73,6 +74,17 @@ window.pluginInit_session = async function() {
     localStorage.setItem('oof_session_player', _sessionPlayerID);
     refreshSession();
     loadSessionHistory();
+  });
+
+  // "Start Now" manually starts the session
+  document.getElementById('session-start-btn')?.addEventListener('click', async () => {
+    try {
+      const data = await fetch('/api/session/start', { method: 'POST' }).then(r => r.json());
+      _sessionSince = new Date(data.since);
+      updateSinceInput();
+      startElapsedTimer();
+      refreshSession();
+    } catch(_) {}
   });
 
   // "New session" saves current session to history then resets start time
@@ -140,15 +152,28 @@ function updateElapsed() {
 }
 
 window.refreshSession = async function() {
-  const noPlayer = document.getElementById('session-no-player');
-  const panel    = document.getElementById('session-stats-panel');
+  const noPlayer   = document.getElementById('session-no-player');
+  const notStarted = document.getElementById('session-not-started');
+  const panel      = document.getElementById('session-stats-panel');
+
   if (!_sessionPlayerID) {
     noPlayer?.classList.remove('hidden');
+    notStarted?.classList.add('hidden');
     panel?.classList.add('hidden');
+    renderLiveGame();
     return;
   }
   noPlayer?.classList.add('hidden');
+
+  if (!_sessionSince) {
+    notStarted?.classList.remove('hidden');
+    panel?.classList.add('hidden');
+    renderLiveGame();
+    return;
+  }
+  notStarted?.classList.add('hidden');
   panel?.classList.remove('hidden');
+  renderLiveGame();
 
   try {
     const url  = `/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`;
@@ -156,6 +181,58 @@ window.refreshSession = async function() {
     renderSessionStats(data);
   } catch(_) {}
 };
+
+// Called on every UpdateState WS message — extracts tracked player's current-game stats.
+window.handleSessionUpdate = function(data) {
+  if (!_sessionPlayerID) return;
+  const players = data.Players || [];
+  const me = players.find(p => p.PrimaryId === _sessionPlayerID);
+  if (!me) return;
+  _liveStats = {
+    goals:   me.Goals   || 0,
+    assists: me.Assists || 0,
+    saves:   me.Saves   || 0,
+    shots:   me.Shots   || 0,
+    demos:   me.Demos   || 0,
+  };
+  renderLiveGame();
+};
+
+// Called on MatchCreated/MatchInitialized — if session wasn't started yet, fetch the
+// server-set start time and activate the UI.
+window.handleSessionMatchStart = async function() {
+  if (_sessionSince) return;
+  try {
+    const data = await fetch('/api/session/start').then(r => r.json());
+    if (data.active) {
+      _sessionSince = new Date(data.since);
+      updateSinceInput();
+      startElapsedTimer();
+      refreshSession();
+    }
+  } catch(_) {}
+};
+
+// Called on MatchDestroyed — clears live stats before refreshSession re-renders from DB.
+window.clearSessionLive = function() {
+  _liveStats = null;
+  renderLiveGame();
+};
+
+function renderLiveGame() {
+  const el = document.getElementById('session-live-game');
+  if (!el) return;
+  if (!_liveStats || !_sessionPlayerID) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  set('live-game-goals',   _liveStats.goals);
+  set('live-game-assists', _liveStats.assists);
+  set('live-game-saves',   _liveStats.saves);
+  set('live-game-shots',   _liveStats.shots);
+  set('live-game-demos',   _liveStats.demos);
+}
 
 function renderSessionStats(data) {
   const s       = data.summary || {};
@@ -186,19 +263,26 @@ function renderMatchCards(matches) {
 
   listEl.innerHTML = '';
   for (const m of [...matches].reverse()) {
-    const finished  = m.winner_team_num >= 0;
+    const finished  = !m.incomplete && m.winner_team_num >= 0;
     const won       = finished && m.player_team === m.winner_team_num;
     const lost      = finished && m.player_team !== m.winner_team_num;
-    const resultCls = won ? 'text-green-400' : lost ? 'text-red-400' : 'text-gray-500';
-    const resultTxt = won ? 'W' : lost ? 'L' : '—';
+    const resultCls = m.incomplete ? 'text-gray-500' : won ? 'text-green-400' : lost ? 'text-red-400' : 'text-gray-500';
+    const resultTxt = m.incomplete ? '?' : won ? 'W' : lost ? 'L' : '—';
 
     const card = document.createElement('div');
     card.className = 'session-match-card bg-surface border border-line rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-rl-blue/50 transition-colors';
     card.dataset.matchId = m.match_id;
+    const matchTypeStr = friendlyPlaylist(m.playlist_type) || matchType(m.player_count);
     card.innerHTML = `
       <span class="text-2xl font-extrabold tabular-nums w-6 text-center shrink-0 ${resultCls}">${resultTxt}</span>
       <div class="flex-1 min-w-0">
-        <div class="font-medium text-sm truncate">${esc(friendlyArena(m.arena))}</div>
+        <div class="font-medium text-sm truncate flex items-center gap-1 flex-wrap">
+          ${esc(friendlyArena(m.arena))}
+          ${matchTypeStr ? `<span class="match-mode-badge">${esc(matchTypeStr)}</span>` : ''}
+          ${m.overtime   ? '<span class="match-mode-badge match-mode-ot">OT</span>' : ''}
+          ${m.forfeit    ? '<span class="match-mode-badge" style="background:rgba(234,179,8,0.12);color:#ca8a04">FF</span>' : ''}
+          ${m.incomplete ? '<span class="match-mode-badge" style="background:rgba(156,163,175,0.12);color:#9ca3af">Inc</span>' : ''}
+        </div>
         <div class="text-xs text-gray-500">${formatDate(m.started_at)}</div>
       </div>
       <div class="text-right text-sm tabular-nums shrink-0">
@@ -236,67 +320,8 @@ async function toggleSessionMatchInline(card, matchId) {
 
 async function loadSessionMatchDetail(matchId, panel) {
   try {
-    const data    = await fetch(`/api/matches/${matchId}`).then(r => r.json());
-    const players = data.players || [];
-    const goals   = data.goals   || [];
-
-    players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
-    const realPlayers = players.filter(p => !isBot(p.PrimaryId));
-    prefetchTrackerRanks(realPlayers);
-
-    const blue   = realPlayers.filter(p => p.TeamNum === 0);
-    const orange = realPlayers.filter(p => p.TeamNum === 1);
-
-    const nameTeam = new Map();
-    blue.forEach(p => nameTeam.set(p.Name, 'blue'));
-    orange.forEach(p => nameTeam.set(p.Name, 'orange'));
-
-    function goalNameEl(name) {
-      if (!name) return '<span style="color:var(--muted)">—</span>';
-      const t = nameTeam.get(name);
-      const style = t === 'blue' ? 'color:var(--rl-blue)' : t === 'orange' ? 'color:var(--rl-orange)' : '';
-      return style ? `<span style="${style}">${esc(name)}</span>` : esc(name);
-    }
-
-    const statsRows = (list, cls) => list.map(p => `
-      <tr class="${cls}">
-        <td>
-          <div class="font-medium">${esc(p.Name)}</div>
-          ${trackerRankHTML(p.PrimaryId)}
-        </td>
-        <td>${p.Goals}</td><td>${p.Assists}</td><td>${p.Saves}</td>
-        <td>${p.Shots}</td><td>${p.Demos}</td>
-        <td>${p.Touches ?? 0}</td>
-        <td>${p.Score}</td>
-      </tr>`).join('');
-
-    const goalsHTML = goals.length
-      ? goals.map(g => `
-          <tr>
-            <td>${goalNameEl(g.ScorerName)}</td>
-            <td>${goalNameEl(g.AssisterName)}</td>
-            <td>${g.GoalSpeed != null ? g.GoalSpeed.toFixed(1) : '—'}</td>
-            <td>${formatDuration(g.GoalTime)}</td>
-          </tr>`).join('')
-      : '<tr><td colspan="4" style="color:var(--muted)">No goals recorded</td></tr>';
-
-    if (_sessionExpandedMatchId !== matchId) return;
-
-    panel.innerHTML = `
-      <div class="match-detail-panel">
-        <h3 class="detail-section-label">Player Stats</h3>
-        <table class="detail-table">
-          <thead><tr>
-            <th>Player</th><th>G</th><th>A</th><th>Sv</th><th>Sh</th><th>Dm</th><th>Touches</th><th>Score</th>
-          </tr></thead>
-          <tbody>${statsRows(blue, 'blue-row')}${statsRows(orange, 'orange-row')}</tbody>
-        </table>
-        <h3 class="detail-section-label" style="margin-top:16px">Goals</h3>
-        <table class="detail-table">
-          <thead><tr><th>Scorer</th><th>Assist</th><th>Speed (kph)</th><th>Time</th></tr></thead>
-          <tbody>${goalsHTML}</tbody>
-        </table>
-      </div>`;
+    const data = await fetch(`/api/matches/${matchId}`).then(r => r.json());
+    window.renderMatchDetailPanel(data, panel, _sessionExpandedMatchId, matchId);
   } catch(_) {
     panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Failed to load match detail.</div>';
   }

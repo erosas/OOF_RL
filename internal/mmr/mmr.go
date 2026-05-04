@@ -59,6 +59,9 @@ type Provider interface {
 	// Name returns a short, user-facing identifier ("tracker.gg", "rlstats.net", …).
 	Name() string
 
+	// Supports reports whether this provider can look up the given platform.
+	Supports(platform Platform) bool
+
 	// Lookup fetches ranked MMR data for the given player.
 	Lookup(id PlayerIdentity) ([]PlaylistRank, error)
 }

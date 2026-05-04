@@ -29,6 +29,8 @@ func New() *Provider {
 
 func (p *Provider) Name() string { return "tracker.gg" }
 
+func (p *Provider) Supports(platform mmr.Platform) bool { return true }
+
 func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	platform, lookup := platformAndLookup(id)
 	if platform == "" || lookup == "" {
@@ -38,44 +40,26 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	trnURL := fmt.Sprintf("https://api.tracker.gg/api/v2/rocket-league/standard/profile/%s/%s",
 		url.PathEscape(platform), url.PathEscape(lookup))
 
-	const maxAttempts = 3
-	var body []byte
-	var finalStatus int
+	p.limiter.Wait()
 
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 {
-			backoff := time.Duration(attempt) * 15 * time.Second
-			log.Printf("[trackergg] %s → %d — retry %d/%d in %s", trnURL, finalStatus, attempt, maxAttempts-1, backoff)
-			time.Sleep(backoff)
-		}
-
-		p.limiter.Wait()
-
-		req, err := http.NewRequest(http.MethodGet, trnURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-
-		resp, err := p.client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		body, _ = io.ReadAll(resp.Body)
-		resp.Body.Close()
-		finalStatus = resp.StatusCode
-		log.Printf("[trackergg] %s → %d (%d bytes)", trnURL, finalStatus, len(body))
-
-		if (finalStatus == 403 || finalStatus == 429) && attempt < maxAttempts-1 {
-			continue
-		}
-		break
+	req, err := http.NewRequest(http.MethodGet, trnURL, nil)
+	if err != nil {
+		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-	if finalStatus != http.StatusOK {
-		return nil, fmt.Errorf("trackergg: HTTP %d for %s", finalStatus, trnURL)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	log.Printf("[trackergg] %s → %d (%d bytes)", trnURL, resp.StatusCode, len(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("trackergg: HTTP %d for %s", resp.StatusCode, trnURL)
 	}
 	return parseResponse(body)
 }

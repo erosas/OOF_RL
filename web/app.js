@@ -32,6 +32,7 @@ const ARENA_NAMES = {
   throwbackstadium_p:     'Throwback Stadium',
   farmstead_p:            'Farmstead',
   farmstead_night_p:      'Farmstead (Night)',
+  stadium_10a_p:          'Farmstead',
   salty_shores_p:         'Salty Shores',
   salty_shores_night_p:   'Salty Shores (Night)',
   haunted_trainstation_p: 'Forbidden Temple',
@@ -241,13 +242,16 @@ function connectWS() {
       if (!msg.Data.connected && typeof clearLive === 'function') clearLive();
       return;
     }
-    if (msg.Event === 'UpdateState'    && typeof handleUpdateState === 'function') handleUpdateState(msg.Data);
-    if (msg.Event === 'UpdateState'    && typeof handleRanksUpdate === 'function') handleRanksUpdate(msg.Data);
-    if (msg.Event === 'GoalScored'     && typeof flashGoal         === 'function') flashGoal(msg.Data);
-    if (msg.Event === 'MatchDestroyed' && typeof clearLive         === 'function') clearLive();
-    if (msg.Event === 'MatchDestroyed' && typeof handleRanksClear  === 'function') handleRanksClear();
-    if (msg.Event === 'MatchDestroyed' && typeof refreshSession    === 'function') refreshSession();
-    if (msg.Event === 'bc:uploaded'    && typeof handleBCUploaded  === 'function') handleBCUploaded(msg.Data);
+    if ((msg.Event === 'MatchCreated' || msg.Event === 'MatchInitialized') && typeof handleSessionMatchStart === 'function') handleSessionMatchStart();
+    if (msg.Event === 'UpdateState'    && typeof handleUpdateState  === 'function') handleUpdateState(msg.Data);
+    if (msg.Event === 'UpdateState'    && typeof handleRanksUpdate  === 'function') handleRanksUpdate(msg.Data);
+    if (msg.Event === 'UpdateState'    && typeof handleSessionUpdate === 'function') handleSessionUpdate(msg.Data);
+    if (msg.Event === 'GoalScored'     && typeof flashGoal          === 'function') flashGoal(msg.Data);
+    if (msg.Event === 'MatchDestroyed' && typeof clearLive          === 'function') clearLive();
+    if (msg.Event === 'MatchDestroyed' && typeof handleRanksClear   === 'function') handleRanksClear();
+    if (msg.Event === 'MatchDestroyed' && typeof clearSessionLive   === 'function') clearSessionLive();
+    if (msg.Event === 'MatchDestroyed' && typeof refreshSession     === 'function') refreshSession();
+    if (msg.Event === 'bc:uploaded'    && typeof handleBCUploaded   === 'function') handleBCUploaded(msg.Data);
   };
 
   ws.onclose = () => {
@@ -340,62 +344,113 @@ async function loadSettings() {
 
 let _disabledPlugins = [];
 
-function renderPluginAccordion(blobs, cfg) {
-  _disabledPlugins = cfg.disabled_plugins || [];
-  const container = document.getElementById('plugin-settings-container');
-  container.innerHTML = '';
-
-  for (const blob of blobs) {
-    const msgId    = `plugin-msg-${blob.plugin_id}`;
-    const hasFields = (blob.settings || []).length > 0;
-    const isEnabled = blob.enabled;
-
-    const fieldRows = (blob.settings || []).map(s => {
-      const rawVal = s.key.split('.').reduce((o, k) => o?.[k], cfg);
-      const val = rawVal ?? s.default ?? '';
-      const descHtml = s.description
-        ? `<span class="help-icon">?<span class="help-tip">${esc(s.description)}</span></span>`
-        : '';
-      if (s.type === 'checkbox') {
-        const checked = val === true || val === 'true' || val === '1' ? 'checked' : '';
-        return `<div class="settings-row">
+function renderSettingRow(s, cfg) {
+  const rawVal = s.key.split('.').reduce((o, k) => o?.[k], cfg);
+  const val = rawVal ?? s.default ?? '';
+  const descHtml = s.description
+    ? `<span class="help-icon">?<span class="help-tip">${esc(s.description)}</span></span>`
+    : '';
+  if (s.type === 'checkbox') {
+    const checked = val === true || val === 'true' || val === '1' ? 'checked' : '';
+    return `<div class="settings-row">
       <label class="settings-label flex items-center gap-2 cursor-pointer">
         <input type="checkbox" id="pfield-${esc(s.key)}" class="accent-rl-blue" ${checked}>
         ${esc(s.label)}${descHtml}
       </label>
     </div>`;
-      }
-      const inputType = s.type === 'password' ? 'password' : s.type === 'number' ? 'number' : 'text';
-      return `<div class="settings-row">
+  }
+  const inputType = s.type === 'password' ? 'password' : s.type === 'number' ? 'number' : 'text';
+  return `<div class="settings-row">
     <span class="settings-label">${esc(s.label)}${descHtml}</span>
     <input type="${inputType}" id="pfield-${esc(s.key)}" value="${esc(String(val))}"
            placeholder="${esc(s.placeholder || '')}" class="settings-input" style="width:200px" autocomplete="off">
   </div>`;
-    }).join('');
+}
+
+function renderCoreSettings(blob, cfg) {
+  const container = document.getElementById('advanced-core-settings');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!blob || !(blob.settings || []).length) return;
+
+  const msgId = 'plugin-msg-core';
+  const fieldRows = blob.settings.map(s => renderSettingRow(s, cfg)).join('');
+
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+  panel.innerHTML = `
+    <div class="settings-panel-title">Data Capture</div>
+    <p class="text-xs text-gray-500 mb-3">These options can generate significant amounts of data. Only enable them if you have a specific need.</p>
+    ${fieldRows}
+    <div class="settings-footer">
+      <button class="btn-action" id="core-save-btn">Save</button>
+      <div id="${msgId}" class="msg hidden"></div>
+    </div>`;
+
+  panel.querySelector('#core-save-btn').addEventListener('click', async () => {
+    const values = {};
+    for (const s of blob.settings) {
+      const el = document.getElementById(`pfield-${s.key}`);
+      if (el) values[s.key] = s.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value.trim();
+    }
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(values),
+    });
+    showMsg(msgId, res.ok ? 'Saved!' : 'Error saving settings.', res.ok);
+  });
+
+  container.appendChild(panel);
+}
+
+function renderPluginAccordion(blobs, cfg) {
+  _disabledPlugins = cfg.disabled_plugins || [];
+
+  const coreBlob = blobs.find(b => b.plugin_id === 'core');
+  renderCoreSettings(coreBlob, cfg);
+
+  const container = document.getElementById('plugin-settings-container');
+  container.innerHTML = '';
+
+  for (const blob of blobs) {
+    if (blob.plugin_id === 'core') continue;
+
+    const msgId    = `plugin-msg-${blob.plugin_id}`;
+    const hasFields = (blob.settings || []).length > 0;
+    const isEnabled = blob.enabled;
+
+    const normalSettings = (blob.settings || []).filter(s => !s.developer);
+    const devSettings    = (blob.settings || []).filter(s => s.developer);
+
+    const fieldRows = normalSettings.map(s => renderSettingRow(s, cfg)).join('');
+    const devRows   = devSettings.length > 0
+      ? `<details style="margin-top:6px">
+          <summary style="cursor:pointer;font-size:0.8rem;opacity:0.55;padding:4px 18px">Developer</summary>
+          ${devSettings.map(s => renderSettingRow(s, cfg)).join('')}
+        </details>`
+      : '';
 
     const item = document.createElement('div');
     item.className = 'plugin-item';
-
-    item.innerHTML = `
-      <div class="plugin-item-header">
-        <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
-        <span class="plugin-item-name${isEnabled ? '' : ' disabled'}">${esc(blob.title)}</span>
-        <span class="plugin-item-arrow" aria-hidden="true">›</span>
-      </div>
-      <div class="plugin-item-body" style="display:none">
-        <div class="settings-row">
-          <label class="settings-label flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" class="plugin-enabled-cb accent-rl-blue" ${isEnabled ? 'checked' : ''}>
-            Enable ${esc(blob.title)}
-          </label>
-        </div>
-        ${fieldRows}
-        ${hasFields ? `<div class="settings-footer">
-          <button class="btn-action plugin-save-btn">Save</button>
-          <div id="${msgId}" class="msg hidden"></div>
-        </div>` : `<div id="${msgId}" class="msg hidden" style="padding:6px 18px 10px"></div>`}
-      </div>
-    `;
+    item.innerHTML = `<div class="plugin-item-header">
+           <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
+           <span class="plugin-item-name${isEnabled ? '' : ' disabled'}">${esc(blob.title)}</span>
+           <span class="plugin-item-arrow" aria-hidden="true">›</span>
+         </div>
+         <div class="plugin-item-body" style="display:none">
+           <div class="settings-row">
+             <label class="settings-label flex items-center gap-2 cursor-pointer">
+               <input type="checkbox" class="plugin-enabled-cb accent-rl-blue" ${isEnabled ? 'checked' : ''}>
+               Enable ${esc(blob.title)}
+             </label>
+           </div>
+           ${fieldRows}${devRows}
+           ${hasFields ? `<div class="settings-footer">
+             <button class="btn-action plugin-save-btn">Save</button>
+             <div id="${msgId}" class="msg hidden"></div>
+           </div>` : `<div id="${msgId}" class="msg hidden" style="padding:6px 18px 10px"></div>`}
+         </div>`;
 
     // Expand / collapse on header click
     const header = item.querySelector('.plugin-item-header');
@@ -408,8 +463,8 @@ function renderPluginAccordion(blobs, cfg) {
     });
 
     // Enable / disable — immediately update nav button without reload
-    const cb    = item.querySelector('.plugin-enabled-cb');
-    const dot   = item.querySelector('.plugin-item-dot');
+    const cb     = item.querySelector('.plugin-enabled-cb');
+    const dot    = item.querySelector('.plugin-item-dot');
     const nameEl = item.querySelector('.plugin-item-name');
     cb.addEventListener('change', async () => {
       const enabled = cb.checked;
@@ -443,9 +498,7 @@ function renderPluginAccordion(blobs, cfg) {
         const values = {};
         for (const s of blob.settings) {
           const el = document.getElementById(`pfield-${s.key}`);
-          if (el) {
-            values[s.key] = s.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value.trim();
-          }
+          if (el) values[s.key] = s.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value.trim();
         }
         const res = await fetch('/api/settings', {
           method: 'POST',
@@ -609,3 +662,116 @@ if (new URLSearchParams(location.search).has('overlay')) {
 }
 
 initApp();
+
+// Shared match detail renderer used by both history and session plugins.
+// data = { players, goals, events }; panel = DOM element to render into; activeMatchId = guard variable.
+window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
+  if (activeMatchId !== matchID) return;
+
+  const players    = data.players || [];
+  const goals      = data.goals   || [];
+  const events     = data.events  || [];
+  const matchStart = data.match?.StartedAt ? new Date(data.match.StartedAt).getTime() : null;
+
+  function matchRelTime(occurredAt) {
+    if (!matchStart || !occurredAt) return '';
+    const secs = Math.max(0, Math.round((new Date(occurredAt).getTime() - matchStart) / 1000));
+    const m = Math.floor(secs / 60);
+    const s = String(secs % 60).padStart(2, '0');
+    return `+${m}:${s}`;
+  }
+
+  players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
+  const realPlayers = players.filter(p => !isBot(p.PrimaryId));
+  prefetchTrackerRanks(realPlayers);
+
+  const blue   = realPlayers.filter(p => p.TeamNum === 0);
+  const orange = realPlayers.filter(p => p.TeamNum === 1);
+
+  const nameTeam = new Map();
+  blue.forEach(p => nameTeam.set(p.Name, 'blue'));
+  orange.forEach(p => nameTeam.set(p.Name, 'orange'));
+
+  function colorName(name) {
+    if (!name) return '<span style="color:var(--muted)">—</span>';
+    const t = nameTeam.get(name);
+    const style = t === 'blue' ? 'color:var(--rl-blue)' : t === 'orange' ? 'color:var(--rl-orange)' : '';
+    return style ? `<span style="${style}">${esc(name)}</span>` : esc(name);
+  }
+
+  const EVENT_ICON = {
+    Goal: '⚽', OwnGoal: '😬', Save: '🛡️', EpicSave: '✨', Assist: '🤝',
+    Demolish: '💥', Shot: '🎯',
+  };
+  const EVENT_LABEL = {
+    Shot: 'Shot on goal', EpicSave: 'Epic save', OwnGoal: 'Own goal', Demolish: 'Demo',
+  };
+
+  const statsRows = (list, cls) => list.map(p => `
+    <tr class="${cls}">
+      <td>
+        <div class="font-medium">${esc(p.Name)}</div>
+        ${trackerRankHTML(p.PrimaryId)}
+      </td>
+      <td>${p.Goals}</td><td>${p.Assists}</td><td>${p.Saves}</td>
+      <td>${p.Shots}</td><td>${p.Demos}</td>
+      <td>${p.Touches ?? 0}</td>
+      <td>${p.Score}</td>
+    </tr>`).join('');
+
+  const goalsHTML = goals.length
+    ? goals.map(g => `
+        <tr>
+          <td>${colorName(g.ScorerName)}</td>
+          <td>${colorName(g.AssisterName)}</td>
+          <td>${g.GoalSpeed != null ? g.GoalSpeed.toFixed(1) : '—'}</td>
+          <td>${formatDuration(g.GoalTime)}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="4" style="color:var(--muted)">No goals recorded</td></tr>';
+
+  const eventsHTML = events.length
+    ? events.map(e => {
+        const icon  = EVENT_ICON[e.event_type] || '•';
+        const actor = colorName(e.player_name);
+        const tgt   = e.target_name ? ` → ${colorName(e.target_name)}` : '';
+        const label = EVENT_LABEL[e.event_type] || e.event_type;
+        const t     = matchRelTime(e.occurred_at);
+        return `<tr>
+          <td style="width:28px;text-align:center">${icon}</td>
+          <td style="color:var(--muted);font-size:11px">${esc(label)}</td>
+          <td>${actor}${tgt}</td>
+          <td style="color:var(--muted);font-size:11px;text-align:right;white-space:nowrap">${t}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="4" style="color:var(--muted)">No events recorded</td></tr>`;
+
+  const tbodyId = `detail-stats-${matchID}`;
+
+  panel.innerHTML = `
+    <div class="match-detail-panel">
+      <h3 class="detail-section-label">Player Stats</h3>
+      <table class="detail-table">
+        <thead><tr>
+          <th>Player</th><th>G</th><th>A</th><th>Sv</th><th>Sh</th><th>Dm</th><th>Touches</th><th>Score</th>
+        </tr></thead>
+        <tbody id="${tbodyId}">${statsRows(blue, 'blue-row')}${statsRows(orange, 'orange-row')}</tbody>
+      </table>
+      <h3 class="detail-section-label" style="margin-top:16px">Goals</h3>
+      <table class="detail-table">
+        <thead><tr><th>Scorer</th><th>Assist</th><th>Speed (kph)</th><th>Time</th></tr></thead>
+        <tbody>${goalsHTML}</tbody>
+      </table>
+      ${events.length ? `
+      <h3 class="detail-section-label" style="margin-top:16px">Events</h3>
+      <table class="detail-table">
+        <thead><tr><th></th><th></th><th>Player</th><th style="text-align:right">Time</th></tr></thead>
+        <tbody>${eventsHTML}</tbody>
+      </table>` : ''}
+    </div>`;
+
+  // Schedule rank re-render for async tracker lookups.
+  window._historyDetailReRender = () => {
+    const tbody = document.getElementById(tbodyId);
+    if (tbody) tbody.innerHTML = statsRows(blue, 'blue-row') + statsRows(orange, 'orange-row');
+  };
+};

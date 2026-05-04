@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/core"
@@ -19,7 +17,7 @@ import (
 	"OOF_RL/internal/plugins/history"
 )
 
-func newTestMux(t *testing.T) (*http.ServeMux, *db.DB, *config.Config) {
+func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	database, err := db.Open(filepath.Join(tmpDir, "test.db"))
@@ -39,7 +37,7 @@ func newTestMux(t *testing.T) (*http.ServeMux, *db.DB, *config.Config) {
 
 	mux := http.NewServeMux()
 	srv.Register(mux)
-	return mux, database, &cfg
+	return mux, &cfg
 }
 
 func get(mux *http.ServeMux, path string) *httptest.ResponseRecorder {
@@ -58,113 +56,10 @@ func postJSON(mux *http.ServeMux, path string, body any) *httptest.ResponseRecor
 	return w
 }
 
-// --- /api/players ---
-
-func TestGetPlayersEmpty(t *testing.T) {
-	mux, _, _ := newTestMux(t)
-	w := get(mux, "/api/players")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d, want 200", w.Code)
-	}
-	var players []any
-	if err := json.Unmarshal(w.Body.Bytes(), &players); err != nil {
-		t.Fatalf("parse: %v — body: %s", err, w.Body.String())
-	}
-	if len(players) != 0 {
-		t.Errorf("expected empty array, got %d", len(players))
-	}
-}
-
-func TestGetPlayersWithData(t *testing.T) {
-	mux, database, _ := newTestMux(t)
-	database.UpsertPlayer("pid1", "Alice")
-	database.UpsertPlayer("pid2", "Bob")
-
-	w := get(mux, "/api/players")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var players []any
-	json.Unmarshal(w.Body.Bytes(), &players)
-	if len(players) != 2 {
-		t.Errorf("expected 2 players, got %d", len(players))
-	}
-}
-
-// --- /api/matches ---
-
-func TestGetMatchesEmpty(t *testing.T) {
-	mux, _, _ := newTestMux(t)
-	w := get(mux, "/api/matches")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var matches []any
-	json.Unmarshal(w.Body.Bytes(), &matches)
-	if len(matches) != 0 {
-		t.Errorf("expected empty, got %d", len(matches))
-	}
-}
-
-func TestGetMatchesWithPlayerFilter(t *testing.T) {
-	mux, database, _ := newTestMux(t)
-	database.UpsertPlayer("pid1", "Alice")
-	database.UpsertPlayer("pid2", "Bob")
-	m1, _ := database.UpsertMatch("guid-1", "DFH Stadium", time.Now())
-	m2, _ := database.UpsertMatch("guid-2", "Mannfield", time.Now())
-	database.UpsertPlayerMatchStats(m1, "pid1", 0, 100, 1, 1, 0, 0, 0, 0, 0)
-	database.UpsertPlayerMatchStats(m2, "pid2", 1, 200, 2, 2, 0, 0, 0, 0, 0)
-
-	w := get(mux, "/api/matches")
-	var all []any
-	json.Unmarshal(w.Body.Bytes(), &all)
-	if len(all) != 2 {
-		t.Errorf("expected 2 matches, got %d", len(all))
-	}
-
-	w = get(mux, "/api/matches?player=pid1")
-	var filtered []any
-	json.Unmarshal(w.Body.Bytes(), &filtered)
-	if len(filtered) != 1 {
-		t.Errorf("expected 1 match for pid1, got %d", len(filtered))
-	}
-}
-
-// --- /api/matches/{id} ---
-
-func TestGetMatchDetailBadID(t *testing.T) {
-	mux, _, _ := newTestMux(t)
-	w := get(mux, "/api/matches/not-a-number")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d, want 400", w.Code)
-	}
-}
-
-func TestGetMatchDetail(t *testing.T) {
-	mux, database, _ := newTestMux(t)
-	database.UpsertPlayer("pid1", "Alice")
-	matchID, _ := database.UpsertMatch("guid-1", "DFH Stadium", time.Now())
-	database.UpsertPlayerMatchStats(matchID, "pid1", 0, 500, 3, 5, 1, 2, 10, 8, 1)
-	database.InsertGoal(matchID, "pid1", "Alice", "", "", "", 110.0, 45.0, 0, 0, 0)
-
-	w := get(mux, "/api/matches/"+strconv.FormatInt(matchID, 10))
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var detail map[string]any
-	json.Unmarshal(w.Body.Bytes(), &detail)
-	if _, ok := detail["players"]; !ok {
-		t.Error("expected players key in response")
-	}
-	if _, ok := detail["goals"]; !ok {
-		t.Error("expected goals key in response")
-	}
-}
-
 // --- /api/config ---
 
 func TestGetConfig(t *testing.T) {
-	mux, _, cfg := newTestMux(t)
+	mux, cfg := newTestMux(t)
 	cfg.AppPort = 8080
 
 	w := get(mux, "/api/config")
@@ -182,7 +77,7 @@ func TestGetConfig(t *testing.T) {
 }
 
 func TestPostConfig(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 
 	newCfg := config.Defaults()
 	newCfg.AppPort = 9999
@@ -199,7 +94,7 @@ func TestPostConfig(t *testing.T) {
 }
 
 func TestPostConfigBadJSON(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewBufferString("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -210,7 +105,7 @@ func TestPostConfigBadJSON(t *testing.T) {
 }
 
 func TestConfigMethodNotAllowed(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodDelete, "/api/config", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -223,7 +118,7 @@ func TestConfigMethodNotAllowed(t *testing.T) {
 
 func TestGetINIWhenNotFound(t *testing.T) {
 	t.Setenv("USERPROFILE", "")
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	w := get(mux, "/api/config/ini")
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", w.Code)
@@ -237,7 +132,7 @@ func TestGetINIWhenNotFound(t *testing.T) {
 
 func TestPostINI(t *testing.T) {
 	t.Setenv("USERPROFILE", "")
-	mux, _, cfg := newTestMux(t)
+	mux, cfg := newTestMux(t)
 	cfg.RLInstallPath = t.TempDir()
 
 	w := postJSON(mux, "/api/config/ini", config.INISettings{PacketSendRate: 60, Port: 49123})
@@ -252,7 +147,7 @@ func TestPostINI(t *testing.T) {
 }
 
 func TestPostINIBadJSON(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/config/ini", bytes.NewBufferString("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -263,7 +158,7 @@ func TestPostINIBadJSON(t *testing.T) {
 }
 
 func TestINIMethodNotAllowed(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodDelete, "/api/config/ini", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -275,7 +170,7 @@ func TestINIMethodNotAllowed(t *testing.T) {
 // --- /api/nav ---
 
 func TestGetNav(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	w := get(mux, "/api/nav")
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d", w.Code)
@@ -285,14 +180,14 @@ func TestGetNav(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 	if len(tabs) < 2 {
-		t.Errorf("expected at least 2 tabs (history + ballchasing), got %d", len(tabs))
+		t.Errorf("expected at least 2 tabs, got %d", len(tabs))
 	}
 }
 
 // --- /api/settings/schema ---
 
 func TestGetSettingsSchema(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	w := get(mux, "/api/settings/schema")
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d", w.Code)
@@ -309,7 +204,7 @@ func TestGetSettingsSchema(t *testing.T) {
 // --- /api/settings ---
 
 func TestPostSettings(t *testing.T) {
-	mux, _, cfg := newTestMux(t)
+	mux, cfg := newTestMux(t)
 
 	w := postJSON(mux, "/api/settings", map[string]string{
 		"ballchasing_api_key": "test-key",
@@ -321,8 +216,6 @@ func TestPostSettings(t *testing.T) {
 		t.Errorf("bc key: got %q, want test-key", cfg.BallchasingAPIKey)
 	}
 
-	// Verify TrackerCacheTTLMinutes is saved via /api/config.
-	// Use a full Defaults() + override to avoid zeroing unrelated fields.
 	newCfg := config.Defaults()
 	newCfg.TrackerCacheTTLMinutes = 30
 	w = postJSON(mux, "/api/config", newCfg)
@@ -335,7 +228,7 @@ func TestPostSettings(t *testing.T) {
 }
 
 func TestPostSettingsMethodNotAllowed(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -345,7 +238,7 @@ func TestPostSettingsMethodNotAllowed(t *testing.T) {
 }
 
 func TestPostSettingsBadJSON(t *testing.T) {
-	mux, _, _ := newTestMux(t)
+	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/settings", strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

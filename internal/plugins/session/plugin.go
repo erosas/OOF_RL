@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at
 `
 
 type Plugin struct {
-	db    *db.DB
+	store *store
 	mu    sync.Mutex
 	since time.Time
 }
@@ -40,7 +40,7 @@ func New(database *db.DB) *Plugin {
 	if err := database.RunMigration(sessionSchema); err != nil {
 		log.Printf("[session] migrate: %v", err)
 	}
-	return &Plugin{db: database, since: time.Now()}
+	return &Plugin{store: &store{conn: database.Conn()}} // since is zero until first match
 }
 
 func (p *Plugin) ID() string         { return "session" }
@@ -62,8 +62,18 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
-func (p *Plugin) HandleEvent(_ events.Envelope)           {}
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
+
+func (p *Plugin) HandleEvent(env events.Envelope) {
+	if env.Event != "MatchCreated" && env.Event != "MatchInitialized" {
+		return
+	}
+	p.mu.Lock()
+	if p.since.IsZero() {
+		p.since = time.Now()
+	}
+	p.mu.Unlock()
+}
 
 // handleStart: GET returns the current session start time; POST updates it via datetime picker.
 func (p *Plugin) handleStart(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +82,10 @@ func (p *Plugin) handleStart(w http.ResponseWriter, r *http.Request) {
 		p.mu.Lock()
 		since := p.since
 		p.mu.Unlock()
-		httputil.WriteJSON(w, map[string]string{"since": since.UTC().Format(time.RFC3339)})
+		httputil.WriteJSON(w, map[string]any{
+			"since":  since.UTC().Format(time.RFC3339),
+			"active": !since.IsZero(),
+		})
 
 	case http.MethodPost:
 		var req struct {
@@ -93,7 +106,10 @@ func (p *Plugin) handleStart(w http.ResponseWriter, r *http.Request) {
 		}
 		since := p.since
 		p.mu.Unlock()
-		httputil.WriteJSON(w, map[string]string{"since": since.UTC().Format(time.RFC3339)})
+		httputil.WriteJSON(w, map[string]any{
+			"since":  since.UTC().Format(time.RFC3339),
+			"active": true,
+		})
 
 	default:
 		http.Error(w, "method not allowed", 405)
@@ -118,11 +134,14 @@ func (p *Plugin) handleNew(w http.ResponseWriter, r *http.Request) {
 	p.mu.Unlock()
 
 	if req.PlayerID != "" {
-		if _, err := p.db.CreateSession(req.PlayerID, oldSince, time.Now()); err != nil {
+		if _, err := p.store.createSession(req.PlayerID, oldSince, time.Now()); err != nil {
 			log.Printf("[session] save history: %v", err)
 		}
 	}
-	httputil.WriteJSON(w, map[string]string{"since": newSince.UTC().Format(time.RFC3339)})
+	httputil.WriteJSON(w, map[string]any{
+		"since":  newSince.UTC().Format(time.RFC3339),
+		"active": true,
+	})
 }
 
 // handleHistory: GET returns all saved sessions with aggregate stats for a player.
@@ -136,13 +155,13 @@ func (p *Plugin) handleHistory(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, 400, "player parameter required")
 		return
 	}
-	sessions, err := p.db.ListSessionsWithStats(playerID)
+	sessions, err := p.store.listSessionsWithStats(playerID)
 	if err != nil {
 		httputil.JSONError(w, 500, err.Error())
 		return
 	}
 	if sessions == nil {
-		sessions = []db.SavedSession{}
+		sessions = []SavedSession{}
 	}
 	httputil.WriteJSON(w, sessions)
 }
@@ -158,7 +177,7 @@ func (p *Plugin) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodDelete:
-		if err := p.db.DeleteSession(id); err != nil {
+		if err := p.store.deleteSession(id); err != nil {
 			httputil.JSONError(w, 500, err.Error())
 			return
 		}
@@ -183,7 +202,7 @@ func (p *Plugin) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
 			httputil.JSONError(w, 400, "ended_at must be after started_at")
 			return
 		}
-		if err := p.db.UpdateSession(id, startedAt, endedAt); err != nil {
+		if err := p.store.updateSession(id, startedAt, endedAt); err != nil {
 			httputil.JSONError(w, 500, err.Error())
 			return
 		}
@@ -196,7 +215,7 @@ func (p *Plugin) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
 
 // handleSuggestPlayer returns the player who appears in the most matches.
 func (p *Plugin) handleSuggestPlayer(w http.ResponseWriter, r *http.Request) {
-	player, err := p.db.MostFrequentPlayer()
+	player, err := p.store.mostFrequentPlayer()
 	if err != nil {
 		httputil.JSONError(w, 500, err.Error())
 		return
@@ -205,7 +224,7 @@ func (p *Plugin) handleSuggestPlayer(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, map[string]string{"primary_id": "", "name": ""})
 		return
 	}
-	httputil.WriteJSON(w, map[string]string{"primary_id": player.PrimaryID, "name": player.Name})
+	httputil.WriteJSON(w, map[string]string{"primary_id": player.primaryID, "name": player.name})
 }
 
 func (p *Plugin) handleStats(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +238,12 @@ func (p *Plugin) handleStats(w http.ResponseWriter, r *http.Request) {
 	since := p.since
 	p.mu.Unlock()
 
-	matches, err := p.db.SessionMatchesByPlayer(since, playerID)
+	if since.IsZero() {
+		httputil.WriteJSON(w, map[string]any{"matches": []SessionMatch{}, "summary": struct{}{}})
+		return
+	}
+
+	matches, err := p.store.sessionMatchesByPlayer(since, playerID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -253,7 +277,7 @@ func (p *Plugin) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if matches == nil {
-		matches = []db.SessionMatch{}
+		matches = []SessionMatch{}
 	}
 	httputil.WriteJSON(w, map[string]any{
 		"matches": matches,

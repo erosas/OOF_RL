@@ -40,7 +40,9 @@ async function fetchMatches(playerID) {
           <div class="match-card-top">
             <span class="match-card-arena">${esc(arena)}</span>
             ${type ? `<span class="match-mode-badge">${esc(type)}</span>` : ''}
-            ${m.Overtime ? '<span class="match-mode-badge match-mode-ot">OT</span>' : ''}
+            ${m.Overtime    ? '<span class="match-mode-badge match-mode-ot">OT</span>' : ''}
+            ${m.Forfeit     ? '<span class="match-mode-badge" style="background:rgba(234,179,8,0.12);color:#ca8a04">FF</span>' : ''}
+            ${m.Incomplete  ? '<span class="match-mode-badge" style="background:rgba(156,163,175,0.12);color:#9ca3af">Incomplete</span>' : ''}
           </div>
           <span class="match-card-date">${formatDate(m.StartedAt)}</span>
         </div>
@@ -86,76 +88,8 @@ async function toggleMatchInline(card, matchId) {
 }
 
 async function loadMatchDetail(matchID, panel) {
-  const data    = await fetch(`/api/matches/${matchID}`).then(r => r.json());
-  const players = data.players || [];
-  const goals   = data.goals   || [];
-
-  players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
-  const realPlayers = players.filter(p => !isBot(p.PrimaryId));
-  prefetchTrackerRanks(realPlayers);
-
-  const blue   = realPlayers.filter(p => p.TeamNum === 0);
-  const orange = realPlayers.filter(p => p.TeamNum === 1);
-
-  const nameTeam = new Map();
-  blue.forEach(p => nameTeam.set(p.Name, 'blue'));
-  orange.forEach(p => nameTeam.set(p.Name, 'orange'));
-
-  function goalNameEl(name) {
-    if (!name) return '<span style="color:var(--muted)">—</span>';
-    const t = nameTeam.get(name);
-    const style = t === 'blue' ? `color:var(--rl-blue)` : t === 'orange' ? `color:var(--rl-orange)` : '';
-    return style ? `<span style="${style}">${esc(name)}</span>` : esc(name);
-  }
-
-  const statsRows = (list, cls) => list.map(p => `
-    <tr class="${cls}">
-      <td>
-        <div class="font-medium">${esc(p.Name)}</div>
-        ${trackerRankHTML(p.PrimaryId)}
-      </td>
-      <td>${p.Goals}</td><td>${p.Assists}</td><td>${p.Saves}</td>
-      <td>${p.Shots}</td><td>${p.Demos}</td>
-      <td>${p.Touches ?? 0}</td>
-      <td>${p.Score}</td>
-    </tr>`).join('');
-
-  const goalsHTML = goals.length
-    ? goals.map(g => `
-        <tr>
-          <td>${goalNameEl(g.ScorerName)}</td>
-          <td>${goalNameEl(g.AssisterName)}</td>
-          <td>${g.GoalSpeed != null ? g.GoalSpeed.toFixed(1) : '—'}</td>
-          <td>${formatDuration(g.GoalTime)}</td>
-        </tr>`).join('')
-    : '<tr><td colspan="4" style="color:var(--muted)">No goals recorded</td></tr>';
-
-  const tbodyId = `match-stats-tbody-${matchID}`;
-
-  const renderStatsTable = () => {
-    const tbody = document.getElementById(tbodyId);
-    if (!tbody) { _historyDetailReRender = null; return; }
-    tbody.innerHTML = statsRows(blue, 'blue-row') + statsRows(orange, 'orange-row');
-  };
-  _historyDetailReRender = renderStatsTable;
-
-  if (_expandedMatchId !== matchID) return;
-
-  panel.innerHTML = `
-    <div class="match-detail-panel">
-      <h3 class="detail-section-label">Player Stats</h3>
-      <table class="detail-table">
-        <thead><tr>
-          <th>Player</th><th>G</th><th>A</th><th>Sv</th><th>Sh</th><th>Dm</th><th>Touches</th><th>Score</th>
-        </tr></thead>
-        <tbody id="${tbodyId}">${statsRows(blue, 'blue-row')}${statsRows(orange, 'orange-row')}</tbody>
-      </table>
-      <h3 class="detail-section-label" style="margin-top:16px">Goals</h3>
-      <table class="detail-table">
-        <thead><tr><th>Scorer</th><th>Assist</th><th>Speed (kph)</th><th>Time</th></tr></thead>
-        <tbody>${goalsHTML}</tbody>
-      </table>
-    </div>`;
+  const data = await fetch(`/api/matches/${matchID}`).then(r => r.json());
+  window.renderMatchDetailPanel(data, panel, _expandedMatchId, matchID);
 }
 
 window.pluginInit_history = function() {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
-	"OOF_RL/internal/hub"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/plugin"
 )
@@ -200,12 +201,62 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
+func (s *Server) coreSettingsSchema() []plugin.Setting {
+	return []plugin.Setting{
+		{
+			Key:         "storage.ball_hit_events",
+			Label:       "Ball hit events",
+			Type:        plugin.SettingTypeCheckbox,
+			Default:     "false",
+			Description: "Store every ball touch. Can generate large amounts of data.",
+		},
+		{
+			Key:         "storage.tick_snapshots",
+			Label:       "Tick snapshots",
+			Type:        plugin.SettingTypeCheckbox,
+			Default:     "false",
+			Description: "Store full game state at regular intervals. Produces very large data.",
+		},
+		{
+			Key:         "storage.tick_snapshot_rate",
+			Label:       "Tick rate (snapshots/sec)",
+			Type:        plugin.SettingTypeNumber,
+			Default:     "1",
+			Description: "Snapshots per second when tick snapshots are enabled.",
+		},
+		{
+			Key:         "storage.raw_packets",
+			Label:       "Capture raw packets",
+			Type:        plugin.SettingTypeCheckbox,
+			Default:     "false",
+			Description: "Save raw UDP packets to disk under captures/ in the data directory.",
+		},
+	}
+}
+
+func (s *Server) applyCoreSettings(values map[string]string) {
+	if v, ok := values["storage.ball_hit_events"]; ok {
+		s.cfg.Storage.BallHitEvents = v == "true"
+	}
+	if v, ok := values["storage.tick_snapshots"]; ok {
+		s.cfg.Storage.TickSnapshots = v == "true"
+	}
+	if v, ok := values["storage.tick_snapshot_rate"]; ok {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			s.cfg.Storage.TickSnapshotRate = f
+		}
+	}
+	if v, ok := values["storage.raw_packets"]; ok {
+		s.cfg.Storage.RawPackets = v == "true"
+	}
+}
+
 func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 	disabled := make(map[string]bool, len(s.cfg.DisabledPlugins))
 	for _, id := range s.cfg.DisabledPlugins {
 		disabled[id] = true
 	}
-	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins))
+	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins)+1)
 	for _, p := range s.plugins {
 		tab := p.NavTab()
 		blobs = append(blobs, plugin.PluginSettingsBlob{
@@ -217,6 +268,12 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 			Settings: p.SettingsSchema(),
 		})
 	}
+	blobs = append(blobs, plugin.PluginSettingsBlob{
+		PluginID: "core",
+		Title:    "Advanced",
+		Enabled:  true,
+		Settings: s.coreSettingsSchema(),
+	})
 	httputil.WriteJSON(w, blobs)
 }
 
@@ -245,6 +302,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, 400, err.Error())
 		return
 	}
+	s.applyCoreSettings(values)
 	for _, p := range s.plugins {
 		if err := p.ApplySettings(values); err != nil {
 			httputil.JSONError(w, 500, fmt.Sprintf("plugin %s: %v", p.ID(), err))
