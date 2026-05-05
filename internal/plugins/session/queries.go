@@ -2,6 +2,7 @@ package session
 
 import (
 	"database/sql"
+	"sort"
 	"time"
 )
 
@@ -83,21 +84,25 @@ func (s *store) listSessionsWithStats(playerID string) ([]SavedSession, error) {
 	}
 
 	for i := range sessions {
-		_ = s.conn.QueryRow(`
-			SELECT
-				COUNT(*),
-				COALESCE(SUM(ms.goals),0), COALESCE(SUM(ms.assists),0),
-				COALESCE(SUM(ms.saves),0),  COALESCE(SUM(ms.shots),0),
-				COALESCE(SUM(ms.demos),0),
-				COALESCE(SUM(CASE WHEN COALESCE(hm.incomplete,0)=0 AND hm.winner_team_num = ms.team_num THEN 1 ELSE 0 END),0),
-				COALESCE(SUM(CASE WHEN COALESCE(hm.incomplete,0)=0 AND hm.winner_team_num >= 0 AND hm.winner_team_num != ms.team_num THEN 1 ELSE 0 END),0)
-			FROM hist_matches hm
-			JOIN hist_player_match_stats ms ON ms.match_id = hm.id
-			WHERE hm.started_at >= ? AND hm.started_at < ? AND ms.primary_id = ?`,
-			sessions[i].StartedAt, sessions[i].EndedAt, sessions[i].PlayerID).Scan(
-			&sessions[i].Games, &sessions[i].Goals, &sessions[i].Assists,
-			&sessions[i].Saves, &sessions[i].Shots, &sessions[i].Demos,
-			&sessions[i].Wins, &sessions[i].Losses)
+		matches, err := s.sessionMatchesByPlayerBetween(sessions[i].StartedAt, sessions[i].EndedAt, sessions[i].PlayerID)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range matches {
+			sessions[i].Games++
+			sessions[i].Goals += m.Goals
+			sessions[i].Assists += m.Assists
+			sessions[i].Saves += m.Saves
+			sessions[i].Shots += m.Shots
+			sessions[i].Demos += m.Demos
+			if !m.Incomplete && m.WinnerTeamNum >= 0 {
+				if m.PlayerTeam == m.WinnerTeamNum {
+					sessions[i].Wins++
+				} else {
+					sessions[i].Losses++
+				}
+			}
+		}
 	}
 	return sessions, nil
 }
@@ -118,6 +123,13 @@ func (s *store) updateSession(id int64, startedAt, endedAt time.Time) error {
 
 // sessionMatchesByPlayer returns per-player match stats for matches starting at or after since.
 func (s *store) sessionMatchesByPlayer(since time.Time, playerID string) ([]SessionMatch, error) {
+	return s.sessionMatchesByPlayerBetween(since, time.Time{}, playerID)
+}
+
+// sessionMatchesByPlayerBetween returns per-player match stats in a time window.
+// Filtering is done in Go instead of SQL so UTC session bounds and local history
+// timestamps compare by instant, not by driver-specific DATETIME text format.
+func (s *store) sessionMatchesByPlayerBetween(start, end time.Time, playerID string) ([]SessionMatch, error) {
 	rows, err := s.conn.Query(`
 		SELECT m.id, COALESCE(m.arena,''), m.started_at, COALESCE(m.winner_team_num,-1),
 		       COALESCE(m.incomplete,0), COALESCE(m.forfeit,0),
@@ -126,9 +138,8 @@ func (s *store) sessionMatchesByPlayer(since time.Time, playerID string) ([]Sess
 		       (SELECT COUNT(*) FROM hist_player_match_stats WHERE match_id = m.id)
 		FROM hist_matches m
 		JOIN hist_player_match_stats s ON s.match_id = m.id
-		WHERE m.started_at >= ? AND s.primary_id = ?
-		ORDER BY m.started_at ASC
-		LIMIT 200`, since, playerID)
+		WHERE s.primary_id = ?
+		ORDER BY m.started_at ASC`, playerID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,9 +157,21 @@ func (s *store) sessionMatchesByPlayer(since time.Time, playerID string) ([]Sess
 			v := int(pt.Int64)
 			sm.PlaylistType = &v
 		}
+		if sm.StartedAt.Before(start) {
+			continue
+		}
+		if !end.IsZero() && !sm.StartedAt.Before(end) {
+			continue
+		}
 		out = append(out, sm)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].StartedAt.Before(out[j].StartedAt)
+	})
+	return out, nil
 }
 
 // mostFrequentPlayer returns the player who appears in the most matches.
