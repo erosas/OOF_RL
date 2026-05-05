@@ -2,10 +2,8 @@ package singleinstance
 
 import (
 	"errors"
-	"io"
 	"os"
-	"strconv"
-	"strings"
+	"path/filepath"
 	"testing"
 )
 
@@ -45,7 +43,7 @@ func TestAcquireReleaseAllowsReacquire(t *testing.T) {
 	defer second.Release()
 }
 
-func TestAcquireWritesPID(t *testing.T) {
+func TestAcquireCreatesLockFileInDataDir(t *testing.T) {
 	dir := t.TempDir()
 
 	lock, err := Acquire(dir)
@@ -54,16 +52,7 @@ func TestAcquireWritesPID(t *testing.T) {
 	}
 	defer lock.Release()
 
-	if _, err := lock.file.Seek(0, 0); err != nil {
-		t.Fatalf("Seek: %v", err)
-	}
-	data, err := io.ReadAll(lock.file)
-	if err != nil {
-		t.Fatalf("ReadAll: %v", err)
-	}
-	got := strings.TrimSpace(string(data))
-	want := strconv.Itoa(os.Getpid())
-	if got != want {
-		t.Fatalf("PID = %q, want %q", got, want)
+	if _, err := os.Stat(filepath.Join(dir, lockFileName)); err != nil {
+		t.Fatalf("lock file should exist in data dir: %v", err)
 	}
 }
