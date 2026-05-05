@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -28,6 +29,7 @@ import (
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
+	"OOF_RL/internal/singleinstance"
 )
 
 //go:embed web/*
@@ -40,7 +42,8 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	// Log to data dir; detach from console so double-clicking the exe is clean.
+	// Log to data dir before acquiring the instance lock so duplicate launches
+	// leave an audit trail in oof_rl.log before exiting.
 	if err := logging.Rotate(cfg.LogPath(), logging.RotateOptions{Retain: 5}); err != nil {
 		log.Printf("log rotation: %v", err)
 	}
@@ -49,6 +52,17 @@ func main() {
 		defer f.Close()
 		overlay.FreeConsole()
 	}
+
+	appLock, err := singleinstance.Acquire(cfg.DataDir)
+	if err != nil {
+		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+			log.Printf("[core] duplicate instance rejected; lock already held: %s", singleinstance.LockPath(cfg.DataDir))
+			return
+		}
+		log.Fatalf("single instance lock: %v", err)
+	}
+	defer appLock.Release()
+	log.Printf("[core] single-instance lock acquired: %s", appLock.Path())
 
 	database, err := db.Open(cfg.DBPath())
 	if err != nil {
