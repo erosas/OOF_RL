@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -40,22 +41,24 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	appLock, err := singleinstance.Acquire(cfg.DataDir)
-	if err != nil {
-		if err == singleinstance.ErrAlreadyRunning {
-			log.Print("OOF RL is already running; exiting second instance")
-			return
-		}
-		log.Fatalf("single instance lock: %v", err)
-	}
-	defer appLock.Release()
-
-	// Log to data dir; detach from console so double-clicking the exe is clean.
+	// Log to data dir before acquiring the instance lock so duplicate launches
+	// leave an audit trail in oof_rl.log before exiting.
 	if f, err := os.OpenFile(cfg.LogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
 		log.SetOutput(f)
 		defer f.Close()
 		overlay.FreeConsole()
 	}
+
+	appLock, err := singleinstance.Acquire(cfg.DataDir)
+	if err != nil {
+		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+			log.Printf("[core] duplicate instance rejected; lock already held: %s", singleinstance.LockPath(cfg.DataDir))
+			return
+		}
+		log.Fatalf("single instance lock: %v", err)
+	}
+	defer appLock.Release()
+	log.Printf("[core] single-instance lock acquired: %s", appLock.Path())
 
 	database, err := db.Open(cfg.DBPath())
 	if err != nil {

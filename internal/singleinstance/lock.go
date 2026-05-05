@@ -20,6 +20,11 @@ type Lock struct {
 	path   string
 }
 
+// LockPath returns the app-data lock file path used for the single-instance guard.
+func LockPath(dataDir string) string {
+	return filepath.Join(dataDir, lockFileName)
+}
+
 // Acquire creates a lock file in dataDir and opens it without sharing. Windows
 // holds that file handle until Release or process exit, causing any second app
 // instance to fail immediately when it tries to open the same file.
@@ -28,7 +33,7 @@ func Acquire(dataDir string) (*Lock, error) {
 		return nil, err
 	}
 
-	path := filepath.Join(dataDir, lockFileName)
+	path := LockPath(dataDir)
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err
@@ -51,6 +56,14 @@ func Acquire(dataDir string) (*Lock, error) {
 	}
 
 	return &Lock{handle: handle, path: path}, nil
+}
+
+// Path returns the held lock file path.
+func (l *Lock) Path() string {
+	if l == nil {
+		return ""
+	}
+	return l.path
 }
 
 // Release closes the held file handle.
