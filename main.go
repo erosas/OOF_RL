@@ -14,19 +14,20 @@ import (
 	webview2 "github.com/jchv/go-webview2"
 
 	"OOF_RL/internal/config"
-	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/core"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/mmr/rlstats"
 	"OOF_RL/internal/mmr/trackergg"
+	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
+	"OOF_RL/internal/singleinstance"
 )
 
 //go:embed web/*
@@ -38,6 +39,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+
+	appLock, err := singleinstance.Acquire(cfg.DataDir)
+	if err != nil {
+		if err == singleinstance.ErrAlreadyRunning {
+			log.Print("OOF RL is already running; exiting second instance")
+			return
+		}
+		log.Fatalf("single instance lock: %v", err)
+	}
+	defer appLock.Release()
 
 	// Log to data dir; detach from console so double-clicking the exe is clean.
 	if f, err := os.OpenFile(cfg.LogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
