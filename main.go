@@ -14,13 +14,14 @@ import (
 	webview2 "github.com/jchv/go-webview2"
 
 	"OOF_RL/internal/config"
-	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/core"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/logging"
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/mmr/rlstats"
 	"OOF_RL/internal/mmr/trackergg"
+	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
@@ -40,6 +41,9 @@ func main() {
 	}
 
 	// Log to data dir; detach from console so double-clicking the exe is clean.
+	if err := logging.Rotate(cfg.LogPath(), logging.RotateOptions{Retain: 5}); err != nil {
+		log.Printf("log rotation: %v", err)
+	}
 	if f, err := os.OpenFile(cfg.LogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
 		log.SetOutput(f)
 		defer f.Close()
