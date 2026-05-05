@@ -223,13 +223,14 @@ func (p *Plugin) onUpdateState(env events.Envelope) {
 	}
 
 	if len(d.Players) > 0 {
-		if p.lastPlayers == nil {
-			p.lastPlayers = make(map[string]events.Player)
-		}
+		currentPlayers := make(map[string]events.Player, len(d.Players))
 		for _, pl := range d.Players {
 			if pl.PrimaryId != "" {
-				p.lastPlayers[pl.PrimaryId] = pl
+				currentPlayers[pl.PrimaryId] = pl
 			}
+		}
+		if len(currentPlayers) >= len(p.lastPlayers) || !d.Game.BReplay {
+			p.lastPlayers = currentPlayers
 		}
 	}
 

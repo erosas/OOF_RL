@@ -31,12 +31,17 @@ func emitHistoryEvent(t *testing.T, p *Plugin, name string, data any) {
 }
 
 func updateState(guid, arena string, players []events.Player, blueScore, orangeScore, seconds int) events.UpdateStateData {
+	return updateStateWithReplay(guid, arena, players, blueScore, orangeScore, seconds, false)
+}
+
+func updateStateWithReplay(guid, arena string, players []events.Player, blueScore, orangeScore, seconds int, replay bool) events.UpdateStateData {
 	return events.UpdateStateData{
 		MatchGuid: guid,
 		Players:   players,
 		Game: events.GameState{
 			Arena:       arena,
 			TimeSeconds: seconds,
+			BReplay:     replay,
 			Teams: []events.Team{
 				{TeamNum: 0, Score: blueScore, Name: "Blue"},
 				{TeamNum: 1, Score: orangeScore, Name: "Orange"},
@@ -138,5 +143,54 @@ func TestStaleMatchEndedDoesNotFlushActiveMatch(t *testing.T) {
 	newMatch := matchByGUID(t, p, "guid-b")
 	if newMatch.Incomplete || newMatch.WinnerTeamNum != 1 {
 		t.Fatalf("active match should complete after its own MatchEnded: %+v", newMatch)
+	}
+}
+
+func TestUpdateStateReplacesCurrentRosterSnapshot(t *testing.T) {
+	p := newTestPlugin(t)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-roster", "Utopia Coliseum", []events.Player{
+		player("real-blue", "Real Blue", 0, 100),
+		player("real-orange", "Real Orange", 1, 200),
+		player("stale-blue", "Stale Blue", 0, 300),
+		player("stale-orange", "Stale Orange", 1, 400),
+	}, 1, 1, 120))
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-roster", "Utopia Coliseum", []events.Player{
+		player("real-blue", "Real Blue", 0, 500),
+		player("real-orange", "Real Orange", 1, 600),
+	}, 2, 3, 0))
+	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-roster", WinnerTeamNum: 1})
+
+	match := matchByGUID(t, p, "guid-roster")
+	players := playerIDsForMatch(t, p, match.ID)
+	if len(players) != 2 || !players["real-blue"] || !players["real-orange"] {
+		t.Fatalf("match should contain only the latest roster snapshot, got %v", players)
+	}
+	if players["stale-blue"] || players["stale-orange"] {
+		t.Fatalf("stale players should be removed by latest roster snapshot, got %v", players)
+	}
+}
+
+func TestLatePartialRosterDoesNotShrinkCompletedMatch(t *testing.T) {
+	p := newTestPlugin(t)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-overtime", "Utopia Coliseum", []events.Player{
+		player("blue-one", "Blue One", 0, 100),
+		player("blue-two", "Blue Two", 0, 200),
+		player("orange-one", "Orange One", 1, 300),
+		player("orange-two", "Orange Two", 1, 400),
+	}, 4, 3, 0))
+
+	emitHistoryEvent(t, p, "UpdateState", updateStateWithReplay("guid-overtime", "Utopia Coliseum", []events.Player{
+		player("blue-one", "Blue One", 0, 500),
+		player("blue-two", "Blue Two", 0, 600),
+	}, 4, 3, 0, true))
+	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-overtime", WinnerTeamNum: 0})
+
+	match := matchByGUID(t, p, "guid-overtime")
+	players := playerIDsForMatch(t, p, match.ID)
+	if len(players) != 4 {
+		t.Fatalf("late partial roster should not shrink full match roster, got %v", players)
 	}
 }
