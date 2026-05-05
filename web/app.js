@@ -338,10 +338,10 @@ function connectWS() {
     if (msg.Event === 'UpdateState'    && typeof handleRanksUpdate  === 'function') handleRanksUpdate(msg.Data);
     if (msg.Event === 'UpdateState'    && typeof handleSessionUpdate === 'function') handleSessionUpdate(msg.Data);
     if (msg.Event === 'GoalScored'     && typeof flashGoal          === 'function') flashGoal(msg.Data);
+    if ((msg.Event === 'MatchEnded' || msg.Event === 'MatchDestroyed') && typeof refreshPostMatchViews === 'function') refreshPostMatchViews();
     if (msg.Event === 'MatchDestroyed' && typeof clearLive          === 'function') clearLive();
     if (msg.Event === 'MatchDestroyed' && typeof handleRanksClear   === 'function') handleRanksClear();
     if (msg.Event === 'MatchDestroyed' && typeof clearSessionLive   === 'function') clearSessionLive();
-    if (msg.Event === 'MatchDestroyed' && typeof refreshSession     === 'function') refreshSession();
     if (msg.Event === 'bc:uploaded'             && typeof handleBCUploaded          === 'function') handleBCUploaded(msg.Data);
     if (msg.Event === 'bc:save-replay-reminder' && typeof handleBCSaveReplayReminder === 'function') handleBCSaveReplayReminder();
     if (msg.Event === 'MatchDestroyed'          && typeof refreshBCMatches           === 'function') refreshBCMatches();
@@ -351,6 +351,17 @@ function connectWS() {
     dot.className = 'dot disconnected';
     setTimeout(connectWS, 3000);
   };
+}
+
+let _postMatchRefreshTimer = null;
+
+function refreshPostMatchViews() {
+  clearTimeout(_postMatchRefreshTimer);
+  _postMatchRefreshTimer = setTimeout(() => {
+    if (typeof refreshSession === 'function') refreshSession();
+    if (typeof loadSessionHistory === 'function') loadSessionHistory();
+    if (typeof loadHistory === 'function') loadHistory();
+  }, 150);
 }
 
 // --- Navigation ---
