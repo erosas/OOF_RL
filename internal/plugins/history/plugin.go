@@ -201,7 +201,7 @@ func (p *Plugin) onMatchStart(env events.Envelope) {
 	if err := json.Unmarshal(env.Data, &d); err != nil || d.MatchGuid == "" {
 		return
 	}
-	p.matchGuid = d.MatchGuid
+	p.switchMatch(d.MatchGuid)
 }
 
 func (p *Plugin) onUpdateState(env events.Envelope) {
@@ -210,26 +210,27 @@ func (p *Plugin) onUpdateState(env events.Envelope) {
 		return
 	}
 	if d.MatchGuid != "" {
-		p.matchGuid = d.MatchGuid
+		p.switchMatch(d.MatchGuid)
 	}
 	p.overtime = d.Game.BOvertime
 	p.lastTimeSeconds = d.Game.TimeSeconds
 
-	if p.matchID == 0 && d.MatchGuid != "" {
-		id, err := p.store.upsertMatch(d.MatchGuid, d.Game.Arena, time.Now())
+	if p.matchID == 0 && p.matchGuid != "" {
+		id, err := p.store.upsertMatch(p.matchGuid, d.Game.Arena, time.Now())
 		if err == nil {
 			p.matchID = id
 		}
 	}
 
 	if len(d.Players) > 0 {
-		if p.lastPlayers == nil {
-			p.lastPlayers = make(map[string]events.Player)
-		}
+		currentPlayers := make(map[string]events.Player, len(d.Players))
 		for _, pl := range d.Players {
 			if pl.PrimaryId != "" {
-				p.lastPlayers[pl.PrimaryId] = pl
+				currentPlayers[pl.PrimaryId] = pl
 			}
+		}
+		if len(currentPlayers) >= len(p.lastPlayers) || !d.Game.BReplay {
+			p.lastPlayers = currentPlayers
 		}
 	}
 
@@ -249,6 +250,9 @@ func (p *Plugin) onGoalScored(env events.Envelope) {
 	}
 	var d events.GoalScoredData
 	if err := json.Unmarshal(env.Data, &d); err != nil {
+		return
+	}
+	if !p.isActiveMatch(d.MatchGuid) {
 		return
 	}
 	// GoalScored fires twice per goal: first with scorer info, then a replay-end packet
@@ -288,6 +292,9 @@ func (p *Plugin) onBallHit(env events.Envelope) {
 	if err := json.Unmarshal(env.Data, &d); err != nil {
 		return
 	}
+	if !p.isActiveMatch(d.MatchGuid) {
+		return
+	}
 	playerID := ""
 	if len(d.Players) > 0 {
 		playerID = d.Players[0].PrimaryId
@@ -300,6 +307,9 @@ func (p *Plugin) onBallHit(env events.Envelope) {
 func (p *Plugin) onStatfeedEvent(env events.Envelope) {
 	var d events.StatfeedEventData
 	if err := json.Unmarshal(env.Data, &d); err != nil || d.EventName == "" {
+		return
+	}
+	if !p.isActiveMatch(d.MatchGuid) {
 		return
 	}
 	if d.MainTarget.Name == "" {
@@ -321,6 +331,9 @@ func (p *Plugin) onStatfeedEvent(env events.Envelope) {
 func (p *Plugin) onMatchEnded(env events.Envelope) {
 	var d events.MatchEndedData
 	if err := json.Unmarshal(env.Data, &d); err != nil || p.matchID == 0 {
+		return
+	}
+	if !p.isActiveMatch(d.MatchGuid) {
 		return
 	}
 	// Forfeit: if any clock time remained when MatchEnded fired, the game didn't run to zero — someone forfeited.
@@ -373,6 +386,22 @@ func (p *Plugin) resetMatchState() {
 	p.playlistType = nil
 	p.lastPlayers = nil
 	p.lastTeams = nil
+	p.lastTimeSeconds = 0
+}
+
+func (p *Plugin) switchMatch(matchGuid string) {
+	if matchGuid == "" || matchGuid == p.matchGuid {
+		return
+	}
+	if p.matchID != 0 {
+		p.flushMatch(-1, true, false)
+	}
+	p.resetMatchState()
+	p.matchGuid = matchGuid
+}
+
+func (p *Plugin) isActiveMatch(matchGuid string) bool {
+	return matchGuid == "" || p.matchGuid == "" || matchGuid == p.matchGuid
 }
 
 // -- seeding helpers (used by integration tests in other packages) --
