@@ -319,6 +319,13 @@ function trackerRankHTML(primaryId) {
   return `<div class="player-trk-rank">${platformBadge}${pills}${updatedStr}</div>`;
 }
 
+// --- Widget registry ---
+const widgetRegistry = {};
+window.widgetRegistry = widgetRegistry;
+window.registerWidget = function(def) {
+  widgetRegistry[def.id] = def;
+};
+
 // --- WebSocket ---
 const dot = document.getElementById('status-dot');
 
@@ -368,11 +375,13 @@ function refreshPostMatchViews() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  if (name === 'history' && typeof loadHistory   === 'function') loadHistory();
+  document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
+  if (name === 'history'   && typeof loadHistory      === 'function') loadHistory();
   if (name === 'settings') loadSettings();
-  if (name === 'bc'      && typeof loadBC        === 'function') loadBC();
-  if (name === 'ranks'   && typeof refreshRanks  === 'function') refreshRanks();
-  if (name === 'session' && typeof refreshSession === 'function') refreshSession();
+  if (name === 'bc'        && typeof loadBC            === 'function') loadBC();
+  if (name === 'ranks'     && typeof refreshRanks      === 'function') refreshRanks();
+  if (name === 'session'   && typeof refreshSession    === 'function') refreshSession();
+  if (name === 'dashboard' && typeof loadDashboard     === 'function') loadDashboard();
   if (name !== 'history') _historyDetailReRender = null;
   if (name !== 'ranks')   _ranksReRender = null;
 }

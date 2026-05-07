@@ -24,6 +24,7 @@ import (
 	"OOF_RL/internal/mmr/trackergg"
 	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/plugins/ballchasing"
+	"OOF_RL/internal/plugins/dashboard"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
 	"OOF_RL/internal/plugins/ranks"
@@ -88,6 +89,7 @@ func main() {
 	srv.Use(history.New(&cfg, database))
 	srv.Use(session.New(database))
 	srv.Use(ballchasing.New(&cfg, database, h))
+	srv.Use(dashboard.New(database))
 	srv.Register(mux)
 
 	rlClient := rl.New(&cfg, h)

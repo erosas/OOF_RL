@@ -4,44 +4,33 @@ const BC_MATCH_PAGE_SIZE    = 20;
 const BC_UPLOADED_PAGE_SIZE = 10;
 const BC_GROUPS_PAGE_SIZE   = 10;
 
-let _bcMatchList    = [];
-let _bcMatchPage    = 0;
-let _bcUploadedList = [];
-let _bcUploadedPage = 0;
-let _bcGroupsList   = [];
-let _bcGroupsPage   = 0;
-const _bcNewIds     = new Set();
 let _bcReminderTimer = null;
+
+// Widget controller refs — set by pluginInit_bc, used by WS handlers
+let _matchWidget    = null;
+let _uploadedWidget = null;
+let _groupsWidget   = null;
+
+// ── Tab-level load / WS-triggered refresh ──────────────────────
 
 async function loadBC() {
   loadBCStatus();
-  const [matchData, bcData, bcGroups] = await Promise.all([
-    fetch('/api/ballchasing/matches').then(r => r.json()).catch(() => null),
-    fetch('/api/ballchasing/replays').then(r => r.json()).catch(() => null),
-    fetch('/api/ballchasing/groups').then(r => r.json()).catch(() => null),
-  ]);
-
-  _bcMatchList    = Array.isArray(matchData) ? matchData : [];
-  _bcUploadedList = bcData?.list            || [];
-  _bcGroupsList   = bcGroups?.list          || [];
-  _bcMatchPage    = 0;
-  _bcUploadedPage = 0;
-  _bcGroupsPage   = 0;
-
-  renderMatchReplays();
-  renderBCUploaded();
-  renderBCGroups();
+  await Promise.all([
+    _matchWidget?.refresh(),
+    _uploadedWidget?.refresh(),
+    _groupsWidget?.refresh(),
+  ].filter(Boolean));
 }
 
 async function refreshBCMatches() {
-  const data = await fetch('/api/ballchasing/matches').then(r => r.json()).catch(() => null);
-  if (!data) return;
-  _bcMatchList = Array.isArray(data) ? data : [];
-  renderMatchReplays();
+  _matchWidget?.refresh();
 }
+
+// ── Status bar ─────────────────────────────────────────────────
 
 async function loadBCStatus() {
   const el = document.getElementById('bc-status');
+  if (!el) return;
   el.innerHTML = '<span class="bc-status-dot bc-dot-pending"></span> Checking…';
   try {
     const r = await fetch('/api/ballchasing/ping');
@@ -57,35 +46,117 @@ async function loadBCStatus() {
   }
 }
 
-// ── Match replays (history-driven) ────────────────────────────
+// ── Widget factories ───────────────────────────────────────────
 
-function renderMatchReplays() {
-  const el    = document.getElementById('bc-matches');
-  const pager = document.getElementById('bc-matches-pager');
-  const purge = document.getElementById('bc-purge-btn');
-  if (!el) return;
+function bcMatchReplaysWidget(container) {
+  let list = [];
+  let page = 0;
 
-  const hasUploaded = _bcMatchList.some(m => m.uploaded);
-  if (purge) purge.classList.toggle('hidden', !hasUploaded);
+  function render() {
+    const purge = document.getElementById('bc-purge-btn');
+    if (purge) purge.classList.toggle('hidden', !list.some(m => m.uploaded));
 
-  if (!_bcMatchList.length) {
-    el.innerHTML = '<div class="bc-empty">No matches found yet — play a game first.</div>';
-    if (pager) pager.innerHTML = '';
-    return;
+    if (!list.length) {
+      container.innerHTML = '<div class="bc-empty">No matches found yet — play a game first.</div>';
+      return;
+    }
+
+    const start = page * BC_MATCH_PAGE_SIZE;
+    container.innerHTML = list.slice(start, start + BC_MATCH_PAGE_SIZE).map(m => bcMatchRow(m)).join('');
+    container.querySelectorAll('.bc-upload-btn[data-replay]').forEach(btn => {
+      btn.addEventListener('click', () => uploadMatchReplay(btn.dataset.replay, btn));
+    });
+
+    const pagerEl = document.createElement('div');
+    pagerEl.className = 'flex items-center gap-2 mt-2';
+    renderPager(pagerEl, list.length, BC_MATCH_PAGE_SIZE, page,
+      p => { page = p; render(); });
+    if (Math.ceil(list.length / BC_MATCH_PAGE_SIZE) > 1) container.appendChild(pagerEl);
   }
 
-  const start = _bcMatchPage * BC_MATCH_PAGE_SIZE;
-  const page  = _bcMatchList.slice(start, start + BC_MATCH_PAGE_SIZE);
+  async function refresh() {
+    const data = await fetch('/api/ballchasing/matches').then(r => r.json()).catch(() => null);
+    list = Array.isArray(data) ? data : [];
+    page = 0;
+    render();
+  }
 
-  el.innerHTML = page.map(m => bcMatchRow(m)).join('');
+  function getUploadedCount() {
+    return list.filter(m => m.uploaded).length;
+  }
 
-  el.querySelectorAll('.bc-upload-btn[data-replay]').forEach(btn => {
-    btn.addEventListener('click', () => uploadMatchReplay(btn.dataset.replay, btn));
-  });
-
-  renderPager(pager, _bcMatchList.length, BC_MATCH_PAGE_SIZE, _bcMatchPage,
-    p => { _bcMatchPage = p; renderMatchReplays(); });
+  return { refresh, getUploadedCount };
 }
+
+function bcUploadedReplaysWidget(container) {
+  let list   = [];
+  let page   = 0;
+  const newIds = new Set();
+
+  function render() {
+    if (!list.length) {
+      container.innerHTML = '<div class="bc-empty">No replays found on Ballchasing.</div>';
+      return;
+    }
+    const start = page * BC_UPLOADED_PAGE_SIZE;
+    container.innerHTML = list.slice(start, start + BC_UPLOADED_PAGE_SIZE).map(rp => bcReplayCard(rp, newIds)).join('');
+
+    const pagerEl = document.createElement('div');
+    pagerEl.className = 'flex items-center gap-2 mt-2';
+    renderPager(pagerEl, list.length, BC_UPLOADED_PAGE_SIZE, page,
+      p => { page = p; render(); });
+    if (Math.ceil(list.length / BC_UPLOADED_PAGE_SIZE) > 1) container.appendChild(pagerEl);
+  }
+
+  async function refresh() {
+    const data = await fetch('/api/ballchasing/replays').then(r => r.json()).catch(() => null);
+    list = data?.list || [];
+    page = 0;
+    render();
+  }
+
+  function onNewUploads(replays) {
+    for (const r of replays) {
+      newIds.add(r.bc_id);
+      list.unshift({ id: r.bc_id, name: r.name, date: new Date().toISOString() });
+    }
+    page = 0;
+    render();
+  }
+
+  return { refresh, onNewUploads };
+}
+
+function bcGroupsWidget(container) {
+  let list = [];
+  let page = 0;
+
+  function render() {
+    if (!list.length) {
+      container.innerHTML = '<div class="bc-empty">No groups found.</div>';
+      return;
+    }
+    const start = page * BC_GROUPS_PAGE_SIZE;
+    container.innerHTML = list.slice(start, start + BC_GROUPS_PAGE_SIZE).map(bcGroupCard).join('');
+
+    const pagerEl = document.createElement('div');
+    pagerEl.className = 'flex items-center gap-2 mt-2';
+    renderPager(pagerEl, list.length, BC_GROUPS_PAGE_SIZE, page,
+      p => { page = p; render(); });
+    if (Math.ceil(list.length / BC_GROUPS_PAGE_SIZE) > 1) container.appendChild(pagerEl);
+  }
+
+  async function refresh() {
+    const data = await fetch('/api/ballchasing/groups').then(r => r.json()).catch(() => null);
+    list = data?.list || [];
+    page = 0;
+    render();
+  }
+
+  return { refresh };
+}
+
+// ── Match row ──────────────────────────────────────────────────
 
 function bcMatchRow(m) {
   const arena = (m.arena && friendlyArena(m.arena)) || 'Unknown Arena';
@@ -109,6 +180,8 @@ function bcMatchRow(m) {
     </div>`;
 }
 
+// ── Upload action ──────────────────────────────────────────────
+
 async function uploadMatchReplay(replayName, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
@@ -123,12 +196,14 @@ async function uploadMatchReplay(replayName, btn) {
       if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
       return;
     }
-    await refreshBCMatches();
+    _matchWidget?.refresh();
   } catch (e) {
     alert(e.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
   }
 }
+
+// ── Sync & purge (page-level actions) ─────────────────────────
 
 async function syncFromBC() {
   const btn = document.getElementById('bc-sync-btn');
@@ -140,7 +215,7 @@ async function syncFromBC() {
       alert(j.error || `Sync failed (${res.status})`);
       return;
     }
-    await refreshBCMatches();
+    _matchWidget?.refresh();
     const notify = document.getElementById('bc-notify');
     if (notify) {
       const n = j.synced ?? 0;
@@ -167,14 +242,14 @@ function handleBCSaveReplayReminder() {
 }
 
 async function purgeUploaded() {
-  const count = _bcMatchList.filter(m => m.uploaded).length;
+  const count = _matchWidget?.getUploadedCount?.() ?? 0;
   if (!confirm(`Delete ${count} uploaded replay file${count !== 1 ? 's' : ''} from disk? Only replays already on Ballchasing will be removed.`)) return;
   const purgeBtn = document.getElementById('bc-purge-btn');
   if (purgeBtn) { purgeBtn.disabled = true; purgeBtn.textContent = '…'; }
   try {
     const res = await fetch('/api/ballchasing/local-replays/purge', { method: 'POST' });
     const j   = await res.json().catch(() => ({}));
-    await refreshBCMatches();
+    _matchWidget?.refresh();
     if (purgeBtn) { purgeBtn.disabled = false; purgeBtn.textContent = 'Delete Uploaded'; }
     const notify = document.getElementById('bc-notify');
     if (notify && j.deleted != null) {
@@ -188,57 +263,26 @@ async function purgeUploaded() {
   }
 }
 
-// ── BC uploaded replays ────────────────────────────────────────
+// ── WS handler ─────────────────────────────────────────────────
 
-function renderBCUploaded() {
-  const el    = document.getElementById('bc-uploaded');
-  const pager = document.getElementById('bc-uploaded-pager');
-  if (!_bcUploadedList.length) {
-    el.innerHTML    = '<div class="bc-empty">No replays found on Ballchasing.</div>';
-    if (pager) pager.innerHTML = '';
-    return;
+function handleBCUploaded(data) {
+  const replays = data?.replays || [];
+  if (!replays.length) return;
+
+  _uploadedWidget?.onNewUploads(replays);
+  _matchWidget?.refresh();
+
+  const notify = document.getElementById('bc-notify');
+  if (notify) {
+    notify.textContent = `${replays.length} replay${replays.length > 1 ? 's' : ''} auto-uploaded to Ballchasing.`;
+    notify.classList.remove('hidden');
+    setTimeout(() => notify.classList.add('hidden'), 8000);
   }
-  const start = _bcUploadedPage * BC_UPLOADED_PAGE_SIZE;
-  el.innerHTML = _bcUploadedList.slice(start, start + BC_UPLOADED_PAGE_SIZE).map(bcReplayCard).join('');
-  renderPager(pager, _bcUploadedList.length, BC_UPLOADED_PAGE_SIZE, _bcUploadedPage,
-    p => { _bcUploadedPage = p; renderBCUploaded(); });
-}
-
-// ── Groups ─────────────────────────────────────────────────────
-
-function renderBCGroups() {
-  const el    = document.getElementById('bc-groups');
-  const pager = document.getElementById('bc-groups-pager');
-  if (!_bcGroupsList.length) {
-    el.innerHTML    = '<div class="bc-empty">No groups found.</div>';
-    if (pager) pager.innerHTML = '';
-    return;
-  }
-  const start = _bcGroupsPage * BC_GROUPS_PAGE_SIZE;
-  el.innerHTML = _bcGroupsList.slice(start, start + BC_GROUPS_PAGE_SIZE).map(bcGroupCard).join('');
-  renderPager(pager, _bcGroupsList.length, BC_GROUPS_PAGE_SIZE, _bcGroupsPage,
-    p => { _bcGroupsPage = p; renderBCGroups(); });
-}
-
-// ── Shared pager ───────────────────────────────────────────────
-
-function renderPager(el, total, pageSize, currentPage, onPageChange) {
-  if (!el) return;
-  const totalPages = Math.ceil(total / pageSize);
-  if (totalPages <= 1) { el.innerHTML = ''; return; }
-  el.innerHTML = `
-    <span class="text-xs text-gray-500">${currentPage + 1} / ${totalPages}</span>
-    <button class="bc-page-btn" ${currentPage > 0 ? '' : 'disabled'} data-dir="-1">‹</button>
-    <button class="bc-page-btn" ${currentPage < totalPages - 1 ? '' : 'disabled'} data-dir="1">›</button>
-  `;
-  el.querySelectorAll('.bc-page-btn').forEach(btn =>
-    btn.addEventListener('click', () => onPageChange(currentPage + parseInt(btn.dataset.dir)))
-  );
 }
 
 // ── Card renderers ─────────────────────────────────────────────
 
-function bcReplayCard(rp) {
+function bcReplayCard(rp, newIds) {
   const mapName  = rp.map_name || friendlyArena(rp.map_code) || (rp.name ? rp.name.replace(/\.replay$/i,'') : '—');
   const playlist = rp.playlist_name || '';
   const date     = rp.date ? formatDate(rp.date) : '—';
@@ -248,7 +292,7 @@ function bcReplayCard(rp) {
     ? `<span class="bc-score"><span style="color:var(--rl-blue)">${blueGoals}</span> — <span style="color:var(--rl-orange)">${orgGoals}</span></span>`
     : '';
   const link  = rp.id ? `https://ballchasing.com/replay/${rp.id}` : '';
-  const isNew = rp.id && _bcNewIds.has(rp.id);
+  const isNew = rp.id && newIds?.has(rp.id);
 
   return `
     <div class="bc-card${isNew ? ' bc-card-new' : ''}">
@@ -281,31 +325,45 @@ function bcGroupCard(g) {
     </div>`;
 }
 
-// ── WS handler ─────────────────────────────────────────────────
+// ── Shared pager ───────────────────────────────────────────────
 
-function handleBCUploaded(data) {
-  const replays = data?.replays || [];
-  if (!replays.length) return;
-
-  for (const r of replays) {
-    _bcNewIds.add(r.bc_id);
-    _bcUploadedList.unshift({ id: r.bc_id, name: r.name, date: new Date().toISOString() });
-  }
-  _bcUploadedPage = 0;
-  renderBCUploaded();
-
-  // Refresh match list so newly auto-uploaded rows flip to "Uploaded".
-  refreshBCMatches();
-
-  const notify = document.getElementById('bc-notify');
-  if (notify) {
-    notify.textContent = `${replays.length} replay${replays.length > 1 ? 's' : ''} auto-uploaded to Ballchasing.`;
-    notify.classList.remove('hidden');
-    setTimeout(() => notify.classList.add('hidden'), 8000);
-  }
+function renderPager(el, total, pageSize, currentPage, onPageChange) {
+  if (!el) return;
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span class="text-xs text-gray-500">${currentPage + 1} / ${totalPages}</span>
+    <button class="bc-page-btn" ${currentPage > 0 ? '' : 'disabled'} data-dir="-1">‹</button>
+    <button class="bc-page-btn" ${currentPage < totalPages - 1 ? '' : 'disabled'} data-dir="1">›</button>
+  `;
+  el.querySelectorAll('.bc-page-btn').forEach(btn =>
+    btn.addEventListener('click', () => onPageChange(currentPage + parseInt(btn.dataset.dir)))
+  );
 }
 
+// ── Plugin init ────────────────────────────────────────────────
+
 window.pluginInit_bc = function() {
+  _matchWidget    = bcMatchReplaysWidget(document.getElementById('bc-matches-widget'));
+  _uploadedWidget = bcUploadedReplaysWidget(document.getElementById('bc-uploaded-widget'));
+  _groupsWidget   = bcGroupsWidget(document.getElementById('bc-groups-widget'));
+
   document.getElementById('bc-purge-btn')?.addEventListener('click', purgeUploaded);
   document.getElementById('bc-sync-btn')?.addEventListener('click', syncFromBC);
+
+  window.registerWidget?.({
+    id: 'bc-match-replays', pluginId: 'bc', title: 'Match Replays',
+    defaultW: 6, defaultH: 8, minW: 3, minH: 4,
+    factory: bcMatchReplaysWidget,
+  });
+  window.registerWidget?.({
+    id: 'bc-uploaded-replays', pluginId: 'bc', title: 'Ballchasing Replays',
+    defaultW: 6, defaultH: 6, minW: 3, minH: 4,
+    factory: bcUploadedReplaysWidget,
+  });
+  window.registerWidget?.({
+    id: 'bc-groups', pluginId: 'bc', title: 'Ballchasing Groups',
+    defaultW: 4, defaultH: 6, minW: 2, minH: 4,
+    factory: bcGroupsWidget,
+  });
 };

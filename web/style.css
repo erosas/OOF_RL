@@ -13,9 +13,12 @@
 }
 
 /* Layout primitives */
-.view       { display: none; }
-.view.active{ display: block; }
-.hidden     { display: none !important; }
+.view        { display: none; }
+.view.active { display: block; }
+.hidden      { display: none !important; }
+
+/* Dashboard expands to full window width (bypasses max-w-3xl on <main>) */
+main.dash-active { max-width: none; }
 
 /* Status dot */
 .dot {
