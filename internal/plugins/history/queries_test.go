@@ -319,3 +319,29 @@ func TestMatchPlayerCounts(t *testing.T) {
 		t.Errorf("unexpected counts: %v", counts)
 	}
 }
+
+func TestMatchBotCounts(t *testing.T) {
+	s := newTestStore(t)
+	s.upsertPlayer("p1", "Alice")
+	s.upsertPlayer("bot:guid-bots:5", "Gerwin")
+	s.upsertPlayer("bot:guid:7", "Foamer")
+	s.upsertPlayer("steam|botnamedplayer|0", "Human With Bot Name")
+
+	m1, _ := s.upsertMatch("guid-bots", "Utopia Coliseum", time.Now())
+	m2, _ := s.upsertMatch("guid-human", "Mannfield", time.Now())
+	s.upsertPlayerMatchStats(m1, "p1", 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	s.upsertPlayerMatchStats(m1, "bot:guid-bots:5", 1, 0, 0, 0, 0, 0, 0, 0, 0)
+	s.upsertPlayerMatchStats(m1, "bot:guid:7", 1, 0, 0, 0, 0, 0, 0, 0, 0)
+	s.upsertPlayerMatchStats(m2, "steam|botnamedplayer|0", 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+	counts, err := s.matchBotCounts()
+	if err != nil {
+		t.Fatalf("matchBotCounts: %v", err)
+	}
+	if counts[m1] != 2 {
+		t.Errorf("bot match count: got %d, want 2", counts[m1])
+	}
+	if counts[m2] != 0 {
+		t.Errorf("human match count: got %d, want 0", counts[m2])
+	}
+}

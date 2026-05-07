@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"OOF_RL/internal/config"
@@ -187,6 +188,8 @@ func (p *Plugin) HandleEvent(env events.Envelope) {
 		p.onGoalScored(env)
 	case "BallHit":
 		p.onBallHit(env)
+	case "ClockUpdatedSeconds":
+		p.onClockUpdatedSeconds(env)
 	case "StatfeedEvent":
 		p.onStatfeedEvent(env)
 	case "MatchEnded":
@@ -209,6 +212,9 @@ func (p *Plugin) onUpdateState(env events.Envelope) {
 	if err := json.Unmarshal(env.Data, &d); err != nil {
 		return
 	}
+	if p.matchID == 0 && d.Game.BHasWinner {
+		return
+	}
 	if d.MatchGuid != "" {
 		p.switchMatch(d.MatchGuid)
 	}
@@ -225,8 +231,10 @@ func (p *Plugin) onUpdateState(env events.Envelope) {
 	if len(d.Players) > 0 {
 		currentPlayers := make(map[string]events.Player, len(d.Players))
 		for _, pl := range d.Players {
-			if pl.PrimaryId != "" {
-				currentPlayers[pl.PrimaryId] = pl
+			primaryID := historyPlayerID(d.MatchGuid, pl.PrimaryId, pl.Shortcut, pl.Name)
+			if primaryID != "" {
+				pl.PrimaryId = primaryID
+				currentPlayers[primaryID] = pl
 			}
 		}
 		if len(currentPlayers) >= len(p.lastPlayers) || !d.Game.BReplay {
@@ -297,11 +305,26 @@ func (p *Plugin) onBallHit(env events.Envelope) {
 	}
 	playerID := ""
 	if len(d.Players) > 0 {
-		playerID = d.Players[0].PrimaryId
+		playerID = historyPlayerID(d.MatchGuid, d.Players[0].PrimaryId, d.Players[0].Shortcut, d.Players[0].Name)
 	}
 	_ = p.store.insertBallHit(p.matchID, playerID,
 		d.Ball.PreHitSpeed, d.Ball.PostHitSpeed,
 		d.Ball.Location.X, d.Ball.Location.Y, d.Ball.Location.Z)
+}
+
+func (p *Plugin) onClockUpdatedSeconds(env events.Envelope) {
+	if p.matchID == 0 {
+		return
+	}
+	var d events.ClockData
+	if err := json.Unmarshal(env.Data, &d); err != nil {
+		return
+	}
+	if !p.isActiveMatch(d.MatchGuid) {
+		return
+	}
+	p.overtime = d.BOvertime
+	p.lastTimeSeconds = d.TimeSeconds
 }
 
 func (p *Plugin) onStatfeedEvent(env events.Envelope) {
@@ -337,7 +360,7 @@ func (p *Plugin) onMatchEnded(env events.Envelope) {
 		return
 	}
 	// Forfeit: if any clock time remained when MatchEnded fired, the game didn't run to zero — someone forfeited.
-	forfeit := !p.overtime && p.lastTimeSeconds > 0
+	forfeit := !p.overtime && p.lastTimeSeconds > 5
 	p.flushMatch(d.WinnerTeamNum, false, forfeit)
 }
 
@@ -404,6 +427,21 @@ func (p *Plugin) isActiveMatch(matchGuid string) bool {
 	return matchGuid == "" || p.matchGuid == "" || matchGuid == p.matchGuid
 }
 
+func historyPlayerID(matchGuid, primaryID string, shortcut int, name string) string {
+	primaryID = strings.TrimSpace(primaryID)
+	if primaryID != "" && !isUnknownHistoryPlayerID(primaryID) {
+		return primaryID
+	}
+	if matchGuid == "" || name == "" {
+		return ""
+	}
+	return "bot:" + matchGuid + ":" + strconv.Itoa(shortcut)
+}
+
+func isUnknownHistoryPlayerID(primaryID string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(primaryID)), "unknown|")
+}
+
 // -- seeding helpers (used by integration tests in other packages) --
 
 func (p *Plugin) UpsertPlayer(primaryID, name string) error {
@@ -442,12 +480,14 @@ func (p *Plugin) handleMatches(w http.ResponseWriter, r *http.Request) {
 	}
 	teamGoals, _ := p.store.allTeamGoals()
 	playerCounts, _ := p.store.matchPlayerCounts()
+	botCounts, _ := p.store.matchBotCounts()
 
 	type matchRow struct {
 		Match
 		Team0Goals  int `json:"team0_goals"`
 		Team1Goals  int `json:"team1_goals"`
 		PlayerCount int `json:"player_count"`
+		BotCount    int `json:"bot_count"`
 	}
 	out := make([]matchRow, len(matches))
 	for i, m := range matches {
@@ -463,6 +503,7 @@ func (p *Plugin) handleMatches(w http.ResponseWriter, r *http.Request) {
 			Team0Goals:  t0,
 			Team1Goals:  t1,
 			PlayerCount: playerCounts[m.ID],
+			BotCount:    botCounts[m.ID],
 		}
 	}
 	httputil.WriteJSON(w, out)

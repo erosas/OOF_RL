@@ -274,6 +274,28 @@ func (s *store) matchPlayerCounts() (map[int64]int, error) {
 	return out, rows.Err()
 }
 
+func (s *store) matchBotCounts() (map[int64]int, error) {
+	rows, err := s.conn.Query(`
+		SELECT match_id, COUNT(*)
+		FROM hist_player_match_stats
+		WHERE lower(primary_id) LIKE 'unknown|%' OR lower(primary_id) LIKE 'bot:%'
+		GROUP BY match_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int{}
+	for rows.Next() {
+		var mid int64
+		var cnt int
+		if err := rows.Scan(&mid, &cnt); err != nil {
+			return nil, err
+		}
+		out[mid] = cnt
+	}
+	return out, rows.Err()
+}
+
 // --- Player match stats ---
 
 func (s *store) upsertPlayerMatchStats(matchID int64, primaryID string, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos int) error {

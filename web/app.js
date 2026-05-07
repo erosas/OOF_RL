@@ -230,7 +230,7 @@ function parseRankData(ranks) {
 function isBot(primaryId) {
   if (!primaryId) return true;
   const plat = platformFromId(primaryId);
-  return !plat || plat === 'unknown';
+  return !plat || plat === 'unknown' || plat === 'bot';
 }
 
 function isMaskedName(name) {
@@ -786,11 +786,11 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
   }
 
   players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
-  const realPlayers = players.filter(p => !isBot(p.PrimaryId));
-  prefetchTrackerRanks(realPlayers);
+  const rankablePlayers = players.filter(p => !isBot(p.PrimaryId));
+  prefetchTrackerRanks(rankablePlayers);
 
-  const blue   = realPlayers.filter(p => p.TeamNum === 0);
-  const orange = realPlayers.filter(p => p.TeamNum === 1);
+  const blue   = players.filter(p => p.TeamNum === 0);
+  const orange = players.filter(p => p.TeamNum === 1);
 
   const nameTeam = new Map();
   blue.forEach(p => nameTeam.set(p.Name, 'blue'));
@@ -814,8 +814,8 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
   const statsRows = (list, cls) => list.map(p => `
     <tr class="${cls}">
       <td>
-        <div class="font-medium">${esc(p.Name)}</div>
-        ${trackerRankHTML(p.PrimaryId)}
+        <div class="font-medium">${esc(p.Name)}${isBot(p.PrimaryId) ? ' <span class="player-platform-badge">BOT</span>' : ''}</div>
+        ${isBot(p.PrimaryId) ? '' : trackerRankHTML(p.PrimaryId)}
       </td>
       <td>${p.Goals}</td><td>${p.Assists}</td><td>${p.Saves}</td>
       <td>${p.Shots}</td><td>${p.Demos}</td>

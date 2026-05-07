@@ -50,6 +50,13 @@ func updateStateWithReplay(guid, arena string, players []events.Player, blueScor
 	}
 }
 
+func terminalUpdateState(guid, arena string, players []events.Player, blueScore, orangeScore int) events.UpdateStateData {
+	d := updateState(guid, arena, players, blueScore, orangeScore, 0)
+	d.Game.BHasWinner = true
+	d.Game.Winner = "Blue"
+	return d
+}
+
 func player(primaryID, name string, teamNum, score int) events.Player {
 	return events.Player{
 		PrimaryId: primaryID,
@@ -85,6 +92,15 @@ func playerIDsForMatch(t *testing.T, p *Plugin, matchID int64) map[string]bool {
 		out[pl.PrimaryID] = true
 	}
 	return out
+}
+
+func matchCount(t *testing.T, p *Plugin) int {
+	t.Helper()
+	matches, err := p.store.matches("")
+	if err != nil {
+		t.Fatalf("matches: %v", err)
+	}
+	return len(matches)
 }
 
 func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
@@ -193,4 +209,106 @@ func TestLatePartialRosterDoesNotShrinkCompletedMatch(t *testing.T) {
 	if len(players) != 4 {
 		t.Fatalf("late partial roster should not shrink full match roster, got %v", players)
 	}
+}
+
+func TestTerminalUpdateAfterMatchEndedDoesNotReopenMatch(t *testing.T) {
+	p := newTestPlugin(t)
+	players := []events.Player{
+		player("steam|player|0", "Mr Mung Beans", 0, 118),
+		player("Unknown|0|0", "Sultan", 1, 34),
+	}
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-real", "Wasteland", players, 1, 0, 12))
+	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-real", WinnerTeamNum: 0})
+
+	emitHistoryEvent(t, p, "UpdateState", terminalUpdateState("guid-real", "Wasteland", players, 1, 0))
+	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+	emitHistoryEvent(t, p, "UpdateState", terminalUpdateState("guid-postgame", "Wasteland", players, 1, 0))
+	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+
+	if got := matchCount(t, p); got != 1 {
+		t.Fatalf("terminal post-match updates should not create duplicate matches, got %d", got)
+	}
+	match := matchByGUID(t, p, "guid-real")
+	if match.Incomplete || match.WinnerTeamNum != 0 {
+		t.Fatalf("completed match should stay completed after terminal updates: %+v", match)
+	}
+}
+
+func TestMatchEndedNearZeroClockIsNotForfeit(t *testing.T) {
+	p := newTestPlugin(t)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-full-time", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 2, 1, 173))
+	emitHistoryEvent(t, p, "ClockUpdatedSeconds", events.ClockData{MatchGuid: "guid-full-time", TimeSeconds: 4})
+	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-full-time", WinnerTeamNum: 0})
+
+	match := matchByGUID(t, p, "guid-full-time")
+	if match.Forfeit {
+		t.Fatalf("near-zero full-time match should not be marked forfeit: %+v", match)
+	}
+}
+
+func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
+	p := newTestPlugin(t)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-forfeit", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 2, 1, 173))
+	emitHistoryEvent(t, p, "ClockUpdatedSeconds", events.ClockData{MatchGuid: "guid-forfeit", TimeSeconds: 173})
+	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-forfeit", WinnerTeamNum: 0})
+
+	match := matchByGUID(t, p, "guid-forfeit")
+	if !match.Forfeit {
+		t.Fatalf("early match end should still be marked forfeit: %+v", match)
+	}
+}
+
+func TestUnknownBotIDsAreScopedToMatchAndShortcut(t *testing.T) {
+	p := newTestPlugin(t)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-gerwin", "Wasteland", []events.Player{
+		player("steam|player|0", "Mr Mung Beans", 0, 100),
+		player("Unknown|0|0", "Gerwin", 1, 200),
+	}, 1, 0, 0))
+	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+
+	emitHistoryEvent(t, p, "UpdateState", updateState("guid-khan", "Wasteland", []events.Player{
+		player("steam|player|0", "Mr Mung Beans", 0, 100),
+		player("Unknown|0|0", "Khan", 1, 200),
+	}, 1, 0, 0))
+	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+
+	gerwinMatch := matchByGUID(t, p, "guid-gerwin")
+	gerwinPlayers, err := p.store.matchPlayers(gerwinMatch.ID)
+	if err != nil {
+		t.Fatalf("matchPlayers gerwin: %v", err)
+	}
+	khanMatch := matchByGUID(t, p, "guid-khan")
+	khanPlayers, err := p.store.matchPlayers(khanMatch.ID)
+	if err != nil {
+		t.Fatalf("matchPlayers khan: %v", err)
+	}
+
+	if !hasHistoryPlayer(gerwinPlayers, "bot:guid-gerwin:0", "Gerwin") {
+		t.Fatalf("Gerwin bot should be match-scoped, got %+v", gerwinPlayers)
+	}
+	if !hasHistoryPlayer(khanPlayers, "bot:guid-khan:0", "Khan") {
+		t.Fatalf("Khan bot should be match-scoped, got %+v", khanPlayers)
+	}
+	if hasHistoryPlayer(gerwinPlayers, "bot:guid-khan:0", "Khan") {
+		t.Fatalf("Gerwin match should not be renamed to Khan, got %+v", gerwinPlayers)
+	}
+}
+
+func hasHistoryPlayer(players []PlayerMatchStats, primaryID, name string) bool {
+	for _, pl := range players {
+		if pl.PrimaryID == primaryID && pl.Name == name {
+			return true
+		}
+	}
+	return false
 }
