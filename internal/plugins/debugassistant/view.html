@@ -44,6 +44,10 @@
 .dbg-shot { display:inline-flex; align-items:center; gap:4px; color:#f59e0b; font-size:0.68rem; margin-top:4px; }
 .dbg-note { width:100%; background:transparent; border:0; border-bottom:1px solid var(--line); color:var(--muted); font-size:0.72rem; padding:4px 0; margin-top:5px; }
 .dbg-note:focus { outline:0; border-bottom-color:var(--rl-blue); color:var(--text); }
+.dbg-custom-form { display:grid; grid-template-columns:1fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:10px; }
+.dbg-custom-tag { color:#f59e0b; font-size:0.65rem; font-weight:800; margin-left:6px; text-transform:uppercase; }
+.dbg-check-remove { margin-top:6px; color:var(--muted); background:transparent; border:0; padding:0; font:inherit; font-size:0.68rem; cursor:pointer; }
+.dbg-check-remove:hover { color:var(--red); }
 .dbg-context { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .dbg-context-item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); border-radius:8px; padding:8px; min-width:0; }
 .dbg-context-label { color:var(--muted); font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
@@ -87,6 +91,7 @@
       <button id="dbg-save-meta" class="dbg-btn">Save metadata</button>
       <button id="dbg-snapshot" class="dbg-btn dbg-btn-secondary">Snapshot app state</button>
       <button id="dbg-export" class="dbg-btn dbg-btn-secondary">Generate report</button>
+      <button id="dbg-restore" class="dbg-btn dbg-btn-secondary">Restore recovered backup</button>
       <span id="dbg-msg" class="dbg-msg"></span>
     </div>
   </section>
@@ -102,6 +107,11 @@
       <div class="dbg-card-title">Scenario Verification</div>
       <div id="dbg-active-scenario" class="dbg-sub" style="margin-bottom:10px">Select a match scenario before queueing.</div>
       <div id="dbg-scenario-summary" class="dbg-summary"></div>
+      <div id="dbg-custom-condition" class="dbg-custom-form">
+        <label class="dbg-field">Additional condition<input id="dbg-custom-title" class="dbg-input" placeholder="Example: arena mismatch after overtime"></label>
+        <label class="dbg-field">Details / expected behavior<input id="dbg-custom-help" class="dbg-input" placeholder="What should be verified?"></label>
+        <button id="dbg-add-condition" class="dbg-btn dbg-btn-secondary">Add</button>
+      </div>
       <div id="dbg-checks" class="dbg-checks"></div>
     </section>
   </div>

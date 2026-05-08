@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -52,6 +54,7 @@ func (p *Plugin) NavTab() plugin.NavTab {
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/debug-assistant/events", p.handleEvents)
 	mux.HandleFunc("/api/debug-assistant/context", p.handleContext)
+	mux.HandleFunc("/api/debug-assistant/recovered-state", p.handleRecoveredState)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
@@ -148,6 +151,31 @@ func (p *Plugin) handleContext(w http.ResponseWriter, r *http.Request) {
 		"source_of_truth":   "Debug Assistant is read-only and does not mutate Live, Session, History, or match state.",
 		"screenshot_target": "History collapsed row, expanded match details, Session overview, and Live state when relevant.",
 	})
+}
+
+func (p *Plugin) handleRecoveredState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if p.cfg == nil || p.cfg.DataDir == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	path := filepath.Join(p.cfg.DataDir, "debug_screenshots", "debug-assistant-recovered-localstorage.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	var raw json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		http.Error(w, "recovered state is not valid JSON", http.StatusInternalServerError)
+		return
+	}
+	httputil.WriteJSON(w, raw)
 }
 
 func (p *Plugin) append(event, matchGUID, summary string) {
