@@ -19,13 +19,26 @@
 .dbg-scenario-list { display:flex; flex-direction:column; gap:7px; }
 .dbg-scenario { text-align:left; border:1px solid var(--line); background:rgba(255,255,255,.025); color:var(--text); border-radius:8px; padding:9px; cursor:pointer; font:inherit; }
 .dbg-scenario.active { border-color:var(--rl-blue); box-shadow:0 0 0 1px rgba(74,158,255,.25); }
+.dbg-scenario.queued { border-color:rgba(245,158,11,.32); background:rgba(245,158,11,.035); }
+.dbg-scenario.touched { border-color:rgba(62,207,114,.35); background:rgba(62,207,114,.045); }
+.dbg-scenario.failed { border-color:rgba(224,82,82,.45); background:rgba(224,82,82,.05); }
 .dbg-scenario small { display:block; color:var(--muted); margin-top:3px; }
+.dbg-scenario-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.dbg-pill { display:inline-flex; align-items:center; border-radius:999px; padding:2px 6px; font-size:0.66rem; font-weight:800; background:rgba(255,255,255,.07); color:var(--muted); }
+.dbg-pill.pass { color:var(--green); background:rgba(62,207,114,.1); }
+.dbg-pill.fail { color:var(--red); background:rgba(224,82,82,.1); }
+.dbg-pill.skip { color:#f59e0b; background:rgba(245,158,11,.1); }
 .dbg-checks { display:flex; flex-direction:column; gap:8px; }
 .dbg-check { display:grid; grid-template-columns:68px 1fr; gap:8px; border:1px solid rgba(255,255,255,.05); background:rgba(255,255,255,.025); border-radius:8px; padding:8px; }
 .dbg-check-status { display:flex; flex-direction:column; gap:4px; }
 .dbg-check-status button { border:1px solid var(--line); background:var(--surface2); color:var(--muted); border-radius:5px; padding:3px 4px; font:inherit; font-size:0.68rem; cursor:pointer; }
 .dbg-check-status button.active.pass { color:var(--green); border-color:rgba(62,207,114,.45); background:rgba(62,207,114,.1); }
 .dbg-check-status button.active.fail { color:var(--red); border-color:rgba(224,82,82,.45); background:rgba(224,82,82,.1); }
+.dbg-check-status button.active.skip { color:#f59e0b; border-color:rgba(245,158,11,.45); background:rgba(245,158,11,.1); }
+.dbg-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+.dbg-summary-item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); border-radius:8px; padding:8px; }
+.dbg-summary-value { font-size:1.05rem; font-weight:900; color:var(--text); }
+.dbg-summary-label { color:var(--muted); font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
 .dbg-check-title { color:var(--text); font-size:0.8rem; font-weight:700; }
 .dbg-check-help { color:var(--muted); font-size:0.72rem; line-height:1.45; margin-top:3px; }
 .dbg-shot { display:inline-flex; align-items:center; gap:4px; color:#f59e0b; font-size:0.68rem; margin-top:4px; }
@@ -34,7 +47,7 @@
 .dbg-context { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .dbg-context-item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); border-radius:8px; padding:8px; min-width:0; }
 .dbg-context-label { color:var(--muted); font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
-.dbg-context-value { color:var(--text); font-size:0.8rem; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dbg-context-value { color:var(--text); font-size:0.8rem; margin-top:3px; overflow-wrap:anywhere; }
 .dbg-events { max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:6px; padding-right:3px; }
 .dbg-event { display:grid; grid-template-columns:74px 112px 1fr; gap:8px; border-bottom:1px solid rgba(255,255,255,.05); padding:7px 0; font-size:0.74rem; }
 .dbg-event-time { color:var(--muted); font-variant-numeric:tabular-nums; }
@@ -81,12 +94,14 @@
   <div class="dbg-grid">
     <section class="dbg-card">
       <div class="dbg-card-title">Match Scenario</div>
+      <div id="dbg-overall-summary" class="dbg-summary"></div>
       <div id="dbg-scenarios" class="dbg-scenario-list"></div>
     </section>
 
     <section class="dbg-card">
       <div class="dbg-card-title">Scenario Verification</div>
       <div id="dbg-active-scenario" class="dbg-sub" style="margin-bottom:10px">Select a match scenario before queueing.</div>
+      <div id="dbg-scenario-summary" class="dbg-summary"></div>
       <div id="dbg-checks" class="dbg-checks"></div>
     </section>
   </div>
@@ -112,6 +127,7 @@
   <div class="dbg-widget">
     <div class="dbg-widget-row"><span>Scenario</span><strong data-dbgw-scenario>none</strong></div>
     <div class="dbg-widget-row"><span>Checklist</span><strong data-dbgw-progress>0 / 0</strong></div>
+    <div class="dbg-widget-row"><span>Pass rate</span><strong data-dbgw-rate>0%</strong></div>
     <div class="dbg-widget-row"><span>Last event</span><strong data-dbgw-event>none</strong></div>
     <button class="dbg-btn dbg-btn-secondary" data-dbgw-refresh>Refresh</button>
   </div>

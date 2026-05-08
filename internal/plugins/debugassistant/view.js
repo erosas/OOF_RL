@@ -146,12 +146,24 @@ function dbgRenderScenarios() {
   const root = document.getElementById('dbg-scenarios');
   if (!root) return;
   const state = dbgState();
-  root.innerHTML = DBG_SCENARIOS.map(s => `
-    <button class="dbg-scenario${state.activeScenario === s.id ? ' active' : ''}" data-dbg-scenario="${esc(s.id)}">
+  dbgRenderOverallSummary(state);
+  root.innerHTML = DBG_SCENARIOS.map(s => {
+    const stats = dbgScenarioStats(state.scenarios?.[s.id]);
+    const touched = stats.touched;
+    const queued = !touched && !!state.scenarios?.[s.id]?.startedAt;
+    const failed = stats.fail > 0;
+    return `
+    <button class="dbg-scenario${state.activeScenario === s.id ? ' active' : ''}${queued ? ' queued' : ''}${touched ? ' touched' : ''}${failed ? ' failed' : ''}" data-dbg-scenario="${esc(s.id)}">
       ${esc(s.title)}
       <small>Suggested evidence: ${esc(s.shots.join(', '))}</small>
+      <span class="dbg-scenario-meta">
+        <span class="dbg-pill pass">${stats.pass} pass</span>
+        <span class="dbg-pill fail">${stats.fail} fail</span>
+        <span class="dbg-pill skip">${stats.skip} N/A</span>
+        <span class="dbg-pill">${stats.percent}%</span>
+      </span>
     </button>
-  `).join('');
+  `}).join('');
   root.querySelectorAll('[data-dbg-scenario]').forEach(btn => {
     btn.addEventListener('click', () => {
       const next = btn.dataset.dbgScenario;
@@ -187,6 +199,7 @@ function dbgRenderChecks() {
 
   const scenarioState = state.scenarios?.[scenario.id] || { checks: {} };
   if (label) label.textContent = scenario.title;
+  dbgRenderScenarioSummary(scenarioState);
 
   root.innerHTML = DBG_CHECKS.map(check => {
     const value = scenarioState.checks?.[check.id] || {};
@@ -195,7 +208,7 @@ function dbgRenderChecks() {
         <div class="dbg-check-status">
           <button class="pass${value.status === 'pass' ? ' active' : ''}" data-status="pass">Pass</button>
           <button class="fail${value.status === 'fail' ? ' active' : ''}" data-status="fail">Fail</button>
-          <button class="${value.status === 'skip' ? ' active' : ''}" data-status="skip">N/A</button>
+          <button class="skip${value.status === 'skip' ? ' active' : ''}" data-status="skip">N/A</button>
         </div>
         <div>
           <div class="dbg-check-title">${esc(check.title)}</div>
@@ -231,6 +244,7 @@ function dbgSetCheck(checkID, status) {
   scenarioState.checks[checkID].status = status;
   scenarioState.checks[checkID].updatedAt = new Date().toISOString();
   dbgSaveState(state);
+  dbgRenderScenarios();
   dbgRenderChecks();
   dbgRefreshWidgetInstances();
 }
@@ -243,6 +257,69 @@ function dbgSetCheckNote(checkID, note) {
   scenarioState.checks[checkID].note = note;
   scenarioState.checks[checkID].updatedAt = new Date().toISOString();
   dbgSaveState(state);
+  dbgRenderScenarios();
+  dbgRenderScenarioSummary(scenarioState);
+  dbgRefreshWidgetInstances();
+}
+
+function dbgScenarioStats(scenarioState) {
+  const checks = scenarioState?.checks || {};
+  const values = Object.values(checks);
+  const pass = values.filter(v => v.status === 'pass').length;
+  const fail = values.filter(v => v.status === 'fail').length;
+  const skip = values.filter(v => v.status === 'skip').length;
+  const marked = pass + fail + skip;
+  const scored = pass + fail;
+  return {
+    pass,
+    fail,
+    skip,
+    marked,
+    untouched: Math.max(0, DBG_CHECKS.length - marked),
+    percent: scored ? Math.round(pass / scored * 100) : 0,
+    touched: marked > 0 || values.some(v => (v.note || '').trim()),
+  };
+}
+
+function dbgOverallStats(state) {
+  const scenarioStates = Object.values(state.scenarios || {});
+  return scenarioStates.reduce((acc, scenarioState) => {
+    const stats = dbgScenarioStats(scenarioState);
+    acc.pass += stats.pass;
+    acc.fail += stats.fail;
+    acc.skip += stats.skip;
+    acc.marked += stats.marked;
+    acc.touched += stats.touched ? 1 : 0;
+    return acc;
+  }, { pass: 0, fail: 0, skip: 0, marked: 0, touched: 0 });
+}
+
+function dbgSummaryHTML(stats) {
+  const scored = stats.pass + stats.fail;
+  const rate = scored ? Math.round(stats.pass / scored * 100) : 0;
+  return [
+    ['Pass', stats.pass, 'pass'],
+    ['Fail', stats.fail, 'fail'],
+    ['N/A', stats.skip, 'skip'],
+    ['Pass rate', `${rate}%`, ''],
+  ].map(([label, value, cls]) => `
+    <div class="dbg-summary-item">
+      <div class="dbg-summary-value ${cls ? `dbg-pill ${cls}` : ''}">${esc(value)}</div>
+      <div class="dbg-summary-label">${esc(label)}</div>
+    </div>`).join('');
+}
+
+function dbgRenderOverallSummary(state = dbgState()) {
+  const root = document.getElementById('dbg-overall-summary');
+  if (!root) return;
+  const stats = dbgOverallStats(state);
+  root.innerHTML = dbgSummaryHTML(stats);
+}
+
+function dbgRenderScenarioSummary(scenarioState) {
+  const root = document.getElementById('dbg-scenario-summary');
+  if (!root) return;
+  root.innerHTML = dbgSummaryHTML(dbgScenarioStats(scenarioState));
 }
 
 async function dbgRefreshAll() {
@@ -325,6 +402,8 @@ function dbgGenerateReport() {
   const meta = state.metadata || {};
   const scenario = dbgActiveScenario();
   const scenarioState = scenario ? state.scenarios?.[scenario.id] : null;
+  const overall = dbgOverallStats(state);
+  const failures = dbgFailureGroups(state);
   const lines = [];
   lines.push('OOF RL Debug Assistant Report');
   lines.push('');
@@ -336,6 +415,13 @@ function dbgGenerateReport() {
   lines.push(`RL mode/version: ${meta['rl-mode'] || ''}`);
   lines.push(`Generated: ${new Date().toLocaleString()}`);
   lines.push('');
+  lines.push('Overall summary:');
+  lines.push(`- Scenarios touched: ${overall.touched} / ${DBG_SCENARIOS.length}`);
+  lines.push(`- Pass: ${overall.pass}`);
+  lines.push(`- Fail: ${overall.fail}`);
+  lines.push(`- N/A: ${overall.skip}`);
+  lines.push(`- Pass rate: ${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}%`);
+  lines.push('');
   lines.push(`Active scenario: ${scenario ? scenario.title : 'none'}`);
   lines.push(`Suggested evidence: ${scenario ? scenario.shots.join(', ') : 'none'}`);
   lines.push('');
@@ -346,6 +432,28 @@ function dbgGenerateReport() {
     if (item.note) lines.push(`  Note: ${item.note}`);
   }
   lines.push('');
+  lines.push('Failure groups:');
+  if (!failures.length) {
+    lines.push('- No failed checks recorded.');
+  } else {
+    for (const group of failures) {
+      lines.push(`- ${group.title}`);
+      for (const item of group.items) {
+        lines.push(`  - ${item.scenario}${item.note ? `: ${item.note}` : ''}`);
+      }
+    }
+  }
+  lines.push('');
+  lines.push('Touched scenario summary:');
+  for (const s of DBG_SCENARIOS) {
+    const stats = dbgScenarioStats(state.scenarios?.[s.id]);
+    if (!stats.touched) {
+      lines.push(`- [untested] ${s.title}`);
+      continue;
+    }
+    lines.push(`- ${s.title}: ${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate`);
+  }
+  lines.push('');
   lines.push(`Snapshots saved locally: ${(state.snapshots || []).length}`);
   lines.push('');
   lines.push('Session notes:');
@@ -354,6 +462,21 @@ function dbgGenerateReport() {
   const report = lines.join('\n');
   const root = document.getElementById('dbg-report');
   if (root) root.textContent = report;
+}
+
+function dbgFailureGroups(state) {
+  const out = [];
+  for (const check of DBG_CHECKS) {
+    const items = [];
+    for (const scenario of DBG_SCENARIOS) {
+      const item = state.scenarios?.[scenario.id]?.checks?.[check.id];
+      if (item?.status === 'fail') {
+        items.push({ scenario: scenario.title, note: item.note || '' });
+      }
+    }
+    if (items.length) out.push({ id: check.id, title: check.title, items });
+  }
+  return out;
 }
 
 function dbgWireControls() {
@@ -396,11 +519,14 @@ async function dbgRenderWidget(container) {
   const scenarioState = scenario ? state.scenarios?.[scenario.id] : null;
   const statuses = Object.values(scenarioState?.checks || {}).filter(v => v.status && v.status !== 'skip');
   const passed = statuses.filter(v => v.status === 'pass').length;
+  const stats = dbgScenarioStats(scenarioState);
   const progressEl = container.querySelector('[data-dbgw-progress]');
   const scenarioEl = container.querySelector('[data-dbgw-scenario]');
+  const rateEl = container.querySelector('[data-dbgw-rate]');
   const eventEl = container.querySelector('[data-dbgw-event]');
   if (scenarioEl) scenarioEl.textContent = scenario ? scenario.title.replace(/^Normal /, '') : 'none';
-  if (progressEl) progressEl.textContent = `${passed} / ${DBG_CHECKS.length}`;
+  if (progressEl) progressEl.textContent = `${passed} pass, ${stats.fail} fail, ${stats.skip} N/A`;
+  if (rateEl) rateEl.textContent = `${stats.percent}%`;
   try {
     const data = await fetch('/api/debug-assistant/events').then(r => r.json());
     const last = (data.events || []).slice(-1)[0];
