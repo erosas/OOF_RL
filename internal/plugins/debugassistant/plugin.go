@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -217,7 +218,13 @@ func (p *Plugin) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := filepath.Base(strings.TrimPrefix(r.URL.Path, "/api/debug-assistant/screenshot/"))
+	rawName := strings.TrimPrefix(r.URL.Path, "/api/debug-assistant/screenshot/")
+	decodedName, err := url.PathUnescape(rawName)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := filepath.Base(decodedName)
 	if name == "." || name == "" || !isDebugImage(name) {
 		http.NotFound(w, r)
 		return

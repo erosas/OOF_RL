@@ -608,7 +608,9 @@ function dbgGenerateDocReport() {
       const statusClass = item.status === 'pass' ? 'pass' : item.status === 'fail' ? 'fail' : item.status === 'skip' ? 'skip' : '';
       parts.push(`<li><span class="${statusClass}">[${esc(item.status || 'unset')}]</span> ${esc(check.title)}${item.note ? `<br><em>${esc(item.note)}</em>` : ''}</li>`);
       for (const image of dbgImageNames(item)) {
-        parts.push(`<img alt="${esc(image)}" src="/api/debug-assistant/screenshot/${encodeURIComponent(image)}">`);
+        const href = dbgScreenshotURL(image);
+        parts.push(`<div class="shot-link"><a href="${href}" target="_blank" rel="noopener">Open screenshot: ${esc(image)}</a></div>`);
+        parts.push(`<img alt="${esc(image)}" src="${href}" onerror="this.style.display='none'">`);
       }
     }
     parts.push('</ul>');
@@ -624,8 +626,17 @@ function dbgGenerateDocReport() {
 function dbgImageNames(item) {
   return String(item?.images || '')
     .split(/[\n,]+/)
-    .map(s => s.trim())
+    .map(s => dbgCleanImageName(s.trim()))
     .filter(Boolean);
+}
+
+function dbgCleanImageName(name) {
+  if (!name) return '';
+  return name.split(/[\\/]/).filter(Boolean).pop() || '';
+}
+
+function dbgScreenshotURL(name) {
+  return `/api/debug-assistant/screenshot/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgFailureGroups(state) {
