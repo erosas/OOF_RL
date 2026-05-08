@@ -44,6 +44,8 @@
 .dbg-shot { display:inline-flex; align-items:center; gap:4px; color:#f59e0b; font-size:0.68rem; margin-top:4px; }
 .dbg-note { width:100%; background:transparent; border:0; border-bottom:1px solid var(--line); color:var(--muted); font-size:0.72rem; padding:4px 0; margin-top:5px; }
 .dbg-note:focus { outline:0; border-bottom-color:var(--rl-blue); color:var(--text); }
+.dbg-images { width:100%; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); border-radius:6px; color:var(--muted); font-size:0.7rem; padding:5px 7px; margin-top:6px; }
+.dbg-images:focus { outline:1px solid var(--rl-blue); color:var(--text); }
 .dbg-custom-form { display:grid; grid-template-columns:1fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:10px; }
 .dbg-custom-tag { color:#f59e0b; font-size:0.65rem; font-weight:800; margin-left:6px; text-transform:uppercase; }
 .dbg-check-remove { margin-top:6px; color:var(--muted); background:transparent; border:0; padding:0; font:inherit; font-size:0.68rem; cursor:pointer; }
@@ -58,6 +60,15 @@
 .dbg-event-name { color:var(--rl-orange); font-weight:800; }
 .dbg-event-summary { color:var(--text); min-width:0; }
 .dbg-report { white-space:pre-wrap; color:var(--text); font-size:0.74rem; max-height:220px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:10px; }
+.dbg-doc-report { color:var(--text); font-size:0.78rem; max-height:520px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:10px; }
+.dbg-doc-report h2, .dbg-doc-report h3 { margin:0 0 8px; color:var(--text); }
+.dbg-doc-report h3 { margin-top:16px; color:var(--rl-blue); }
+.dbg-doc-report ul { margin:6px 0 12px 18px; padding:0; }
+.dbg-doc-report li { margin-bottom:5px; }
+.dbg-doc-report img { display:block; max-width:100%; border:1px solid var(--line); border-radius:8px; margin:8px 0 12px; }
+.dbg-doc-report .fail { color:var(--red); font-weight:800; }
+.dbg-doc-report .pass { color:var(--green); font-weight:800; }
+.dbg-doc-report .skip { color:#f59e0b; font-weight:800; }
 .dbg-widget { display:flex; flex-direction:column; gap:8px; font-size:0.76rem; }
 .dbg-widget-row { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid rgba(255,255,255,.05); padding-bottom:6px; }
 .dbg-widget strong { color:var(--text); }
@@ -91,6 +102,7 @@
       <button id="dbg-save-meta" class="dbg-btn">Save metadata</button>
       <button id="dbg-snapshot" class="dbg-btn dbg-btn-secondary">Snapshot app state</button>
       <button id="dbg-export" class="dbg-btn dbg-btn-secondary">Generate report</button>
+      <button id="dbg-export-doc" class="dbg-btn dbg-btn-secondary">Generate doc report</button>
       <button id="dbg-restore" class="dbg-btn dbg-btn-secondary">Restore recovered backup</button>
       <span id="dbg-msg" class="dbg-msg"></span>
     </div>
@@ -129,6 +141,7 @@
     <section class="dbg-card">
       <div class="dbg-card-title">Generated Playtest Report</div>
       <div id="dbg-report" class="dbg-report">Generate a report after your scenario or session.</div>
+      <div id="dbg-report-doc" class="dbg-doc-report">Generate a doc report to preview a developer-readable report with tagged screenshots.</div>
     </section>
   </div>
 </div>

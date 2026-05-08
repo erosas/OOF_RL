@@ -89,7 +89,6 @@ window.pluginInit_debug = function() {
   dbgRenderChecks();
   dbgWireControls();
   dbgRefreshAll();
-  dbgAutoRestoreRecoveredBackup();
   setInterval(dbgRefreshAll, 3000);
 
   window.registerWidget?.({
@@ -219,6 +218,7 @@ function dbgRenderChecks() {
           <div class="dbg-check-help">${esc(check.help)}</div>
           ${check.screenshot ? '<span class="dbg-shot">Screenshot/data recommended if failed or uncertain</span>' : ''}
           <input class="dbg-note" value="${esc(value.note || '')}" placeholder="Evidence note, screenshot filename, log timestamp, or reproduction detail">
+          <input class="dbg-images" value="${esc(value.images || '')}" placeholder="Optional screenshot filenames, comma-separated">
           ${check.custom ? '<button class="dbg-check-remove" data-remove-custom="1">Remove custom condition</button>' : ''}
         </div>
       </div>`;
@@ -229,6 +229,7 @@ function dbgRenderChecks() {
       btn.addEventListener('click', () => dbgSetCheck(row.dataset.dbgCheck, btn.dataset.status));
     });
     row.querySelector('.dbg-note')?.addEventListener('input', e => dbgSetCheckNote(row.dataset.dbgCheck, e.target.value));
+    row.querySelector('.dbg-images')?.addEventListener('input', e => dbgSetCheckImages(row.dataset.dbgCheck, e.target.value));
     row.querySelector('[data-remove-custom]')?.addEventListener('click', () => dbgRemoveCustomCheck(row.dataset.dbgCheck));
   });
 }
@@ -261,6 +262,19 @@ function dbgSetCheckNote(checkID, note) {
   if (!scenarioState) return;
   scenarioState.checks[checkID] = scenarioState.checks[checkID] || {};
   scenarioState.checks[checkID].note = note;
+  scenarioState.checks[checkID].updatedAt = new Date().toISOString();
+  dbgSaveState(state);
+  dbgRenderScenarios();
+  dbgRenderScenarioSummary(scenarioState);
+  dbgRefreshWidgetInstances();
+}
+
+function dbgSetCheckImages(checkID, images) {
+  const state = dbgState();
+  const scenarioState = dbgScenarioState(state);
+  if (!scenarioState) return;
+  scenarioState.checks[checkID] = scenarioState.checks[checkID] || {};
+  scenarioState.checks[checkID].images = images;
   scenarioState.checks[checkID].updatedAt = new Date().toISOString();
   dbgSaveState(state);
   dbgRenderScenarios();
@@ -487,6 +501,7 @@ function dbgGenerateReport() {
     const item = scenarioState?.checks?.[check.id] || {};
     lines.push(`- [${item.status || 'unset'}] ${check.title}`);
     if (item.note) lines.push(`  Note: ${item.note}`);
+    for (const image of dbgImageNames(item)) lines.push(`  Screenshot: ${image}`);
   }
   lines.push('');
   lines.push('Scenario details:');
@@ -497,9 +512,10 @@ function dbgGenerateReport() {
     lines.push(`- ${s.title}`);
     for (const check of dbgChecksForScenario(scopedState)) {
       const item = scopedState?.checks?.[check.id] || {};
-      if (!item.status && !item.note) continue;
+      if (!item.status && !item.note && !item.images) continue;
       lines.push(`  - [${item.status || 'unset'}] ${check.title}`);
       if (item.note) lines.push(`    Note: ${item.note}`);
+      for (const image of dbgImageNames(item)) lines.push(`    Screenshot: ${image}`);
     }
   }
   lines.push('');
@@ -535,6 +551,83 @@ function dbgGenerateReport() {
   if (root) root.textContent = report;
 }
 
+function dbgGenerateDocReport() {
+  const state = dbgState();
+  const meta = state.metadata || {};
+  const overall = dbgOverallStats(state);
+  const failures = dbgFailureGroups(state);
+  const root = document.getElementById('dbg-report-doc');
+  if (!root) return;
+
+  const parts = [];
+  parts.push('<h2>OOF RL Debug Assistant Report</h2>');
+  parts.push('<h3>Build</h3>');
+  parts.push('<ul>');
+  parts.push(`<li><strong>Branch:</strong> ${esc(meta.branch || '')}</li>`);
+  parts.push(`<li><strong>Commit SHA:</strong> ${esc(meta.sha || '')}</li>`);
+  parts.push(`<li><strong>EXE:</strong> ${esc(meta.exe || '')}</li>`);
+  parts.push(`<li><strong>Tester:</strong> ${esc(meta.tester || '')}</li>`);
+  parts.push(`<li><strong>Intent:</strong> ${esc(meta.intent || '')}</li>`);
+  parts.push(`<li><strong>Rocket League mode/version:</strong> ${esc(meta['rl-mode'] || '')}</li>`);
+  parts.push(`<li><strong>Generated:</strong> ${esc(new Date().toLocaleString())}</li>`);
+  parts.push('</ul>');
+
+  parts.push('<h3>Summary</h3>');
+  parts.push('<ul>');
+  parts.push(`<li>Scenarios touched: ${overall.touched} / ${DBG_SCENARIOS.length}</li>`);
+  parts.push(`<li><span class="pass">Pass:</span> ${overall.pass}</li>`);
+  parts.push(`<li><span class="fail">Fail:</span> ${overall.fail}</li>`);
+  parts.push(`<li><span class="skip">N/A:</span> ${overall.skip}</li>`);
+  parts.push(`<li>Pass rate: ${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}%</li>`);
+  parts.push('</ul>');
+
+  parts.push('<h3>Failures Grouped By Check</h3>');
+  if (!failures.length) {
+    parts.push('<p>No failed checks recorded.</p>');
+  } else {
+    for (const group of failures) {
+      parts.push(`<h4>${esc(group.title)}</h4><ul>`);
+      for (const item of group.items) {
+        parts.push(`<li><strong>${esc(item.scenario)}</strong>${item.note ? `: ${esc(item.note)}` : ''}</li>`);
+      }
+      parts.push('</ul>');
+    }
+  }
+
+  parts.push('<h3>Scenario Details</h3>');
+  for (const scenario of DBG_SCENARIOS) {
+    const scenarioState = state.scenarios?.[scenario.id];
+    const stats = dbgScenarioStats(scenarioState);
+    if (!stats.touched) continue;
+    parts.push(`<h4>${esc(scenario.title)}</h4>`);
+    parts.push(`<p>${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate</p>`);
+    parts.push('<ul>');
+    for (const check of dbgChecksForScenario(scenarioState)) {
+      const item = scenarioState?.checks?.[check.id] || {};
+      if (!item.status && !item.note && !item.images) continue;
+      const statusClass = item.status === 'pass' ? 'pass' : item.status === 'fail' ? 'fail' : item.status === 'skip' ? 'skip' : '';
+      parts.push(`<li><span class="${statusClass}">[${esc(item.status || 'unset')}]</span> ${esc(check.title)}${item.note ? `<br><em>${esc(item.note)}</em>` : ''}</li>`);
+      for (const image of dbgImageNames(item)) {
+        parts.push(`<img alt="${esc(image)}" src="/api/debug-assistant/screenshot/${encodeURIComponent(image)}">`);
+      }
+    }
+    parts.push('</ul>');
+  }
+
+  if (meta.notes) {
+    parts.push('<h3>Session Notes</h3>');
+    parts.push(`<p>${esc(meta.notes)}</p>`);
+  }
+  root.innerHTML = parts.join('');
+}
+
+function dbgImageNames(item) {
+  return String(item?.images || '')
+    .split(/[\n,]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 function dbgFailureGroups(state) {
   const out = [];
   const checksByID = new Map(DBG_CHECKS.map(check => [check.id, check]));
@@ -560,6 +653,7 @@ function dbgWireControls() {
   document.getElementById('dbg-save-meta')?.addEventListener('click', dbgSaveMeta);
   document.getElementById('dbg-snapshot')?.addEventListener('click', dbgSnapshot);
   document.getElementById('dbg-export')?.addEventListener('click', dbgGenerateReport);
+  document.getElementById('dbg-export-doc')?.addEventListener('click', dbgGenerateDocReport);
   document.getElementById('dbg-restore')?.addEventListener('click', dbgRestoreRecoveredBackup);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
   document.getElementById('dbg-reset')?.addEventListener('click', () => {
@@ -576,11 +670,6 @@ function dbgWireControls() {
 async function dbgRestoreRecoveredBackup() {
   if (!confirm('Restore the recovered Debug Assistant backup into this local test state? This replaces the current local checklist state.')) return;
   await dbgLoadRecoveredBackup(true);
-}
-
-async function dbgAutoRestoreRecoveredBackup() {
-  if (localStorage.getItem(DBG_STORAGE_KEY)) return;
-  await dbgLoadRecoveredBackup(false);
 }
 
 async function dbgLoadRecoveredBackup(showMessages) {

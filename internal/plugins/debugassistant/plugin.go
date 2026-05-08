@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,8 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/debug-assistant/events", p.handleEvents)
 	mux.HandleFunc("/api/debug-assistant/context", p.handleContext)
 	mux.HandleFunc("/api/debug-assistant/recovered-state", p.handleRecoveredState)
+	mux.HandleFunc("/api/debug-assistant/screenshots", p.handleScreenshots)
+	mux.HandleFunc("/api/debug-assistant/screenshot/", p.handleScreenshot)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
@@ -176,6 +179,71 @@ func (p *Plugin) handleRecoveredState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(w, raw)
+}
+
+func (p *Plugin) handleScreenshots(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	dir := p.debugScreenshotsDir()
+	if dir == "" {
+		httputil.WriteJSON(w, map[string]any{"screenshots": []string{}})
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		httputil.WriteJSON(w, map[string]any{"screenshots": []string{}})
+		return
+	}
+
+	var screenshots []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if isDebugImage(name) {
+			screenshots = append(screenshots, name)
+		}
+	}
+	httputil.WriteJSON(w, map[string]any{"screenshots": screenshots})
+}
+
+func (p *Plugin) handleScreenshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := filepath.Base(strings.TrimPrefix(r.URL.Path, "/api/debug-assistant/screenshot/"))
+	if name == "." || name == "" || !isDebugImage(name) {
+		http.NotFound(w, r)
+		return
+	}
+	dir := p.debugScreenshotsDir()
+	if dir == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(dir, name))
+}
+
+func (p *Plugin) debugScreenshotsDir() string {
+	if p.cfg == nil || p.cfg.DataDir == "" {
+		return ""
+	}
+	return filepath.Join(p.cfg.DataDir, "debug_screenshots")
+}
+
+func isDebugImage(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Plugin) append(event, matchGUID, summary string) {
