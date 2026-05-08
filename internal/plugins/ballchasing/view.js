@@ -23,7 +23,7 @@ async function loadBC() {
 }
 
 async function refreshBCMatches() {
-  _matchWidget?.refresh();
+  await (_matchWidget?.refresh() ?? Promise.resolve());
 }
 
 // ── Status bar ─────────────────────────────────────────────────
