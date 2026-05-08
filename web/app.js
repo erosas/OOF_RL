@@ -323,9 +323,35 @@ function trackerRankHTML(primaryId) {
 const widgetRegistry = Object.create(null);
 window.widgetRegistry = widgetRegistry;
 window.registerWidget = function(def) {
-  if (!def || typeof def.id !== 'string' || !def.id) return;
-  if (def.id in widgetRegistry) { console.warn('[widgets] duplicate id:', def.id); return; }
-  widgetRegistry[def.id] = def;
+  if (!def || typeof def !== 'object') {
+    console.warn('[widgets] rejected widget definition: expected an object');
+    return false;
+  }
+
+  const id = typeof def.id === 'string' ? def.id.trim() : '';
+  if (!id) {
+    console.warn('[widgets] rejected widget definition: missing or invalid "id"');
+    return false;
+  }
+
+  const title = typeof def.title === 'string' ? def.title.trim() : '';
+  if (!title) {
+    console.warn('[widgets] rejected widget "' + id + '": missing or invalid "title"');
+    return false;
+  }
+
+  if (typeof def.factory !== 'function') {
+    console.warn('[widgets] rejected widget "' + id + '": missing or invalid "factory"');
+    return false;
+  }
+
+  if (id in widgetRegistry) {
+    console.warn('[widgets] duplicate id:', id);
+    return false;
+  }
+
+  widgetRegistry[id] = def;
+  return true;
 };
 
 // --- WebSocket ---
