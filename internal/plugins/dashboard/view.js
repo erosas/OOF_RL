@@ -36,14 +36,14 @@ async function loadDashboard() {
   _dashLayoutLoaded = true;
 
   const layout = await fetch('/api/dashboard/layout').then(r => r.json()).catch(() => []);
-  const hasItems = Array.isArray(layout) && layout.length > 0;
-  document.getElementById('dash-empty')?.classList.toggle('hidden', hasItems);
 
-  if (hasItems) {
+  if (Array.isArray(layout)) {
     for (const item of layout) {
       _dashAddWidget(item.id, item.x, item.y, item.w, item.h);
     }
   }
+
+  _dashUpdateEmpty();
 }
 
 // ── Widget management ──────────────────────────────────────────
