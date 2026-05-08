@@ -400,7 +400,21 @@ function refreshPostMatchViews() {
 }
 
 // --- Navigation ---
+let _activeViewName = null;
+const _viewScrollPositions = {};
+
+function rememberActiveViewScroll() {
+  if (!_activeViewName) return;
+  _viewScrollPositions[_activeViewName] = window.scrollY || document.documentElement.scrollTop || 0;
+}
+
+function restoreViewScroll(name) {
+  const y = _viewScrollPositions[name] || 0;
+  window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+}
+
 function showView(name) {
+  rememberActiveViewScroll();
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
@@ -412,7 +426,12 @@ function showView(name) {
   if (name === 'dashboard' && typeof loadDashboard     === 'function') loadDashboard();
   if (name !== 'history') _historyDetailReRender = null;
   if (name !== 'ranks')   _ranksReRender = null;
+  _activeViewName = name;
+  requestAnimationFrame(() => restoreViewScroll(name));
+  setTimeout(() => restoreViewScroll(name), 120);
 }
+
+window.addEventListener('scroll', rememberActiveViewScroll, { passive: true });
 
 // --- Settings / overlay hotkey capture ---
 const _hotkeyBtn = document.getElementById('cfg-hotkey-btn');
