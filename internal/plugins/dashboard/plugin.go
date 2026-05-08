@@ -15,7 +15,7 @@ import (
 	"OOF_RL/internal/plugin"
 )
 
-//go:embed view.html view.js gridstack.min.css gridstack-all.js
+//go:embed view.html view.js gridstack.min.css gridstack-all.js gridstack-all.js.LICENSE.txt
 var viewFS embed.FS
 
 type Plugin struct {
