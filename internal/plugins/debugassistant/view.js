@@ -469,6 +469,13 @@ async function dbgSnapshot() {
 }
 
 function dbgGenerateReport() {
+  const report = dbgBuildPlainReport();
+  const root = document.getElementById('dbg-report');
+  if (root) root.textContent = report;
+  return report;
+}
+
+function dbgBuildPlainReport() {
   const state = dbgState();
   const meta = state.metadata || {};
   const scenario = dbgActiveScenario();
@@ -546,19 +553,21 @@ function dbgGenerateReport() {
   lines.push('Session notes:');
   lines.push(meta.notes || '');
 
-  const report = lines.join('\n');
-  const root = document.getElementById('dbg-report');
-  if (root) root.textContent = report;
+  return lines.join('\n');
 }
 
 function dbgGenerateDocReport() {
+  const html = dbgBuildDocReportHTML(false);
+  const root = document.getElementById('dbg-report-doc');
+  if (root) root.innerHTML = html;
+  return html;
+}
+
+function dbgBuildDocReportHTML(exportMode) {
   const state = dbgState();
   const meta = state.metadata || {};
   const overall = dbgOverallStats(state);
   const failures = dbgFailureGroups(state);
-  const root = document.getElementById('dbg-report-doc');
-  if (!root) return;
-
   const parts = [];
   parts.push('<h2>OOF RL Debug Assistant Report</h2>');
   parts.push('<h3>Build</h3>');
@@ -608,9 +617,9 @@ function dbgGenerateDocReport() {
       const statusClass = item.status === 'pass' ? 'pass' : item.status === 'fail' ? 'fail' : item.status === 'skip' ? 'skip' : '';
       parts.push(`<li><span class="${statusClass}">[${esc(item.status || 'unset')}]</span> ${esc(check.title)}${item.note ? `<br><em>${esc(item.note)}</em>` : ''}</li>`);
       for (const image of dbgImageNames(item)) {
-        const href = dbgScreenshotURL(image);
+        const href = exportMode ? dbgExportScreenshotPath(image) : dbgScreenshotURL(image);
         parts.push(`<div class="shot-link"><a href="${href}" target="_blank" rel="noopener">Open screenshot: ${esc(image)}</a></div>`);
-        parts.push(`<img alt="${esc(image)}" src="${href}" onerror="this.style.display='none'">`);
+        if (!exportMode) parts.push(`<img alt="${esc(image)}" src="${href}" onerror="this.style.display='none'">`);
       }
     }
     parts.push('</ul>');
@@ -620,7 +629,32 @@ function dbgGenerateDocReport() {
     parts.push('<h3>Session Notes</h3>');
     parts.push(`<p>${esc(meta.notes)}</p>`);
   }
-  root.innerHTML = parts.join('');
+  return parts.join('');
+}
+
+function dbgBuildStandaloneDocHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OOF RL Debug Assistant Report</title>
+<style>
+body { background:#0a0b0e; color:#e5e7eb; font-family:Inter,Segoe UI,Arial,sans-serif; line-height:1.5; padding:28px; }
+main { max-width:980px; margin:0 auto; }
+h2 { margin-top:0; }
+h3 { color:#4a9eff; margin-top:24px; }
+h4 { margin-bottom:6px; }
+a { color:#4a9eff; font-weight:700; }
+ul { margin-top:6px; }
+li { margin-bottom:6px; }
+.pass { color:#3ecf72; font-weight:800; }
+.fail { color:#e05252; font-weight:800; }
+.skip { color:#f59e0b; font-weight:800; }
+.shot-link { margin:8px 0; }
+</style>
+</head>
+<body><main>${dbgBuildDocReportHTML(true)}</main></body>
+</html>`;
 }
 
 function dbgImageNames(item) {
@@ -637,6 +671,10 @@ function dbgCleanImageName(name) {
 
 function dbgScreenshotURL(name) {
   return `/api/debug-assistant/screenshot/${encodeURIComponent(dbgCleanImageName(name))}`;
+}
+
+function dbgExportScreenshotPath(name) {
+  return `../debug_screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgFailureGroups(state) {
@@ -665,6 +703,7 @@ function dbgWireControls() {
   document.getElementById('dbg-snapshot')?.addEventListener('click', dbgSnapshot);
   document.getElementById('dbg-export')?.addEventListener('click', dbgGenerateReport);
   document.getElementById('dbg-export-doc')?.addEventListener('click', dbgGenerateDocReport);
+  document.getElementById('dbg-save-reports')?.addEventListener('click', dbgExportReportFiles);
   document.getElementById('dbg-restore')?.addEventListener('click', dbgRestoreRecoveredBackup);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
   document.getElementById('dbg-reset')?.addEventListener('click', () => {
@@ -676,6 +715,24 @@ function dbgWireControls() {
     dbgLoadContext();
     dbgGenerateReport();
   });
+}
+
+async function dbgExportReportFiles() {
+  try {
+    const plain = dbgGenerateReport();
+    const html = dbgBuildStandaloneDocHTML();
+    const response = await fetch('/api/debug-assistant/export-report', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ plain, html }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const result = await response.json();
+    dbgGenerateDocReport();
+    dbgMessage(`Exported reports to ${result.dir}`);
+  } catch (e) {
+    dbgMessage(`Export failed: ${e.message || e}`);
+  }
 }
 
 async function dbgRestoreRecoveredBackup() {

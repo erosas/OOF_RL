@@ -31,6 +31,11 @@ type recentEvent struct {
 	At        time.Time `json:"at"`
 }
 
+type exportReportRequest struct {
+	Plain string `json:"plain"`
+	HTML  string `json:"html"`
+}
+
 // Plugin is a read-only regression helper. It observes RL event flow and serves
 // tester-facing state without writing match/session/history data.
 type Plugin struct {
@@ -59,6 +64,7 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/debug-assistant/recovered-state", p.handleRecoveredState)
 	mux.HandleFunc("/api/debug-assistant/screenshots", p.handleScreenshots)
 	mux.HandleFunc("/api/debug-assistant/screenshot/", p.handleScreenshot)
+	mux.HandleFunc("/api/debug-assistant/export-report", p.handleExportReport)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
@@ -235,6 +241,54 @@ func (p *Plugin) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, filepath.Join(dir, name))
+}
+
+func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if p.cfg == nil || p.cfg.DataDir == "" {
+		http.Error(w, "data dir unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	var req exportReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Plain) == "" && strings.TrimSpace(req.HTML) == "" {
+		http.Error(w, "empty report", http.StatusBadRequest)
+		return
+	}
+
+	dir := filepath.Join(p.cfg.DataDir, "debug_reports")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		http.Error(w, "creating report dir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	stamp := time.Now().Format("20060102-150405")
+	base := "oof-rl-debug-report-" + stamp
+	plainPath := filepath.Join(dir, base+".md")
+	htmlPath := filepath.Join(dir, base+".html")
+
+	if err := os.WriteFile(plainPath, []byte(req.Plain), 0o644); err != nil {
+		http.Error(w, "writing markdown report: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.WriteFile(htmlPath, []byte(req.HTML), 0o644); err != nil {
+		http.Error(w, "writing html report: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	httputil.WriteJSON(w, map[string]any{
+		"dir":       dir,
+		"markdown":  plainPath,
+		"html":      htmlPath,
+		"timestamp": stamp,
+	})
 }
 
 func (p *Plugin) debugScreenshotsDir() string {
