@@ -344,9 +344,13 @@ function renderPager(el, total, pageSize, currentPage, onPageChange) {
 // ── Plugin init ────────────────────────────────────────────────
 
 window.pluginInit_bc = function() {
-  _matchWidget    = bcMatchReplaysWidget(document.getElementById('bc-matches-widget'));
-  _uploadedWidget = bcUploadedReplaysWidget(document.getElementById('bc-uploaded-widget'));
-  _groupsWidget   = bcGroupsWidget(document.getElementById('bc-groups-widget'));
+  const matchesContainer  = document.getElementById('bc-matches-widget');
+  const uploadedContainer = document.getElementById('bc-uploaded-widget');
+  const groupsContainer   = document.getElementById('bc-groups-widget');
+
+  _matchWidget    = matchesContainer ? bcMatchReplaysWidget(matchesContainer) : null;
+  _uploadedWidget = uploadedContainer ? bcUploadedReplaysWidget(uploadedContainer) : null;
+  _groupsWidget   = groupsContainer ? bcGroupsWidget(groupsContainer) : null;
 
   document.getElementById('bc-purge-btn')?.addEventListener('click', purgeUploaded);
   document.getElementById('bc-sync-btn')?.addEventListener('click', syncFromBC);
