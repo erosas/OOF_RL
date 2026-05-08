@@ -13,6 +13,7 @@ const DBG_SCENARIOS = [
   { id: 'private-mixed-bots', title: 'Private mixed human/bot match', shots: ['History row with PvE badge', 'Expanded teams'] },
   { id: 'all-bot-private', title: 'All-bot private match', shots: ['History row', 'Expanded match details'] },
   { id: 'abandoned-destroyed', title: 'Match abandoned or destroyed without normal MatchEnded', shots: ['History row with Incomplete badge', 'Log snippet around MatchDestroyed'] },
+  { id: 'debug-assistant-track-b', title: 'Track B: Debug Assistant verification', shots: ['Debug page startup', 'Report export folder', 'Generated report panels'] },
 ];
 
 const DBG_CHECKS = [
@@ -80,6 +81,69 @@ const DBG_CHECKS = [
     id: 'goal-events',
     title: 'Goal/event details appear when the API emitted them.',
     help: 'If goals happened but events are missing, collect screenshot plus log/capture evidence.',
+    screenshot: true,
+  },
+];
+
+const DBG_TRACK_B_CHECKS = [
+  {
+    id: 'debug-clean-startup',
+    title: 'Debug page starts clean on fresh app startup.',
+    help: 'Close all OOF RL instances, open the test EXE, go to Debug, and confirm no old checklist data appears unless JSON was manually imported.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-check-buttons',
+    title: 'Pass / Fail / N/A buttons select and unselect correctly.',
+    help: 'Click each status, then click the active status again to confirm it clears and updates scenario/overall stats.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-note-formatting',
+    title: 'Checklist notes wrap and remain readable.',
+    help: 'Add a long multi-line note and confirm it behaves like a body text field and remains readable in generated reports.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-custom-conditions',
+    title: 'Custom conditions can be added, tracked, reported, and removed.',
+    help: 'Add a custom condition, mark it, add notes, confirm it affects stats/reports, then remove it and confirm saved check data is removed.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-json-import',
+    title: 'JSON state import is manual-only.',
+    help: 'Export a JSON state, restart the app, confirm Debug starts clean, then manually import the JSON and confirm state appears only after selection.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-report-generation',
+    title: 'Plain and doc reports generate correctly.',
+    help: 'Generate both report views and verify metadata, summaries, scenario details, failure groups, notes, and screenshot filenames are included.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-export-files',
+    title: 'Report export creates .md, .html, and .json files.',
+    help: 'Export reports and verify matching files are created in AppData Local OOF_RL debug_reports.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-duplicate-export',
+    title: 'Duplicate report exports are skipped.',
+    help: 'Export twice without changing Debug state and confirm no duplicate files are created and duplicate export notice appears.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-scroll-state',
+    title: 'Debug and other pages retain separate scroll positions.',
+    help: 'Scroll Debug, switch to History, scroll there, and confirm each page restores its own scroll position when revisited.',
+    screenshot: true,
+  },
+  {
+    id: 'debug-read-only-safety',
+    title: 'Debug Assistant does not mutate core OOF RL data.',
+    help: 'During Track A playtesting, confirm Debug use does not change Live, Session, History, saved matches, event handling, or app config except debug-local state/export files.',
     screenshot: true,
   },
 ];
@@ -179,6 +243,7 @@ function dbgRenderScenarios() {
       current.activeScenario = next;
       current.scenarios = current.scenarios || {};
       current.scenarios[next] = current.scenarios[next] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
+      current.scenarios[next].checklistType = next === 'debug-assistant-track-b' ? 'debug-assistant' : 'match';
       dbgSaveState(current);
       dbgRenderScenarios();
       dbgRenderChecks();
@@ -201,8 +266,8 @@ function dbgRenderChecks() {
   const state = dbgState();
   const scenario = dbgActiveScenario();
   if (!scenario) {
-    root.innerHTML = '<div class="dbg-sub">Pick the match type you are about to test. The checklist will stay tied to that scenario locally.</div>';
-    if (label) label.textContent = 'Select a match scenario before queueing.';
+    root.innerHTML = '<div class="dbg-sub">Pick the test scenario you are about to run. The checklist will stay tied to that scenario locally.</div>';
+    if (label) label.textContent = 'Select a test scenario before queueing.';
     if (customForm) customForm.style.display = 'none';
     return;
   }
@@ -291,7 +356,8 @@ function dbgSetCheckImages(checkID, images) {
 }
 
 function dbgChecksForScenario(scenarioState) {
-  return DBG_CHECKS.concat((scenarioState?.customChecks || []).map(check => ({
+  const baseChecks = scenarioState?.checklistType === 'debug-assistant' ? DBG_TRACK_B_CHECKS : DBG_CHECKS;
+  return baseChecks.concat((scenarioState?.customChecks || []).map(check => ({
     id: check.id,
     title: check.title || 'Untitled custom condition',
     help: check.help || 'Custom verification condition added during playtest.',
