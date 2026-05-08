@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 	"OOF_RL/internal/plugin"
 )
 
-//go:embed view.html view.js
+//go:embed view.html view.js gridstack.min.css gridstack-all.js
 var viewFS embed.FS
 
 type Plugin struct {
@@ -50,6 +51,31 @@ func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) HandleEvent(_ events.Envelope)           {}
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
+// layoutItem is the validated shape of each entry in the dashboard layout array.
+type layoutItem struct {
+	ID string `json:"id"`
+	X  int    `json:"x"`
+	Y  int    `json:"y"`
+	W  int    `json:"w"`
+	H  int    `json:"h"`
+}
+
+func validateLayout(raw json.RawMessage) ([]layoutItem, error) {
+	var items []layoutItem
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, fmt.Errorf("layout must be a JSON array: %w", err)
+	}
+	for i, item := range items {
+		if item.ID == "" {
+			return nil, fmt.Errorf("item %d missing id", i)
+		}
+		if item.W < 1 || item.H < 1 {
+			return nil, fmt.Errorf("item %d (%s): w and h must be >= 1", i, item.ID)
+		}
+	}
+	return items, nil
+}
+
 func (p *Plugin) handleLayout(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -68,15 +94,21 @@ func (p *Plugin) handleLayout(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(raw))
 
 	case http.MethodPost:
-		var payload json.RawMessage
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		var raw json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 			httputil.JSONError(w, 400, err.Error())
 			return
 		}
-		_, err := p.conn.ExecContext(r.Context(), `
+		items, err := validateLayout(raw)
+		if err != nil {
+			httputil.JSONError(w, 400, err.Error())
+			return
+		}
+		encoded, _ := json.Marshal(items)
+		_, err = p.conn.ExecContext(r.Context(), `
 			INSERT INTO dash_layout (id, layout_json) VALUES (1, ?)
 			ON CONFLICT(id) DO UPDATE SET layout_json = excluded.layout_json
-		`, string(payload))
+		`, string(encoded))
 		if err != nil {
 			httputil.JSONError(w, 500, err.Error())
 			return

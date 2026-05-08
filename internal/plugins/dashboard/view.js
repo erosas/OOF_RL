@@ -55,9 +55,9 @@ function _dashAddWidget(widgetId, x, y, w, h) {
     return;
   }
 
+  const fromLayout = x != null && y != null;
   const itemEl = _dashGrid.addWidget({
-    x:    x    ?? 0,
-    y:    y    ?? 0,
+    ...(fromLayout ? { x, y } : { autoPosition: true }),
     w:    w    ?? def.defaultW ?? 6,
     h:    h    ?? def.defaultH ?? 6,
     minW: def.minW,
@@ -156,26 +156,40 @@ function _openPicker() {
   const list = document.getElementById('dash-picker-list');
   const widgets = Object.values(window.widgetRegistry || {});
 
+  list.innerHTML = '';
   if (!widgets.length) {
-    list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:24px">No widgets registered yet.</div>';
+    const msg = document.createElement('div');
+    msg.style.cssText = 'color:var(--muted);font-size:0.85rem;text-align:center;padding:24px';
+    msg.textContent = 'No widgets registered yet.';
+    list.appendChild(msg);
   } else {
-    list.innerHTML = widgets.map(def => `
-      <div class="dash-picker-item">
-        <div>
-          <div class="dash-picker-item-name">${esc(def.title)}</div>
-          <div class="dash-picker-item-plugin">${esc(def.pluginId)}</div>
-        </div>
-        <button class="bc-sync-btn" data-add="${esc(def.id)}">Add</button>
-      </div>
-    `).join('');
+    for (const def of widgets) {
+      const item = document.createElement('div');
+      item.className = 'dash-picker-item';
 
-    list.querySelectorAll('[data-add]').forEach(btn => {
+      const info = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'dash-picker-item-name';
+      name.textContent = def.title;
+      const plugin = document.createElement('div');
+      plugin.className = 'dash-picker-item-plugin';
+      plugin.textContent = def.pluginId;
+      info.appendChild(name);
+      info.appendChild(plugin);
+
+      const btn = document.createElement('button');
+      btn.className = 'bc-sync-btn';
+      btn.textContent = 'Add';
       btn.addEventListener('click', () => {
-        _dashAddWidget(btn.dataset.add);
+        _dashAddWidget(def.id);
         _dashUpdateEmpty();
         _closePicker();
       });
-    });
+
+      item.appendChild(info);
+      item.appendChild(btn);
+      list.appendChild(item);
+    }
   }
 
   document.getElementById('dash-picker').classList.remove('hidden');
@@ -189,7 +203,7 @@ function _closePicker() {
 
 window.pluginInit_dashboard = async function() {
   if (!window.GridStack) {
-    await loadScript('https://cdn.jsdelivr.net/npm/gridstack@11.2.0/dist/gridstack-all.js');
+    await loadScript('/plugins/dashboard/gridstack-all.js');
   }
 
   document.getElementById('dash-edit-btn')?.addEventListener('click', _dashEnterEdit);
@@ -200,8 +214,7 @@ window.pluginInit_dashboard = async function() {
 
   _dashReady = true;
 
-  // If this tab was already shown before init finished (dashboard is first tab),
-  // trigger the load now.
+  // If the dashboard tab was already shown before async init finished, load now.
   const section = document.getElementById('view-dashboard');
   if (section?.classList.contains('active')) loadDashboard();
 };

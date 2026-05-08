@@ -320,9 +320,11 @@ function trackerRankHTML(primaryId) {
 }
 
 // --- Widget registry ---
-const widgetRegistry = {};
+const widgetRegistry = Object.create(null);
 window.widgetRegistry = widgetRegistry;
 window.registerWidget = function(def) {
+  if (!def || typeof def.id !== 'string' || !def.id) return;
+  if (def.id in widgetRegistry) { console.warn('[widgets] duplicate id:', def.id); return; }
   widgetRegistry[def.id] = def;
 };
 
