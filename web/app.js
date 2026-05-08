@@ -319,6 +319,41 @@ function trackerRankHTML(primaryId) {
   return `<div class="player-trk-rank">${platformBadge}${pills}${updatedStr}</div>`;
 }
 
+// --- Widget registry ---
+const widgetRegistry = Object.create(null);
+window.widgetRegistry = widgetRegistry;
+window.registerWidget = function(def) {
+  if (!def || typeof def !== 'object') {
+    console.warn('[widgets] rejected widget definition: expected an object');
+    return false;
+  }
+
+  const id = typeof def.id === 'string' ? def.id.trim() : '';
+  if (!id) {
+    console.warn('[widgets] rejected widget definition: missing or invalid "id"');
+    return false;
+  }
+
+  const title = typeof def.title === 'string' ? def.title.trim() : '';
+  if (!title) {
+    console.warn('[widgets] rejected widget "' + id + '": missing or invalid "title"');
+    return false;
+  }
+
+  if (typeof def.factory !== 'function') {
+    console.warn('[widgets] rejected widget "' + id + '": missing or invalid "factory"');
+    return false;
+  }
+
+  if (id in widgetRegistry) {
+    console.warn('[widgets] duplicate id:', id);
+    return false;
+  }
+
+  widgetRegistry[id] = def;
+  return true;
+};
+
 // --- WebSocket ---
 const dot = document.getElementById('status-dot');
 
@@ -368,11 +403,13 @@ function refreshPostMatchViews() {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  if (name === 'history' && typeof loadHistory   === 'function') loadHistory();
+  document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
+  if (name === 'history'   && typeof loadHistory      === 'function') loadHistory();
   if (name === 'settings') loadSettings();
-  if (name === 'bc'      && typeof loadBC        === 'function') loadBC();
-  if (name === 'ranks'   && typeof refreshRanks  === 'function') refreshRanks();
-  if (name === 'session' && typeof refreshSession === 'function') refreshSession();
+  if (name === 'bc'        && typeof loadBC            === 'function') loadBC();
+  if (name === 'ranks'     && typeof refreshRanks      === 'function') refreshRanks();
+  if (name === 'session'   && typeof refreshSession    === 'function') refreshSession();
+  if (name === 'dashboard' && typeof loadDashboard     === 'function') loadDashboard();
   if (name !== 'history') _historyDetailReRender = null;
   if (name !== 'ranks')   _ranksReRender = null;
 }
