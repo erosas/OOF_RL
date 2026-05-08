@@ -1,6 +1,7 @@
 'use strict';
 
 const DBG_STORAGE_KEY = 'oof-rl-debug-assistant-regression-v1';
+const DBG_SESSION_KEY = 'oof-rl-debug-assistant-session-active-v1';
 
 const DBG_SCENARIOS = [
   { id: 'online-1v1-pvp', title: 'Normal online 1v1 PvP match', shots: ['History collapsed row', 'Expanded match details', 'Session overview'] },
@@ -84,6 +85,7 @@ const DBG_CHECKS = [
 ];
 
 window.pluginInit_debug = function() {
+  dbgInitializeSessionState();
   dbgRenderScenarios();
   dbgLoadMeta();
   dbgRenderChecks();
@@ -102,6 +104,12 @@ window.pluginInit_debug = function() {
     factory: debugRegressionWidget,
   });
 };
+
+function dbgInitializeSessionState() {
+  if (sessionStorage.getItem(DBG_SESSION_KEY)) return;
+  localStorage.removeItem(DBG_STORAGE_KEY);
+  sessionStorage.setItem(DBG_SESSION_KEY, '1');
+}
 
 function dbgState() {
   try { return JSON.parse(localStorage.getItem(DBG_STORAGE_KEY) || '{}'); }
@@ -217,7 +225,7 @@ function dbgRenderChecks() {
           <div class="dbg-check-title">${esc(check.title)}${check.custom ? '<span class="dbg-custom-tag">custom</span>' : ''}</div>
           <div class="dbg-check-help">${esc(check.help)}</div>
           ${check.screenshot ? '<span class="dbg-shot">Screenshot/data recommended if failed or uncertain</span>' : ''}
-          <input class="dbg-note" value="${esc(value.note || '')}" placeholder="Evidence note, screenshot filename, log timestamp, or reproduction detail">
+          <textarea class="dbg-note" placeholder="Evidence note, screenshot filename, log timestamp, or reproduction detail">${esc(value.note || '')}</textarea>
           <input class="dbg-images" value="${esc(value.images || '')}" placeholder="Optional screenshot filenames, comma-separated">
           ${check.custom ? '<button class="dbg-check-remove" data-remove-custom="1">Remove custom condition</button>' : ''}
         </div>
@@ -704,7 +712,11 @@ function dbgWireControls() {
   document.getElementById('dbg-export')?.addEventListener('click', dbgGenerateReport);
   document.getElementById('dbg-export-doc')?.addEventListener('click', dbgGenerateDocReport);
   document.getElementById('dbg-save-reports')?.addEventListener('click', dbgExportReportFiles);
-  document.getElementById('dbg-restore')?.addEventListener('click', dbgRestoreRecoveredBackup);
+  document.getElementById('dbg-import-json')?.addEventListener('click', () => {
+    if (!confirm('Import a Debug Assistant JSON state file? This replaces the current local Debug checklist state.')) return;
+    document.getElementById('dbg-import-file')?.click();
+  });
+  document.getElementById('dbg-import-file')?.addEventListener('change', dbgImportJSONState);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
   document.getElementById('dbg-reset')?.addEventListener('click', () => {
     if (!confirm('Reset local Debug Assistant metadata, checklist, snapshots, and notes?')) return;
@@ -719,42 +731,58 @@ function dbgWireControls() {
 
 async function dbgExportReportFiles() {
   try {
+    if (!confirm('Export the current Debug Assistant report files to the OOF RL debug_reports folder? Duplicate exports of the same state will be skipped.')) return;
     const plain = dbgGenerateReport();
     const html = dbgBuildStandaloneDocHTML();
+    const state = JSON.stringify(dbgState(), null, 2);
+    const exportID = dbgExportID(state);
     const response = await fetch('/api/debug-assistant/export-report', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ plain, html }),
+      body: JSON.stringify({ plain, html, state: JSON.parse(state), export_id: exportID }),
     });
     if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
     dbgGenerateDocReport();
+    if (result.duplicate) {
+      dbgMessage(result.message || 'Report already exported. Duplicate export skipped.');
+      return;
+    }
     dbgMessage(`Exported reports to ${result.dir}`);
   } catch (e) {
     dbgMessage(`Export failed: ${e.message || e}`);
   }
 }
 
-async function dbgRestoreRecoveredBackup() {
-  if (!confirm('Restore the recovered Debug Assistant backup into this local test state? This replaces the current local checklist state.')) return;
-  await dbgLoadRecoveredBackup(true);
-}
-
-async function dbgLoadRecoveredBackup(showMessages) {
+async function dbgImportJSONState(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
   try {
-    const response = await fetch('/api/debug-assistant/recovered-state');
-    if (!response.ok) throw new Error('No recovered backup found');
-    const recovered = await response.json();
-    dbgSaveState(recovered);
+    const imported = JSON.parse(await file.text());
+    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+      throw new Error('Selected file is not a valid Debug Assistant state object');
+    }
+    dbgSaveState(imported);
     dbgLoadMeta();
     dbgRenderScenarios();
     dbgRenderChecks();
     dbgGenerateReport();
+    dbgGenerateDocReport();
     dbgRefreshWidgetInstances();
-    if (showMessages) dbgMessage('Recovered backup restored');
+    dbgMessage(`Imported ${file.name}`);
   } catch (e) {
-    if (showMessages) dbgMessage(e.message || 'Restore failed');
+    dbgMessage(`Import failed: ${e.message || e}`);
   }
+}
+
+function dbgExportID(text) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `state-${(hash >>> 0).toString(16)}`;
 }
 
 const dbgWidgetInstances = new Set();

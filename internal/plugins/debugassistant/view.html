@@ -42,7 +42,7 @@
 .dbg-check-title { color:var(--text); font-size:0.8rem; font-weight:700; }
 .dbg-check-help { color:var(--muted); font-size:0.72rem; line-height:1.45; margin-top:3px; }
 .dbg-shot { display:inline-flex; align-items:center; gap:4px; color:#f59e0b; font-size:0.68rem; margin-top:4px; }
-.dbg-note { width:100%; background:transparent; border:0; border-bottom:1px solid var(--line); color:var(--muted); font-size:0.72rem; padding:4px 0; margin-top:5px; }
+.dbg-note { width:100%; min-height:58px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); border-radius:6px; color:var(--muted); font-size:0.72rem; padding:6px 7px; margin-top:5px; resize:vertical; line-height:1.45; white-space:pre-wrap; }
 .dbg-note:focus { outline:0; border-bottom-color:var(--rl-blue); color:var(--text); }
 .dbg-images { width:100%; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); border-radius:6px; color:var(--muted); font-size:0.7rem; padding:5px 7px; margin-top:6px; }
 .dbg-images:focus { outline:1px solid var(--rl-blue); color:var(--text); }
@@ -106,7 +106,8 @@
       <button id="dbg-export" class="dbg-btn dbg-btn-secondary">Generate report</button>
       <button id="dbg-export-doc" class="dbg-btn dbg-btn-secondary">Generate doc report</button>
       <button id="dbg-save-reports" class="dbg-btn dbg-btn-secondary">Export report files</button>
-      <button id="dbg-restore" class="dbg-btn dbg-btn-secondary">Restore recovered backup</button>
+      <button id="dbg-import-json" class="dbg-btn dbg-btn-secondary">Import JSON state</button>
+      <input id="dbg-import-file" type="file" accept="application/json,.json" hidden>
       <span id="dbg-msg" class="dbg-msg"></span>
     </div>
   </section>

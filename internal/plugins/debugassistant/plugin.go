@@ -32,8 +32,10 @@ type recentEvent struct {
 }
 
 type exportReportRequest struct {
-	Plain string `json:"plain"`
-	HTML  string `json:"html"`
+	Plain    string          `json:"plain"`
+	HTML     string          `json:"html"`
+	State    json.RawMessage `json:"state"`
+	ExportID string          `json:"export_id"`
 }
 
 // Plugin is a read-only regression helper. It observes RL event flow and serves
@@ -61,7 +63,6 @@ func (p *Plugin) NavTab() plugin.NavTab {
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/debug-assistant/events", p.handleEvents)
 	mux.HandleFunc("/api/debug-assistant/context", p.handleContext)
-	mux.HandleFunc("/api/debug-assistant/recovered-state", p.handleRecoveredState)
 	mux.HandleFunc("/api/debug-assistant/screenshots", p.handleScreenshots)
 	mux.HandleFunc("/api/debug-assistant/screenshot/", p.handleScreenshot)
 	mux.HandleFunc("/api/debug-assistant/export-report", p.handleExportReport)
@@ -163,31 +164,6 @@ func (p *Plugin) handleContext(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (p *Plugin) handleRecoveredState(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if p.cfg == nil || p.cfg.DataDir == "" {
-		http.NotFound(w, r)
-		return
-	}
-
-	path := filepath.Join(p.cfg.DataDir, "debug_screenshots", "debug-assistant-recovered-localstorage.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	var raw json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		http.Error(w, "recovered state is not valid JSON", http.StatusInternalServerError)
-		return
-	}
-	httputil.WriteJSON(w, raw)
-}
-
 func (p *Plugin) handleScreenshots(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -269,10 +245,26 @@ func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stamp := time.Now().Format("20060102-150405")
-	base := "oof-rl-debug-report-" + stamp
+	exportID := safeExportID(req.ExportID)
+	if exportID == "" {
+		exportID = time.Now().Format("20060102-150405")
+	}
+	base := "oof-rl-debug-report-" + exportID
 	plainPath := filepath.Join(dir, base+".md")
 	htmlPath := filepath.Join(dir, base+".html")
+	jsonPath := filepath.Join(dir, base+".json")
+
+	if fileExists(plainPath) || fileExists(htmlPath) || fileExists(jsonPath) {
+		httputil.WriteJSON(w, map[string]any{
+			"dir":       dir,
+			"markdown":  plainPath,
+			"html":      htmlPath,
+			"json":      jsonPath,
+			"duplicate": true,
+			"message":   "Report already exported. Duplicate export skipped.",
+		})
+		return
+	}
 
 	if err := os.WriteFile(plainPath, []byte(req.Plain), 0o644); err != nil {
 		http.Error(w, "writing markdown report: "+err.Error(), http.StatusInternalServerError)
@@ -282,12 +274,19 @@ func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "writing html report: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(req.State) > 0 {
+		if err := os.WriteFile(jsonPath, req.State, 0o644); err != nil {
+			http.Error(w, "writing json report: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 
 	httputil.WriteJSON(w, map[string]any{
 		"dir":       dir,
 		"markdown":  plainPath,
 		"html":      htmlPath,
-		"timestamp": stamp,
+		"json":      jsonPath,
+		"duplicate": false,
 	})
 }
 
@@ -305,6 +304,25 @@ func isDebugImage(name string) bool {
 	default:
 		return false
 	}
+}
+
+func safeExportID(id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	var b strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() > 64 {
+		return b.String()[:64]
+	}
+	return b.String()
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (p *Plugin) append(event, matchGUID, summary string) {
