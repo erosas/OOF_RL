@@ -301,10 +301,23 @@ function dbgRenderChecks() {
     row.querySelectorAll('button[data-status]').forEach(btn => {
       btn.addEventListener('click', () => dbgSetCheck(row.dataset.dbgCheck, btn.dataset.status));
     });
-    row.querySelector('.dbg-note')?.addEventListener('input', e => dbgSetCheckNote(row.dataset.dbgCheck, e.target.value));
+    const note = row.querySelector('.dbg-note');
+    if (note) {
+      dbgAutosizeTextarea(note);
+      note.addEventListener('input', e => {
+        dbgAutosizeTextarea(e.target);
+        dbgSetCheckNote(row.dataset.dbgCheck, e.target.value);
+      });
+    }
     row.querySelector('.dbg-images')?.addEventListener('input', e => dbgSetCheckImages(row.dataset.dbgCheck, e.target.value));
     row.querySelector('[data-remove-custom]')?.addEventListener('click', () => dbgRemoveCustomCheck(row.dataset.dbgCheck));
   });
+}
+
+function dbgAutosizeTextarea(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
 }
 
 function dbgScenarioState(state) {
