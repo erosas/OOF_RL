@@ -66,6 +66,7 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/debug-assistant/screenshots", p.handleScreenshots)
 	mux.HandleFunc("/api/debug-assistant/screenshot/", p.handleScreenshot)
 	mux.HandleFunc("/api/debug-assistant/export-report", p.handleExportReport)
+	mux.HandleFunc("/api/debug-assistant/reset", p.handleReset)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
@@ -162,6 +163,19 @@ func (p *Plugin) handleContext(w http.ResponseWriter, r *http.Request) {
 		"source_of_truth":   "Debug Assistant is read-only and does not mutate Live, Session, History, or match state.",
 		"screenshot_target": "History collapsed row, expanded match details, Session overview, and Live state when relevant.",
 	})
+}
+
+func (p *Plugin) handleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	p.mu.Lock()
+	p.events = nil
+	p.mu.Unlock()
+
+	httputil.WriteJSON(w, map[string]any{"ok": true})
 }
 
 func (p *Plugin) handleScreenshots(w http.ResponseWriter, r *http.Request) {

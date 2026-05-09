@@ -1691,16 +1691,17 @@ function dbgWireControls() {
   document.getElementById('dbg-save-reports')?.addEventListener('click', dbgExportReportFiles);
   document.getElementById('dbg-import-file')?.addEventListener('change', dbgImportJSONState);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
-  document.getElementById('dbg-reset')?.addEventListener('click', () => {
+  document.getElementById('dbg-reset')?.addEventListener('click', async () => {
     if (!confirm('Reset local Debug Assistant metadata, checklist, snapshots, and notes?')) return;
-    dbgResetLocalState();
+    await dbgResetLocalState();
   });
 }
 
-function dbgResetLocalState() {
+async function dbgResetLocalState() {
   localStorage.removeItem(DBG_STORAGE_KEY);
   for (const key of Object.keys(DBG_SCROLL_POSITIONS)) delete DBG_SCROLL_POSITIONS[key];
   DBG_LAST_LIVE_STATE = null;
+  await fetch('/api/debug-assistant/reset', {method: 'POST'}).catch(() => null);
 
   const report = document.getElementById('dbg-report');
   if (report) report.textContent = 'Generate a report after your scenario or session.';
@@ -1717,7 +1718,7 @@ function dbgResetLocalState() {
   dbgLoadMeta();
   dbgRenderScenarios();
   dbgRenderChecks();
-  dbgLoadContext();
+  await Promise.all([dbgLoadContext(), dbgLoadEvents()]);
   dbgRefreshWidgetInstances();
   dbgMessage('Debug Assistant reset to default state');
 }
