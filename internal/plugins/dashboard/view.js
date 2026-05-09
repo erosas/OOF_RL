@@ -76,12 +76,15 @@ function _dashAddWidget(widgetId, x, y, w, h) {
     <div class="widget-body"></div>
   `;
 
+  let ctrl;
+
   contentEl.querySelector('.widget-remove-btn').addEventListener('click', () => {
+    ctrl?.destroy?.();
     _dashGrid.removeWidget(itemEl);
     _dashUpdateEmpty();
   });
 
-  const ctrl = def.factory(contentEl.querySelector('.widget-body'));
+  ctrl = def.factory(contentEl.querySelector('.widget-body'));
   ctrl?.refresh?.();
 }
 

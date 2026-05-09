@@ -1,9 +1,17 @@
 'use strict';
 
-let _rankPlayers = [];
+let _rankPlayers    = [];
+let _ranksInstances = [];
 
 window.pluginInit_ranks = async function() {
   _ranksReRender = renderRanks;
+
+  window.registerWidget?.({
+    id: 'ranks-display', pluginId: 'ranks', title: 'Player Ranks',
+    defaultW: 4, defaultH: 8, minW: 3, minH: 4,
+    factory: ranksDisplayWidget,
+  });
+
   try {
     const players = await fetch('/api/ranks/players').then(r => r.json());
     _rankPlayers = players || [];
@@ -35,11 +43,13 @@ window.handleRanksUpdate = function(data) {
   }));
   prefetchTrackerRanks(data.Players || []);
   renderRanks();
+  _ranksInstances.forEach(w => w.render());
 };
 
 window.handleRanksClear = function() {
   _rankPlayers = [];
   renderRanks();
+  _ranksInstances.forEach(w => w.render());
 };
 
 function renderRanks() {
@@ -60,6 +70,30 @@ function renderRanks() {
   document.getElementById('ranks-teams').innerHTML =
     renderTeamPanel('Blue',   '4a9eff', blue) +
     renderTeamPanel('Orange', 'ff8c2a', orange);
+}
+
+function ranksDisplayWidget(container) {
+  function render() {
+    if (!_rankPlayers.length) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8 text-sm">Waiting for a match — ranks will appear here.</div>';
+      return;
+    }
+    const blue   = _rankPlayers.filter(p => p.team_num === 0);
+    const orange = _rankPlayers.filter(p => p.team_num === 1);
+    container.innerHTML =
+      renderTeamPanel('Blue',   '4a9eff', blue) +
+      renderTeamPanel('Orange', 'ff8c2a', orange);
+  }
+
+  function destroy() {
+    const i = _ranksInstances.indexOf(entry);
+    if (i >= 0) _ranksInstances.splice(i, 1);
+  }
+
+  const entry = { render };
+  _ranksInstances.push(entry);
+  render();
+  return { refresh: render, destroy };
 }
 
 function renderTeamPanel(teamName, hex, players) {
