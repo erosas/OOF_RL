@@ -85,6 +85,7 @@ function _dashAddWidget(widgetId, x, y, w, h) {
   });
 
   ctrl = def.factory(contentEl.querySelector('.widget-body'));
+  itemEl._widgetCtrl = ctrl;
   ctrl?.refresh?.();
 }
 
@@ -144,6 +145,7 @@ async function _dashSave() {
 
 function _dashCancel() {
   if (_dashPreEdit !== null) {
+    _dashGrid.el.querySelectorAll('.grid-stack-item').forEach(el => el._widgetCtrl?.destroy?.());
     _dashGrid.removeAll(true);
     for (const item of _dashPreEdit) {
       _dashAddWidget(item.id, item.x, item.y, item.w, item.h);

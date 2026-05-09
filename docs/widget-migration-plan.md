@@ -44,7 +44,7 @@ button handler so factory instances can deregister from WS routing arrays.
 ### Phase 0 — Dashboard: widget destroy lifecycle
 **File:** `internal/plugins/dashboard/view.js`
 
-In `_dashAddWidget`, after `_dashGrid.removeWidget(itemEl)`, call `ctrl?.destroy?.()`.
+In `_dashAddWidget`, call `ctrl?.destroy?.()` **before** `_dashGrid.removeWidget(itemEl)` in the remove button handler, and store `ctrl` on `itemEl._widgetCtrl` so that bulk removals (e.g. `_dashCancel` calling `removeAll`) can also iterate items and call `destroy()` before clearing the grid.
 Enables all subsequent phases to implement clean WS deregistration.
 
 Effort: ~3 lines.
