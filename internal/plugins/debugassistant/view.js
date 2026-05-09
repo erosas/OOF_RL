@@ -3,6 +3,7 @@
 const DBG_STORAGE_KEY = 'oof-rl-debug-assistant-regression-v1';
 const DBG_SESSION_KEY = 'oof-rl-debug-assistant-session-active-v1';
 const DBG_SCROLL_POSITIONS = {};
+let DBG_LAST_LIVE_STATE = null;
 
 const DBG_SCENARIOS = [
   { id: 'online-1v1-pvp', title: 'Normal online 1v1 PvP match', shots: ['History collapsed row', 'Expanded match details', 'Session overview'] },
@@ -315,6 +316,10 @@ function dbgSaveState(state) {
   localStorage.setItem(DBG_STORAGE_KEY, JSON.stringify(state));
 }
 
+function dbgIsDebugViewActive() {
+  return window.oofActiveViewName === 'debug' || document.getElementById('view-debug')?.classList.contains('active');
+}
+
 function dbgMetaFields() {
   return ['branch', 'sha', 'exe', 'tester', 'intent', 'rl-mode', 'notes'];
 }
@@ -407,6 +412,7 @@ function dbgRenderScenarios() {
     btn.addEventListener('click', () => {
       const next = btn.dataset.dbgScenario;
       const current = dbgState();
+      if (!dbgConfirmScenarioSwitch(current, next)) return;
       current.activeScenario = next;
       current.scenarios = current.scenarios || {};
       current.scenarios[next] = current.scenarios[next] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
@@ -425,9 +431,24 @@ function dbgActiveScenario() {
   return DBG_SCENARIOS.find(s => s.id === id) || null;
 }
 
+function dbgConfirmScenarioSwitch(state, nextScenarioID) {
+  const currentID = state.activeScenario;
+  if (!currentID || currentID === nextScenarioID) return true;
+  const currentScenario = DBG_SCENARIOS.find(s => s.id === currentID);
+  const currentState = state.scenarios?.[currentID];
+  const stats = dbgScenarioStats(currentState);
+  const total = dbgChecksForScenario(currentState).length;
+  if (!currentScenario || !stats.touched || total === 0 || stats.untouched === 0) return true;
+  return confirm(`"${currentScenario.title}" is not complete yet (${stats.marked}/${total} checks marked). Switch anyway?`);
+}
+
 function dbgRenderChecks() {
   const root = document.getElementById('dbg-checks');
   const label = document.getElementById('dbg-active-scenario');
+  const title = document.getElementById('dbg-verification-title');
+  const progress = document.getElementById('dbg-scenario-progress');
+  const links = document.getElementById('dbg-linked-matches');
+  const toolbar = document.getElementById('dbg-scenario-toolbar');
   const customForm = document.getElementById('dbg-custom-condition');
   if (!root) return;
 
@@ -435,13 +456,24 @@ function dbgRenderChecks() {
   const scenario = dbgActiveScenario();
   if (!scenario) {
     root.innerHTML = '<div class="dbg-sub">Pick the test scenario you are about to run. The checklist will stay tied to that scenario locally.</div>';
+    if (title) title.textContent = 'Scenario Verification';
     if (label) label.textContent = 'Select a test scenario before queueing.';
+    if (progress) progress.textContent = '';
+    if (links) links.innerHTML = '';
+    if (toolbar) toolbar.style.display = 'none';
     if (customForm) customForm.style.display = 'none';
     return;
   }
 
   const scenarioState = state.scenarios?.[scenario.id] || { checks: {} };
-  if (label) label.textContent = scenario.title;
+  const stats = dbgScenarioStats(scenarioState);
+  const total = dbgChecksForScenario(scenarioState).length;
+  const completionPercent = total ? Math.round(stats.marked / total * 100) : 0;
+  if (title) title.textContent = `Testing: ${scenario.title}`;
+  if (label) label.textContent = `Active scenario: ${scenario.title}`;
+  if (progress) progress.textContent = `Scenario Progress: ${stats.marked}/${total} checks complete - ${completionPercent}%`;
+  if (links) links.innerHTML = dbgLinkedMatchesHTML(state, scenario.id);
+  if (toolbar) toolbar.style.display = 'flex';
   if (customForm) customForm.style.display = 'grid';
   dbgRenderScenarioSummary(scenarioState);
 
@@ -480,6 +512,20 @@ function dbgRenderChecks() {
     row.querySelector('.dbg-images')?.addEventListener('input', e => dbgSetCheckImages(row.dataset.dbgCheck, e.target.value));
     row.querySelector('[data-remove-custom]')?.addEventListener('click', () => dbgRemoveCustomCheck(row.dataset.dbgCheck));
   });
+  links?.querySelectorAll('[data-dbg-link-action]').forEach(btn => {
+    btn.addEventListener('click', () => dbgHandleLinkedMatchAction(btn.dataset.dbgLinkAction, btn.dataset.dbgLinkId));
+  });
+  document.getElementById('dbg-deselect-scenario')?.addEventListener('click', dbgDeselectScenario);
+}
+
+function dbgDeselectScenario() {
+  const state = dbgState();
+  state.activeScenario = '';
+  state.debug_match = false;
+  dbgSaveState(state);
+  dbgRenderScenarios();
+  dbgRenderChecks();
+  dbgRefreshWidgetInstances();
 }
 
 function dbgAutosizeTextarea(el) {
@@ -505,6 +551,7 @@ function dbgSetCheck(checkID, status) {
   scenarioState.checks[checkID].status = scenarioState.checks[checkID].status === status ? '' : status;
   scenarioState.checks[checkID].updatedAt = new Date().toISOString();
   dbgSaveState(state);
+  dbgMaybePromptDebugComplete(state);
   dbgRenderScenarios();
   dbgRenderChecks();
   dbgRefreshWidgetInstances();
@@ -556,6 +603,154 @@ function dbgChecklistTypeForScenario(scenarioID) {
   if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
   if (scenarioID.startsWith('track-c-')) return 'bugfix';
   return 'match';
+}
+
+function dbgTrackName(scenario) {
+  if (!scenario) return '';
+  if (scenario.title.startsWith('Track B:')) return 'Track B';
+  if (scenario.title.startsWith('Track C:')) return 'Track C';
+  return 'Track A';
+}
+
+function dbgScenarioProgressSnapshot(scenarioState) {
+  const stats = dbgScenarioStats(scenarioState);
+  const total = dbgChecksForScenario(scenarioState).length;
+  return {
+    pass: stats.pass,
+    fail: stats.fail,
+    skip: stats.skip,
+    marked: stats.marked,
+    total,
+    percent: stats.percent,
+  };
+}
+
+function dbgLinkedMatchesForScenario(state, scenarioID) {
+  return (state.matchLinks || []).filter(link => link.scenarioID === scenarioID);
+}
+
+function dbgLinkedMatchesHTML(state, scenarioID) {
+  const links = dbgLinkedMatchesForScenario(state, scenarioID);
+  if (!links.length) {
+    return '<div class="dbg-sub">No matches linked to this scenario yet. Keep Debug open on this scenario before the next match starts to auto-link it.</div>';
+  }
+  return links.slice().reverse().map(link => {
+    const score = link.score ? `${link.score.blue ?? 0}-${link.score.orange ?? 0}` : 'score pending';
+    const status = link.completed ? `completed via ${link.completionEvent || 'match end'}` : 'active/pending';
+    const mode = link.playlistName || link.matchType || 'mode pending';
+    const source = link.autoTagged ? 'auto-tagged' : 'manual';
+    const arenaRaw = link.arenaRaw || link.arena || '';
+    const arenaDisplay = link.arenaDisplay || dbgArenaDisplayName(arenaRaw);
+    return `
+      <div class="dbg-linked-match">
+        <strong>Debug Match: ${esc(link.scenarioName || 'scenario')}</strong>
+        <small>${esc(status)} - ${esc(source)} - ${esc(mode)} - ${esc(score)}</small>
+        <small>Arena: ${esc(arenaDisplay || 'pending')} ${arenaRaw ? `(API: ${esc(arenaRaw)})` : ''}</small>
+        <small>GUID: ${esc(link.matchGuid || 'pending')} ${link.matchID ? `- History ID: ${esc(link.matchID)}` : ''}</small>
+        <small>Started: ${esc(link.startedAt || '')}</small>
+        <div class="dbg-linked-actions">
+          <button data-dbg-link-action="scenario" data-dbg-link-id="${esc(link.linkID)}">View linked debug scenario</button>
+          <button data-dbg-link-action="match" data-dbg-link-id="${esc(link.linkID)}">View linked match stats</button>
+          <button data-dbg-link-action="unlink" data-dbg-link-id="${esc(link.linkID)}">Unlink match</button>
+        </div>
+        ${state.expandedDebugMatchLink === link.linkID ? dbgLinkedMatchStatsHTML(link) : ''}
+      </div>`;
+  }).join('');
+}
+
+function dbgLinkedMatchStatsHTML(link) {
+  const players = Array.isArray(link.players) ? link.players : [];
+  const arenaRaw = link.arenaRaw || link.arena || '';
+  const arenaDisplay = link.arenaDisplay || dbgArenaDisplayName(arenaRaw);
+  if (!players.length) {
+    return `<div class="dbg-link-stats">
+      <small>Arena: ${esc(arenaDisplay || 'pending')} ${arenaRaw ? `(API: ${esc(arenaRaw)})` : ''}</small>
+      <small>No live player snapshot was captured for this linked match yet.</small>
+    </div>`;
+  }
+  return `
+    <div class="dbg-link-stats">
+      <small>Arena: ${esc(arenaDisplay || 'pending')} ${arenaRaw ? `(API: ${esc(arenaRaw)})` : ''}</small>
+      <small>Captured live player snapshot</small>
+      <table>
+        <thead><tr><th>Player</th><th>G</th><th>A</th><th>Sv</th><th>Sh</th><th>Dm</th><th>Tch</th><th>Score</th></tr></thead>
+        <tbody>
+          ${players.map(p => `
+            <tr>
+              <td>${esc(p.name || 'Unknown')}</td>
+              <td>${esc(p.goals ?? 0)}</td>
+              <td>${esc(p.assists ?? 0)}</td>
+              <td>${esc(p.saves ?? 0)}</td>
+              <td>${esc(p.shots ?? 0)}</td>
+              <td>${esc(p.demos ?? 0)}</td>
+              <td>${esc(p.touches ?? 0)}</td>
+              <td>${esc(p.score ?? 0)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function dbgHandleLinkedMatchAction(action, linkID) {
+  const state = dbgState();
+  const link = (state.matchLinks || []).find(item => item.linkID === linkID);
+  if (!link) return;
+  if (action === 'scenario') {
+    state.activeScenario = link.scenarioID;
+    dbgSaveState(state);
+    dbgRenderScenarios();
+    dbgRenderChecks();
+    document.getElementById('dbg-active-scenario')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (action === 'match') {
+    state.expandedDebugMatchLink = state.expandedDebugMatchLink === linkID ? '' : linkID;
+    dbgSaveState(state);
+    dbgRenderChecks();
+    return;
+  }
+  if (action === 'unlink') {
+    if (!confirm('Unlink this match from the debug scenario? Core History and Session data will not be changed.')) return;
+    const scenarioID = link.scenarioID;
+    state.matchLinks = (state.matchLinks || []).filter(item => item.linkID !== linkID);
+    state.debug_match = false;
+    if (state.expandedDebugMatchLink === linkID) state.expandedDebugMatchLink = '';
+    if (!state.matchLinks.some(item => item.scenarioID === scenarioID) && state.scenarios?.[scenarioID]) {
+      delete state.scenarios[scenarioID].matchLinkedAt;
+    }
+    dbgSaveState(state);
+    dbgRenderScenarios();
+    dbgRenderChecks();
+  }
+}
+
+function dbgMaybePromptDebugComplete(state) {
+  if (state.debugCompletePrompted) return;
+  const scenarioStates = DBG_SCENARIOS.map(s => state.scenarios?.[s.id]).filter(Boolean);
+  if (!scenarioStates.length) return;
+  const complete = scenarioStates.every(scenarioState => {
+    const total = dbgChecksForScenario(scenarioState).length;
+    const stats = dbgScenarioStats(scenarioState);
+    return total > 0 && stats.marked >= total;
+  });
+  if (!complete) return;
+  state.debugCompletePrompted = new Date().toISOString();
+  dbgSaveState(state);
+  alert([
+    'Debug session appears complete.',
+    'Review notes.',
+    'Export reports.',
+    'Save/backup JSON.',
+    'Confirm screenshots/captures are attached or named properly.',
+  ].join('\n'));
+}
+
+function dbgLinkedMatchLine(link) {
+  const score = link.score ? `${link.score.blue ?? 0}-${link.score.orange ?? 0}` : 'score pending';
+  const mode = link.playlistName || link.matchType || 'mode pending';
+  const status = link.completed ? `completed via ${link.completionEvent || 'match end'}` : 'pending';
+  const source = link.autoTagged ? 'auto-tagged' : 'manual';
+  return `${link.startedAt || ''} | ${source} | ${status} | GUID ${link.matchGuid || 'pending'} | History ID ${link.matchID || 'pending'} | ${mode} | ${link.arena || 'arena pending'} | ${score}`;
 }
 
 function dbgAddCustomCheck() {
@@ -614,7 +809,7 @@ function dbgScenarioStats(scenarioState) {
     marked,
     untouched: Math.max(0, scenarioChecks.length - marked),
     percent: scored ? Math.round(pass / scored * 100) : 0,
-    touched: marked > 0 || values.some(v => (v.note || '').trim()),
+    touched: marked > 0 || !!scenarioState?.matchLinkedAt || values.some(v => (v.note || '').trim()),
   };
 }
 
@@ -737,6 +932,192 @@ async function dbgSnapshot() {
   }
 }
 
+window.handleDebugAssistantEvent = function(msg) {
+  if (!msg || !msg.Event) return;
+  if (msg.Event === 'UpdateState') {
+    DBG_LAST_LIVE_STATE = msg.Data || null;
+    dbgUpdateActiveDebugMatch(msg.Data || {});
+    return;
+  }
+  if (msg.Event === 'MatchCreated' || msg.Event === 'MatchInitialized') {
+    dbgMaybeAutoLinkMatch(msg.Event, msg.Data || {});
+    return;
+  }
+  if (msg.Event === 'MatchEnded' || msg.Event === 'MatchDestroyed') {
+    dbgCompleteLinkedMatch(msg.Event, msg.Data || {});
+  }
+};
+
+function dbgMatchGuidFromPayload(data, allowLiveFallback = false) {
+  return data?.MatchGuid || (allowLiveFallback ? DBG_LAST_LIVE_STATE?.MatchGuid : '') || '';
+}
+
+function dbgMatchKey(data, eventName = 'match-start') {
+  return dbgMatchGuidFromPayload(data, false) || `${eventName}-${Date.now()}`;
+}
+
+function dbgArenaDisplayName(rawArena) {
+  if (!rawArena) return '';
+  return typeof friendlyArena === 'function' ? friendlyArena(rawArena) : rawArena;
+}
+
+function dbgLiveMatchSummary(live) {
+  const game = live?.Game || {};
+  const teams = game.Teams || [];
+  const blue = teams.find(t => t.TeamNum === 0) || teams[0] || {};
+  const orange = teams.find(t => t.TeamNum === 1) || teams[1] || {};
+  const playlistID = game.Playlist ?? null;
+  const playlistName = playlistID != null && typeof friendlyPlaylist === 'function' ? friendlyPlaylist(playlistID) : '';
+  const arenaRaw = game.Arena || '';
+  return {
+    arena: arenaRaw,
+    arenaRaw,
+    arenaDisplay: dbgArenaDisplayName(arenaRaw),
+    playlistID,
+    playlistName,
+    matchType: typeof matchType === 'function' ? matchType((live?.Players || []).length) : '',
+    playerCount: (live?.Players || []).length,
+    score: {
+      blue: blue.Score ?? 0,
+      orange: orange.Score ?? 0,
+    },
+    players: (live?.Players || []).map(p => ({
+      name: p.Name || '',
+      primaryID: p.PrimaryId || '',
+      teamNum: p.TeamNum ?? 0,
+      score: p.Score ?? 0,
+      goals: p.Goals ?? 0,
+      assists: p.Assists ?? 0,
+      saves: p.Saves ?? 0,
+      shots: p.Shots ?? 0,
+      demos: p.Demos ?? 0,
+      touches: p.Touches ?? 0,
+    })),
+  };
+}
+
+function dbgMaybeAutoLinkMatch(eventName, data) {
+  if (!dbgIsDebugViewActive()) return;
+
+  const state = dbgState();
+  const scenario = dbgActiveScenario();
+  if (!scenario) {
+    state.debug_match = false;
+    dbgSaveState(state);
+    return;
+  }
+
+  const scenarioState = state.scenarios?.[scenario.id] || { checks: {} };
+  const progress = dbgScenarioProgressSnapshot(scenarioState);
+  if (progress.total > 0 && progress.marked >= progress.total) {
+    const ok = confirm('This scenario appears complete. Do you still want to tag the next match to this scenario?');
+    if (!ok) {
+      state.debug_match = false;
+      state.debugWarnings = state.debugWarnings || [];
+      state.debugWarnings.push({
+        at: new Date().toISOString(),
+        scenarioID: scenario.id,
+        scenarioName: scenario.title,
+        message: 'Auto-link canceled because selected scenario was already complete.',
+      });
+      dbgSaveState(state);
+      dbgRenderChecks();
+      return;
+    }
+  }
+
+  const key = dbgMatchKey(data, eventName);
+  state.matchLinks = state.matchLinks || [];
+  const existingForScenario = state.matchLinks.find(link => link.scenarioID === scenario.id);
+  if (existingForScenario) {
+    state.debug_match = false;
+    dbgSaveState(state);
+    return;
+  }
+  const existing = state.matchLinks.find(link => !link.completed && (link.matchGuid === key || link.startKey === key));
+  if (existing) return;
+
+  const startGuid = dbgMatchGuidFromPayload(data, false);
+  const canUseLastLiveState = !!startGuid && DBG_LAST_LIVE_STATE?.MatchGuid === startGuid;
+  const liveSummary = dbgLiveMatchSummary(canUseLastLiveState ? DBG_LAST_LIVE_STATE : {});
+  state.scenarios = state.scenarios || {};
+  state.scenarios[scenario.id] = state.scenarios[scenario.id] || { checks: {}, startedAt: new Date().toISOString() };
+  state.scenarios[scenario.id].matchLinkedAt = new Date().toISOString();
+  const link = {
+    linkID: `link-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    startKey: key,
+    matchGuid: startGuid,
+    startEvent: eventName,
+    scenarioID: scenario.id,
+    scenarioName: scenario.title,
+    trackName: dbgTrackName(scenario),
+    startedAt: new Date().toISOString(),
+    autoTagged: true,
+    progressAtStart: progress,
+    completed: false,
+    ...liveSummary,
+  };
+  state.debug_match = true;
+  state.matchLinks.push(link);
+  state.matchLinks = state.matchLinks.slice(-50);
+  dbgSaveState(state);
+  dbgRenderScenarios();
+  dbgRenderChecks();
+  dbgMessage(`Linked next match to ${scenario.title}`);
+}
+
+function dbgUpdateActiveDebugMatch(live) {
+  const state = dbgState();
+  const guid = live?.MatchGuid || '';
+  const active = [...(state.matchLinks || [])].reverse().find(link => !link.completed && (!guid || link.matchGuid === guid || !link.matchGuid));
+  if (!active) return;
+  Object.assign(active, dbgLiveMatchSummary(live));
+  if (guid) active.matchGuid = guid;
+  active.lastUpdatedAt = new Date().toISOString();
+  dbgSaveState(state);
+}
+
+function dbgCompleteLinkedMatch(eventName, data) {
+  const state = dbgState();
+  const guid = dbgMatchGuidFromPayload(data, true);
+  const link = [...(state.matchLinks || [])].reverse().find(item => !item.completed && (!guid || item.matchGuid === guid || !item.matchGuid));
+  if (!link) return;
+  link.completed = true;
+  link.completionEvent = eventName;
+  link.completedAt = new Date().toISOString();
+  if (guid) link.matchGuid = guid;
+  Object.assign(link, dbgLiveMatchSummary(DBG_LAST_LIVE_STATE || {}));
+  dbgSaveState(state);
+  dbgAttachHistoryMatch(link.linkID);
+  dbgRenderScenarios();
+  dbgRenderChecks();
+}
+
+async function dbgAttachHistoryMatch(linkID) {
+  try {
+    const state = dbgState();
+    const link = (state.matchLinks || []).find(item => item.linkID === linkID);
+    if (!link || !link.matchGuid) return;
+    const matches = await fetch('/api/matches').then(r => r.json());
+    const match = Array.isArray(matches) ? matches.find(m => m.MatchGUID === link.matchGuid) : null;
+    if (!match) return;
+    link.matchID = match.ID;
+    const arenaRaw = match.Arena || link.arenaRaw || link.arena || '';
+    link.arena = link.arena || arenaRaw;
+    link.arenaRaw = link.arenaRaw || arenaRaw;
+    link.arenaDisplay = link.arenaDisplay || dbgArenaDisplayName(arenaRaw);
+    link.score = {
+      blue: match.team0_goals ?? link.score?.blue ?? 0,
+      orange: match.team1_goals ?? link.score?.orange ?? 0,
+    };
+    link.historyLinkedAt = new Date().toISOString();
+    dbgSaveState(state);
+    dbgRenderChecks();
+  } catch (_) {
+    // Debug metadata only; history lookup failure should never affect app flow.
+  }
+}
+
 function dbgGenerateReport() {
   const report = dbgBuildPlainReport();
   const root = document.getElementById('dbg-report');
@@ -792,6 +1173,9 @@ function dbgBuildPlainReport() {
     lines.push('## Active Scenario');
     lines.push(`- **Scenario:** ${scenario.title}`);
     lines.push(`- **Suggested evidence:** ${scenario.shots.join(', ')}`);
+    const activeLinks = dbgLinkedMatchesForScenario(state, scenario.id);
+    lines.push(`- **Linked debug matches:** ${activeLinks.length}`);
+    for (const link of activeLinks) lines.push(`  - ${dbgLinkedMatchLine(link)}`);
     lines.push('');
     lines.push('### Active Checklist');
     for (const check of dbgChecksForScenario(scenarioState)) {
@@ -811,6 +1195,11 @@ function dbgBuildPlainReport() {
     const scopedState = state.scenarios?.[s.id];
     const stats = dbgScenarioStats(scopedState);
     lines.push(`- **${s.title}:** ${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate`);
+    const links = dbgLinkedMatchesForScenario(state, s.id);
+    if (links.length) {
+      lines.push('  - Linked debug matches:');
+      for (const link of links) lines.push(`    - ${dbgLinkedMatchLine(link)}`);
+    }
     for (const check of dbgChecksForScenario(scopedState)) {
       const item = scopedState?.checks?.[check.id] || {};
       if (!item.status && !item.note && !item.images) continue;
@@ -825,6 +1214,14 @@ function dbgBuildPlainReport() {
   lines.push('');
   lines.push('## Evidence');
   lines.push(`- Snapshots saved locally: ${(state.snapshots || []).length}`);
+  lines.push(`- Linked debug matches: ${(state.matchLinks || []).length}`);
+  if ((state.debugWarnings || []).length) {
+    lines.push('');
+    lines.push('## Debug Warnings');
+    for (const warning of state.debugWarnings) {
+      lines.push(`- ${warning.at || ''} - ${warning.scenarioName || warning.scenarioID || 'scenario'}: ${warning.message}`);
+    }
+  }
   lines.push('');
   lines.push('## Session Notes');
   lines.push(meta.notes || '');
@@ -905,6 +1302,14 @@ function dbgBuildDocReportHTML(exportMode) {
     const stats = dbgScenarioStats(scenarioState);
     parts.push(`<h4>${esc(scenario.title)}</h4>`);
     parts.push(`<p>${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate</p>`);
+    const links = dbgLinkedMatchesForScenario(state, scenario.id);
+    if (links.length) {
+      parts.push('<h5>Linked Debug Matches</h5><ul>');
+      for (const link of links) {
+        parts.push(`<li>${esc(dbgLinkedMatchLine(link))}</li>`);
+      }
+      parts.push('</ul>');
+    }
     parts.push('<ul>');
     for (const check of dbgChecksForScenario(scenarioState)) {
       const item = scenarioState?.checks?.[check.id] || {};
@@ -931,6 +1336,14 @@ function dbgBuildDocReportHTML(exportMode) {
     parts.push('<h3>Session Notes</h3>');
     parts.push(`<p>${esc(meta.notes)}</p>`);
     parts.push('</section>');
+  }
+  if ((state.debugWarnings || []).length) {
+    parts.push('<section class="report-card">');
+    parts.push('<h3>Debug Warnings</h3><ul>');
+    for (const warning of state.debugWarnings) {
+      parts.push(`<li>${esc(warning.at || '')} - <strong>${esc(warning.scenarioName || warning.scenarioID || 'scenario')}</strong>: ${esc(warning.message || '')}</li>`);
+    }
+    parts.push('</ul></section>');
   }
   return parts.join('');
 }

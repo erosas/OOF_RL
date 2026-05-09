@@ -369,6 +369,7 @@ function connectWS() {
       return;
     }
     if ((msg.Event === 'MatchCreated' || msg.Event === 'MatchInitialized') && typeof handleSessionMatchStart === 'function') handleSessionMatchStart();
+    if (typeof handleDebugAssistantEvent === 'function') handleDebugAssistantEvent(msg);
     if (msg.Event === 'UpdateState'    && typeof handleUpdateState  === 'function') handleUpdateState(msg.Data);
     if (msg.Event === 'UpdateState'    && typeof handleRanksUpdate  === 'function') handleRanksUpdate(msg.Data);
     if (msg.Event === 'UpdateState'    && typeof handleSessionUpdate === 'function') handleSessionUpdate(msg.Data);
@@ -436,6 +437,7 @@ function showView(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
   _activeViewName = name;
+  window.oofActiveViewName = name;
   if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
   if (name === 'settings') runViewLoader(name, loadSettings);
   if (name === 'bc'        && typeof loadBC            === 'function') runViewLoader(name, loadBC);
