@@ -175,6 +175,7 @@ window.refreshSession = async function() {
     notStarted?.classList.add('hidden');
     panel?.classList.add('hidden');
     renderLiveGame();
+    _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see stats.'));
     return;
   }
@@ -184,12 +185,14 @@ window.refreshSession = async function() {
     notStarted?.classList.remove('hidden');
     panel?.classList.add('hidden');
     renderLiveGame();
+    _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('No active session. Use the Session tab to start one.'));
     return;
   }
   notStarted?.classList.add('hidden');
   panel?.classList.remove('hidden');
   renderLiveGame();
+  _sessionLiveInstances.forEach(w => w.render());
 
   try {
     const url  = `/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`;
