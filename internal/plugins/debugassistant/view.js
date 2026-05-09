@@ -593,78 +593,91 @@ function dbgBuildPlainReport() {
   const scenarioState = scenario ? state.scenarios?.[scenario.id] : null;
   const overall = dbgOverallStats(state);
   const failures = dbgFailureGroups(state);
+  const touchedScenarios = DBG_SCENARIOS.filter(s => dbgScenarioStats(state.scenarios?.[s.id]).touched);
+  const untestedScenarios = DBG_SCENARIOS.filter(s => !dbgScenarioStats(state.scenarios?.[s.id]).touched);
   const lines = [];
-  lines.push('OOF RL Debug Assistant Report');
+  lines.push('# OOF RL Debug Assistant Report');
   lines.push('');
-  lines.push(`Branch: ${meta.branch || ''}`);
-  lines.push(`Commit SHA: ${meta.sha || ''}`);
-  lines.push(`EXE: ${meta.exe || ''}`);
-  lines.push(`Tester: ${meta.tester || ''}`);
-  lines.push(`Intent: ${meta.intent || ''}`);
-  lines.push(`RL mode/version: ${meta['rl-mode'] || ''}`);
-  lines.push(`Generated: ${new Date().toLocaleString()}`);
+  lines.push('## Build');
+  lines.push(`- **Branch:** ${meta.branch || ''}`);
+  lines.push(`- **Commit SHA:** ${meta.sha || ''}`);
+  lines.push(`- **EXE:** ${meta.exe || ''}`);
+  lines.push(`- **Tester:** ${meta.tester || ''}`);
+  lines.push(`- **Intent:** ${meta.intent || ''}`);
+  lines.push(`- **Rocket League mode/version:** ${meta['rl-mode'] || ''}`);
+  lines.push(`- **Generated:** ${new Date().toLocaleString()}`);
   lines.push('');
-  lines.push('Overall summary:');
-  lines.push(`- Scenarios touched: ${overall.touched} / ${DBG_SCENARIOS.length}`);
-  lines.push(`- Pass: ${overall.pass}`);
-  lines.push(`- Fail: ${overall.fail}`);
-  lines.push(`- N/A: ${overall.skip}`);
-  lines.push(`- Pass rate: ${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}%`);
+  lines.push('## Summary');
+  lines.push('| Metric | Value |');
+  lines.push('| --- | ---: |');
+  lines.push(`| Scenarios touched | ${overall.touched} / ${DBG_SCENARIOS.length} |`);
+  lines.push(`| Pass | ${overall.pass} |`);
+  lines.push(`| Fail | ${overall.fail} |`);
+  lines.push(`| N/A | ${overall.skip} |`);
+  lines.push(`| Pass rate | ${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}% |`);
   lines.push('');
-  lines.push(`Active scenario: ${scenario ? scenario.title : 'none'}`);
-  lines.push(`Suggested evidence: ${scenario ? scenario.shots.join(', ') : 'none'}`);
-  lines.push('');
-  lines.push('Checklist:');
-  for (const check of dbgChecksForScenario(scenarioState)) {
-    const item = scenarioState?.checks?.[check.id] || {};
-    lines.push(`- [${item.status || 'unset'}] ${check.title}`);
-    if (item.note) lines.push(`  Note: ${item.note}`);
-    for (const image of dbgImageNames(item)) lines.push(`  Screenshot: ${image}`);
-  }
-  lines.push('');
-  lines.push('Scenario details:');
-  for (const s of DBG_SCENARIOS) {
-    const scopedState = state.scenarios?.[s.id];
-    const stats = dbgScenarioStats(scopedState);
-    if (!stats.touched) continue;
-    lines.push(`- ${s.title}`);
-    for (const check of dbgChecksForScenario(scopedState)) {
-      const item = scopedState?.checks?.[check.id] || {};
-      if (!item.status && !item.note && !item.images) continue;
-      lines.push(`  - [${item.status || 'unset'}] ${check.title}`);
-      if (item.note) lines.push(`    Note: ${item.note}`);
-      for (const image of dbgImageNames(item)) lines.push(`    Screenshot: ${image}`);
-    }
-  }
-  lines.push('');
-  lines.push('Failure groups:');
+  lines.push('## Failure Groups');
   if (!failures.length) {
     lines.push('- No failed checks recorded.');
   } else {
     for (const group of failures) {
-      lines.push(`- ${group.title}`);
+      lines.push(`- **${group.title}**`);
       for (const item of group.items) {
         lines.push(`  - ${item.scenario}${item.note ? `: ${item.note}` : ''}`);
       }
     }
   }
   lines.push('');
-  lines.push('Touched scenario summary:');
-  for (const s of DBG_SCENARIOS) {
-    const stats = dbgScenarioStats(state.scenarios?.[s.id]);
-    if (!stats.touched) {
-      lines.push(`- [untested] ${s.title}`);
-      continue;
+
+  if (scenario) {
+    lines.push('## Active Scenario');
+    lines.push(`- **Scenario:** ${scenario.title}`);
+    lines.push(`- **Suggested evidence:** ${scenario.shots.join(', ')}`);
+    lines.push('');
+    lines.push('### Active Checklist');
+    for (const check of dbgChecksForScenario(scenarioState)) {
+      const item = scenarioState?.checks?.[check.id] || {};
+      lines.push(`- **${dbgStatusLabel(item.status)}** - ${check.title}`);
+      if (item.note) lines.push(`  - Note: ${item.note}`);
+      for (const image of dbgImageNames(item)) lines.push(`  - Screenshot: ${image}`);
     }
-    lines.push(`- ${s.title}: ${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate`);
+    lines.push('');
+  }
+
+  lines.push('## Touched Scenario Details');
+  if (!touchedScenarios.length) {
+    lines.push('- No scenarios touched yet.');
+  }
+  for (const s of touchedScenarios) {
+    const scopedState = state.scenarios?.[s.id];
+    const stats = dbgScenarioStats(scopedState);
+    lines.push(`- **${s.title}:** ${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate`);
+    for (const check of dbgChecksForScenario(scopedState)) {
+      const item = scopedState?.checks?.[check.id] || {};
+      if (!item.status && !item.note && !item.images) continue;
+      lines.push(`  - **${dbgStatusLabel(item.status)}** - ${check.title}`);
+      if (item.note) lines.push(`    Note: ${item.note}`);
+      for (const image of dbgImageNames(item)) lines.push(`    Screenshot: ${image}`);
+    }
   }
   lines.push('');
-  lines.push(`Snapshots saved locally: ${(state.snapshots || []).length}`);
+  lines.push('## Untested Scenarios');
+  lines.push(`- ${untestedScenarios.length} remaining: ${untestedScenarios.map(s => s.title).join('; ') || 'none'}`);
   lines.push('');
-  lines.push('Session notes:');
+  lines.push('## Evidence');
+  lines.push(`- Snapshots saved locally: ${(state.snapshots || []).length}`);
+  lines.push('');
+  lines.push('## Session Notes');
   lines.push(meta.notes || '');
 
   return lines.join('\n');
+}
+
+function dbgStatusLabel(status) {
+  if (status === 'pass') return 'PASS';
+  if (status === 'fail') return 'FAIL';
+  if (status === 'skip') return 'N/A';
+  return 'UNSET';
 }
 
 function dbgGenerateDocReport() {
@@ -680,28 +693,35 @@ function dbgBuildDocReportHTML(exportMode) {
   const meta = state.metadata || {};
   const overall = dbgOverallStats(state);
   const failures = dbgFailureGroups(state);
+  const touchedScenarios = DBG_SCENARIOS.filter(s => dbgScenarioStats(state.scenarios?.[s.id]).touched);
+  const untestedScenarios = DBG_SCENARIOS.filter(s => !dbgScenarioStats(state.scenarios?.[s.id]).touched);
   const parts = [];
   parts.push('<h2>OOF RL Debug Assistant Report</h2>');
+  parts.push('<section class="report-card">');
   parts.push('<h3>Build</h3>');
-  parts.push('<ul>');
-  parts.push(`<li><strong>Branch:</strong> ${esc(meta.branch || '')}</li>`);
-  parts.push(`<li><strong>Commit SHA:</strong> ${esc(meta.sha || '')}</li>`);
-  parts.push(`<li><strong>EXE:</strong> ${esc(meta.exe || '')}</li>`);
-  parts.push(`<li><strong>Tester:</strong> ${esc(meta.tester || '')}</li>`);
-  parts.push(`<li><strong>Intent:</strong> ${esc(meta.intent || '')}</li>`);
-  parts.push(`<li><strong>Rocket League mode/version:</strong> ${esc(meta['rl-mode'] || '')}</li>`);
-  parts.push(`<li><strong>Generated:</strong> ${esc(new Date().toLocaleString())}</li>`);
-  parts.push('</ul>');
+  parts.push('<dl class="report-meta">');
+  parts.push(`<dt>Branch</dt><dd>${esc(meta.branch || '')}</dd>`);
+  parts.push(`<dt>Commit SHA</dt><dd>${esc(meta.sha || '')}</dd>`);
+  parts.push(`<dt>EXE</dt><dd>${esc(meta.exe || '')}</dd>`);
+  parts.push(`<dt>Tester</dt><dd>${esc(meta.tester || '')}</dd>`);
+  parts.push(`<dt>Intent</dt><dd>${esc(meta.intent || '')}</dd>`);
+  parts.push(`<dt>Rocket League mode/version</dt><dd>${esc(meta['rl-mode'] || '')}</dd>`);
+  parts.push(`<dt>Generated</dt><dd>${esc(new Date().toLocaleString())}</dd>`);
+  parts.push('</dl>');
+  parts.push('</section>');
 
+  parts.push('<section class="report-card">');
   parts.push('<h3>Summary</h3>');
-  parts.push('<ul>');
-  parts.push(`<li>Scenarios touched: ${overall.touched} / ${DBG_SCENARIOS.length}</li>`);
-  parts.push(`<li><span class="pass">Pass:</span> ${overall.pass}</li>`);
-  parts.push(`<li><span class="fail">Fail:</span> ${overall.fail}</li>`);
-  parts.push(`<li><span class="skip">N/A:</span> ${overall.skip}</li>`);
-  parts.push(`<li>Pass rate: ${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}%</li>`);
-  parts.push('</ul>');
+  parts.push('<div class="report-summary">');
+  parts.push(`<div><strong>${overall.touched} / ${DBG_SCENARIOS.length}</strong><span>Scenarios touched</span></div>`);
+  parts.push(`<div><strong class="pass">${overall.pass}</strong><span>Pass</span></div>`);
+  parts.push(`<div><strong class="fail">${overall.fail}</strong><span>Fail</span></div>`);
+  parts.push(`<div><strong class="skip">${overall.skip}</strong><span>N/A</span></div>`);
+  parts.push(`<div><strong>${overall.pass + overall.fail ? Math.round(overall.pass / (overall.pass + overall.fail) * 100) : 0}%</strong><span>Pass rate</span></div>`);
+  parts.push('</div>');
+  parts.push('</section>');
 
+  parts.push('<section class="report-card">');
   parts.push('<h3>Failures Grouped By Check</h3>');
   if (!failures.length) {
     parts.push('<p>No failed checks recorded.</p>');
@@ -714,12 +734,16 @@ function dbgBuildDocReportHTML(exportMode) {
       parts.push('</ul>');
     }
   }
+  parts.push('</section>');
 
+  parts.push('<section class="report-card">');
   parts.push('<h3>Scenario Details</h3>');
-  for (const scenario of DBG_SCENARIOS) {
+  if (!touchedScenarios.length) {
+    parts.push('<p>No scenarios touched yet.</p>');
+  }
+  for (const scenario of touchedScenarios) {
     const scenarioState = state.scenarios?.[scenario.id];
     const stats = dbgScenarioStats(scenarioState);
-    if (!stats.touched) continue;
     parts.push(`<h4>${esc(scenario.title)}</h4>`);
     parts.push(`<p>${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate</p>`);
     parts.push('<ul>');
@@ -736,10 +760,18 @@ function dbgBuildDocReportHTML(exportMode) {
     }
     parts.push('</ul>');
   }
+  parts.push('</section>');
+
+  parts.push('<section class="report-card">');
+  parts.push('<h3>Untested Scenarios</h3>');
+  parts.push(`<p>${untestedScenarios.length} remaining${untestedScenarios.length ? `: ${esc(untestedScenarios.map(s => s.title).join('; '))}` : ': none'}</p>`);
+  parts.push('</section>');
 
   if (meta.notes) {
+    parts.push('<section class="report-card">');
     parts.push('<h3>Session Notes</h3>');
     parts.push(`<p>${esc(meta.notes)}</p>`);
+    parts.push('</section>');
   }
   return parts.join('');
 }
@@ -759,6 +791,15 @@ h4 { margin-bottom:6px; }
 a { color:#4a9eff; font-weight:700; }
 ul { margin-top:6px; }
 li { margin-bottom:6px; }
+.report-card { background:#11151d; border:1px solid #273244; border-radius:10px; padding:16px; margin:16px 0; }
+.report-card h3 { margin-top:0; }
+.report-meta { display:grid; grid-template-columns:210px 1fr; gap:8px 14px; margin:0; }
+.report-meta dt { color:#94a3b8; font-weight:800; }
+.report-meta dd { margin:0; overflow-wrap:anywhere; }
+.report-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:10px; }
+.report-summary div { background:#0c1017; border:1px solid #273244; border-radius:8px; padding:10px; }
+.report-summary strong { display:block; font-size:1.35rem; }
+.report-summary span { display:block; color:#94a3b8; font-size:.78rem; font-weight:800; text-transform:uppercase; }
 .pass { color:#3ecf72; font-weight:800; }
 .fail { color:#e05252; font-weight:800; }
 .skip { color:#f59e0b; font-weight:800; }
