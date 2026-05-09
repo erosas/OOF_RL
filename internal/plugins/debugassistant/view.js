@@ -6,15 +6,7 @@ const DBG_SCROLL_POSITIONS = {};
 let DBG_LAST_LIVE_STATE = null;
 
 const DBG_SCENARIOS = [
-  { id: 'online-1v1-pvp', title: 'Normal online 1v1 PvP match', shots: ['History collapsed row', 'Expanded match details', 'Session overview'] },
-  { id: 'online-team-pvp', title: 'Normal online 2v2 or 3v3 PvP match', shots: ['History collapsed row', 'Expanded match details', 'Session overview'] },
-  { id: 'overtime', title: 'Match that reaches overtime', shots: ['History row with OT badge', 'Expanded match details'] },
-  { id: 'forfeit', title: 'Match decided by forfeit with meaningful clock time remaining', shots: ['History row with FF badge', 'Session match row'] },
-  { id: 'full-time-no-ff', title: 'Full-time match with no forfeit', shots: ['History row without FF badge', 'Final scoreboard if available'] },
-  { id: 'private-bot-1v1', title: 'Private 1v1 against a bot', shots: ['History row with PvE badge', 'Expanded player stats showing bot'] },
-  { id: 'private-mixed-bots', title: 'Private mixed human/bot match', shots: ['History row with PvE badge', 'Expanded teams'] },
-  { id: 'all-bot-private', title: 'All-bot private match', shots: ['History row', 'Expanded match details'] },
-  { id: 'abandoned-destroyed', title: 'Match abandoned or destroyed without normal MatchEnded', shots: ['History row with Incomplete badge', 'Log snippet around MatchDestroyed'] },
+  { id: 'track-a-app-regression', title: 'Track A: App Match Regression', shots: ['History rows', 'Expanded match details', 'Session overview', 'Debug report'] },
   { id: 'debug-assistant-track-b', title: 'Track B: Debug Assistant verification', shots: ['Debug page startup', 'Report export folder', 'Generated report panels'] },
   { id: 'track-c-commit-verification', title: 'Track C: Commit fix verification', shots: ['Track C grouped checks', 'Generated report with Track C sections'] },
   { id: 'track-d-debug-link-watch', title: 'Track D: Debug Match Linking Bug Watch', shots: ['Track D grouped checks', 'Linked match cards', 'Generated report with Track D sections'] },
@@ -88,6 +80,33 @@ const DBG_CHECKS = [
     screenshot: true,
   },
 ];
+
+const DBG_TRACK_A_CHECKS = {
+  'track-a-online-1v1': [
+    DBG_CHECKS.find(check => check.id === 'single-history-row'),
+    DBG_CHECKS.find(check => check.id === 'arena-score'),
+    DBG_CHECKS.find(check => check.id === 'expanded-details'),
+  ],
+  'track-a-online-team': [
+    DBG_CHECKS.find(check => check.id === 'player-count'),
+    DBG_CHECKS.find(check => check.id === 'pvp-badge'),
+  ],
+  'track-a-outcomes': [
+    DBG_CHECKS.find(check => check.id === 'ot-badge'),
+    DBG_CHECKS.find(check => check.id === 'ff-badge'),
+    {
+      id: 'full-time-clean-end',
+      title: 'Full-time matches do not receive false FF or Incomplete tags.',
+      help: 'Validate full regulation endings against History badges and Session rows.',
+      screenshot: true,
+    },
+  ],
+  'track-a-private-bot-abnormal': [
+    DBG_CHECKS.find(check => check.id === 'pve-badge'),
+    DBG_CHECKS.find(check => check.id === 'incomplete-badge'),
+    DBG_CHECKS.find(check => check.id === 'goal-events'),
+  ],
+};
 
 const DBG_TRACK_B_CHECKS = [
   {
@@ -391,6 +410,13 @@ const DBG_TRACK_C_SECTIONS = {
   'track-c-commit-scenarios': 'dde4ccf commit scenario fix',
 };
 
+const DBG_TRACK_A_SECTIONS = {
+  'track-a-online-1v1': 'Normal online 1v1 PvP match',
+  'track-a-online-team': 'Normal online 2v2 or 3v3 PvP match',
+  'track-a-outcomes': 'Overtime / forfeit / full-time outcomes',
+  'track-a-private-bot-abnormal': 'Private / bot / abnormal end paths',
+};
+
 const DBG_TRACK_D_SECTIONS = {
   'track-d-stale-guid': 'Stale GUID carryover',
   'track-d-duplicate-links': 'Duplicate link creation',
@@ -543,6 +569,7 @@ function dbgRenderScenarios() {
       dbgSaveState(current);
       dbgRenderScenarios();
       dbgRenderChecks();
+      dbgScrollToVerificationTop();
       dbgRefreshWidgetInstances();
     });
   });
@@ -577,9 +604,26 @@ function dbgRenderChecks() {
   const state = dbgState();
   const scenario = dbgActiveScenario();
   if (!scenario) {
-    root.innerHTML = '<div class="dbg-sub">Pick the test scenario you are about to run. The checklist will stay tied to that scenario locally.</div>';
-    if (title) title.textContent = 'Scenario Verification';
-    if (label) label.textContent = 'Select a test scenario before queueing.';
+    root.innerHTML = `
+      <div class="dbg-sub">Pick Track A, B, C, or D before queueing. The checklist will stay tied to that track locally.</div>
+      <div class="dbg-report-preview">
+        <div class="dbg-report-preview-card">
+          <h4>Plain Report Preview</h4>
+          <p>No active track is armed, so report context is available immediately. Generate the plain report after checks are marked to review:</p>
+          <ul>
+            <li>Build metadata</li>
+            <li>Track completion summary</li>
+            <li>Failures grouped by check</li>
+            <li>Notes and screenshot filenames</li>
+          </ul>
+        </div>
+        <div class="dbg-report-preview-card">
+          <h4>Doc Report Preview</h4>
+          <p>When no checklist is expanded, report review/export becomes the primary workflow. Selecting a track swaps focus back to verification.</p>
+        </div>
+      </div>`;
+    if (title) title.textContent = 'Track Verification';
+    if (label) label.textContent = 'Select a debug track before queueing.';
     if (progress) progress.textContent = '';
     if (links) links.innerHTML = '';
     if (toolbar) toolbar.style.display = 'none';
@@ -647,11 +691,13 @@ function dbgRenderChecks() {
 
 function dbgDeselectScenario() {
   const state = dbgState();
+  if (!dbgConfirmScenarioSwitch(state, '')) return;
   state.activeScenario = '';
   state.debug_match = false;
   dbgSaveState(state);
   dbgRenderScenarios();
   dbgRenderChecks();
+  dbgScrollToVerificationTop();
   dbgRefreshWidgetInstances();
 }
 
@@ -672,15 +718,18 @@ function dbgScenarioState(state) {
 
 function dbgSetCheck(checkID, status) {
   const state = dbgState();
+  const activeScenarioID = state.activeScenario;
   const scenarioState = dbgScenarioState(state);
   if (!scenarioState) return;
   scenarioState.checks[checkID] = scenarioState.checks[checkID] || {};
   scenarioState.checks[checkID].status = scenarioState.checks[checkID].status === status ? '' : status;
   scenarioState.checks[checkID].updatedAt = new Date().toISOString();
+  const postAction = dbgMaybePromptScenarioComplete(state, activeScenarioID);
   dbgSaveState(state);
-  dbgMaybePromptDebugComplete(state);
   dbgRenderScenarios();
   dbgRenderChecks();
+  if (postAction === 'next') dbgScrollToVerificationTop();
+  if (postAction === 'complete') dbgScrollToExportTop();
   dbgRefreshWidgetInstances();
 }
 
@@ -712,7 +761,9 @@ function dbgSetCheckImages(checkID, images) {
 
 function dbgChecksForScenario(scenarioState) {
   const checklistType = scenarioState?.checklistType || 'match';
-  const baseChecks = checklistType === 'debug-assistant'
+  const baseChecks = checklistType === 'app-regression'
+    ? dbgGroupedTrackChecks(DBG_TRACK_A_CHECKS, DBG_TRACK_A_SECTIONS)
+    : checklistType === 'debug-assistant'
     ? DBG_TRACK_B_CHECKS
     : checklistType === 'bugfix'
       ? dbgGroupedTrackChecks(DBG_TRACK_C_CHECKS, DBG_TRACK_C_SECTIONS)
@@ -729,6 +780,7 @@ function dbgChecksForScenario(scenarioState) {
 }
 
 function dbgChecklistTypeForScenario(scenarioID) {
+  if (scenarioID === 'track-a-app-regression') return 'app-regression';
   if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
   if (scenarioID === 'track-c-commit-verification') return 'bugfix';
   if (scenarioID === 'track-d-debug-link-watch') return 'bug-watch';
@@ -738,16 +790,25 @@ function dbgChecklistTypeForScenario(scenarioID) {
 function dbgGroupedTrackChecks(groups, labels) {
   return Object.entries(groups).flatMap(([sectionID, checks]) => {
     const section = labels[sectionID] || sectionID;
-    return checks.map(check => ({ ...check, id: `${sectionID}-${check.id}`, section }));
+    return checks.filter(Boolean).map(check => ({ ...check, id: `${sectionID}-${check.id}`, section }));
   });
 }
 
 function dbgTrackName(scenario) {
   if (!scenario) return '';
+  if (scenario.title.startsWith('Track A:')) return 'Track A';
   if (scenario.title.startsWith('Track B:')) return 'Track B';
   if (scenario.title.startsWith('Track C:')) return 'Track C';
   if (scenario.title.startsWith('Track D:')) return 'Track D';
   return 'Track A';
+}
+
+function dbgScrollToVerificationTop() {
+  document.getElementById('dbg-scenarios')?.closest('.dbg-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function dbgScrollToExportTop() {
+  document.getElementById('dbg-save-reports')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function dbgScenarioProgressSnapshot(scenarioState) {
@@ -862,18 +923,55 @@ function dbgHandleLinkedMatchAction(action, linkID) {
   }
 }
 
-function dbgMaybePromptDebugComplete(state) {
+function dbgMaybePromptScenarioComplete(state, scenarioID) {
+  if (!scenarioID) return '';
+  const scenario = DBG_SCENARIOS.find(s => s.id === scenarioID);
+  const scenarioState = state.scenarios?.[scenarioID];
+  if (!scenario || !scenarioState) return '';
+  const total = dbgChecksForScenario(scenarioState).length;
+  const stats = dbgScenarioStats(scenarioState);
+  if (!total || stats.marked < total) return '';
+  state.scenarioCompletePrompted = state.scenarioCompletePrompted || {};
+  if (state.scenarioCompletePrompted[scenarioID]) {
+    return dbgAllDebugScenariosComplete(state) && !state.debugCompletePrompted
+      ? dbgMarkDebugComplete(state)
+      : '';
+  }
+  state.scenarioCompletePrompted[scenarioID] = new Date().toISOString();
+
+  if (dbgAllDebugScenariosComplete(state)) return dbgMarkDebugComplete(state);
+
+  const currentIndex = DBG_SCENARIOS.findIndex(s => s.id === scenarioID);
+  const nextScenario = DBG_SCENARIOS
+    .slice(currentIndex + 1)
+    .concat(DBG_SCENARIOS.slice(0, Math.max(currentIndex, 0)))
+    .find(s => !dbgIsScenarioComplete(state, s.id));
+  if (!nextScenario) return '';
+  const moveNext = confirm(`${scenario.title} appears complete.\n\nWould you like to move to ${nextScenario.title}?\n\nOK = move to next track\nCancel = stay and review`);
+  if (!moveNext) return '';
+  state.activeScenario = nextScenario.id;
+  state.scenarios = state.scenarios || {};
+  state.scenarios[nextScenario.id] = state.scenarios[nextScenario.id] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
+  state.scenarios[nextScenario.id].checklistType = dbgChecklistTypeForScenario(nextScenario.id);
+  state.scenarios[nextScenario.id].scenarioID = nextScenario.id;
+  return 'next';
+}
+
+function dbgIsScenarioComplete(state, scenarioID) {
+  const scenarioState = state.scenarios?.[scenarioID];
+  if (!scenarioState) return false;
+  const total = dbgChecksForScenario(scenarioState).length;
+  const stats = dbgScenarioStats(scenarioState);
+  return total > 0 && stats.marked >= total;
+}
+
+function dbgAllDebugScenariosComplete(state) {
+  return DBG_SCENARIOS.every(scenario => dbgIsScenarioComplete(state, scenario.id));
+}
+
+function dbgMarkDebugComplete(state) {
   if (state.debugCompletePrompted) return;
-  const scenarioStates = DBG_SCENARIOS.map(s => state.scenarios?.[s.id]).filter(Boolean);
-  if (!scenarioStates.length) return;
-  const complete = scenarioStates.every(scenarioState => {
-    const total = dbgChecksForScenario(scenarioState).length;
-    const stats = dbgScenarioStats(scenarioState);
-    return total > 0 && stats.marked >= total;
-  });
-  if (!complete) return;
   state.debugCompletePrompted = new Date().toISOString();
-  dbgSaveState(state);
   alert([
     'Debug session appears complete.',
     'Review notes.',
@@ -881,6 +979,12 @@ function dbgMaybePromptDebugComplete(state) {
     'Save/backup JSON.',
     'Confirm screenshots/captures are attached or named properly.',
   ].join('\n'));
+  return 'complete';
+}
+
+function dbgMaybePromptDebugComplete(state) {
+  if (state.debugCompletePrompted || !dbgAllDebugScenariosComplete(state)) return;
+  dbgMarkDebugComplete(state);
 }
 
 function dbgLinkedMatchLine(link) {
