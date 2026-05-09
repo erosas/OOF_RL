@@ -16,19 +16,8 @@ const DBG_SCENARIOS = [
   { id: 'all-bot-private', title: 'All-bot private match', shots: ['History row', 'Expanded match details'] },
   { id: 'abandoned-destroyed', title: 'Match abandoned or destroyed without normal MatchEnded', shots: ['History row with Incomplete badge', 'Log snippet around MatchDestroyed'] },
   { id: 'debug-assistant-track-b', title: 'Track B: Debug Assistant verification', shots: ['Debug page startup', 'Report export folder', 'Generated report panels'] },
-  { id: 'track-c-note-layout', title: 'Track C: d0384a9 note layout fix', shots: ['Long note in checklist', 'Generated report note formatting'] },
-  { id: 'track-c-scroll-state', title: 'Track C: 6e9a144 scroll-state fix', shots: ['Debug scroll position', 'History scroll position'] },
-  { id: 'track-c-json-import', title: 'Track C: 39426e2 JSON import fix', shots: ['Manual import picker', 'Imported state visible after selection'] },
-  { id: 'track-c-report-readability', title: 'Track C: 4834f91 report readability fix', shots: ['Generated doc report', 'Failure grouping/readable sections'] },
-  { id: 'track-c-export-result', title: 'Track C: 405617b export result panel fix', shots: ['Export result panel', 'debug_reports folder'] },
-  { id: 'track-c-commit-scenarios', title: 'Track C: dde4ccf commit scenario fix', shots: ['Track C scenario list', 'Generated report with Track C entries'] },
-  { id: 'track-d-stale-guid', title: 'Track D: stale GUID carryover watch', shots: ['Two linked scenario cards', 'History rows for both matches', 'Debug report linked match section'] },
-  { id: 'track-d-duplicate-links', title: 'Track D: duplicate link creation watch', shots: ['Selected scenario linked match panel', 'Debug event timeline around match start'] },
-  { id: 'track-d-deselect-unarmed', title: 'Track D: scenario deselect/unarmed watch', shots: ['Deselect scenario state', 'Next match History row', 'Debug linked match panel'] },
-  { id: 'track-d-inline-stats', title: 'Track D: inline linked stats watch', shots: ['Expanded linked stats panel', 'History expanded match details'] },
-  { id: 'track-d-link-actions', title: 'Track D: linked action button wiring watch', shots: ['Linked match card before and after each action', 'Scenario panel after unlink'] },
-  { id: 'track-d-stale-storage', title: 'Track D: stale localStorage metadata watch', shots: ['Stale link before removal', 'Debug panel after unlink/clear', 'History row unchanged'] },
-  { id: 'track-d-arena-comparison', title: 'Track D: arena raw/display comparison watch', shots: ['Linked match card arena line', 'History row arena display'] },
+  { id: 'track-c-commit-verification', title: 'Track C: Commit fix verification', shots: ['Track C grouped checks', 'Generated report with Track C sections'] },
+  { id: 'track-d-debug-link-watch', title: 'Track D: Debug Match Linking Bug Watch', shots: ['Track D grouped checks', 'Linked match cards', 'Generated report with Track D sections'] },
 ];
 
 const DBG_CHECKS = [
@@ -267,20 +256,20 @@ const DBG_TRACK_C_CHECKS = {
   'track-c-commit-scenarios': [
     {
       id: 'track-c-scenarios-visible',
-      title: 'Each Track C commit target appears as its own scenario.',
-      help: 'Open Debug and inspect the scenario list. Pass if note layout, scroll state, JSON import, report readability, export result, and Track C verification scenarios are separate.',
+      title: 'Track C appears as one grouped verification scenario.',
+      help: 'Open Debug and inspect the scenario list. Pass if Track C appears as one top-level scenario with grouped commit-fix checks inside it.',
       screenshot: true,
     },
     {
       id: 'track-c-independent-status',
-      title: 'Each Track C scenario tracks pass/fail/N/A independently.',
-      help: 'Mark checks in two different Track C scenarios. Pass if their scenario cards and report sections retain separate stats.',
+      title: 'Each Track C grouped check tracks pass/fail/N/A independently.',
+      help: 'Mark checks in two different Track C sections. Pass if their check states and report entries remain separate inside the grouped Track C scenario.',
       screenshot: true,
     },
     {
       id: 'track-c-report-output',
-      title: 'Generated reports include Track C scenario results.',
-      help: 'Generate reports after marking Track C checks. Pass if the report clearly includes each commit-specific verification scenario.',
+      title: 'Generated reports include Track C grouped results.',
+      help: 'Generate reports after marking Track C checks. Pass if the report clearly includes the Track C scenario and its commit-specific sections.',
       screenshot: true,
     },
   ],
@@ -391,6 +380,25 @@ const DBG_TRACK_D_CHECKS = {
       screenshot: true,
     },
   ],
+};
+
+const DBG_TRACK_C_SECTIONS = {
+  'track-c-note-layout': 'd0384a9 note layout fix',
+  'track-c-scroll-state': '6e9a144 scroll-state fix',
+  'track-c-json-import': '39426e2 JSON import fix',
+  'track-c-report-readability': '4834f91 report readability fix',
+  'track-c-export-result': '405617b export result panel fix',
+  'track-c-commit-scenarios': 'dde4ccf commit scenario fix',
+};
+
+const DBG_TRACK_D_SECTIONS = {
+  'track-d-stale-guid': 'Stale GUID carryover',
+  'track-d-duplicate-links': 'Duplicate link creation',
+  'track-d-deselect-unarmed': 'Scenario deselect / unarmed state',
+  'track-d-inline-stats': 'Inline linked stats',
+  'track-d-link-actions': 'Linked action button wiring',
+  'track-d-stale-storage': 'Stale localStorage metadata',
+  'track-d-arena-comparison': 'Arena raw/display comparison',
 };
 
 window.pluginInit_debug = function() {
@@ -591,9 +599,14 @@ function dbgRenderChecks() {
   if (customForm) customForm.style.display = 'grid';
   dbgRenderScenarioSummary(scenarioState);
 
+  let lastSection = '';
   root.innerHTML = dbgChecksForScenario(scenarioState).map(check => {
     const value = scenarioState.checks?.[check.id] || {};
-    return `
+    const sectionHTML = check.section && check.section !== lastSection
+      ? `<div class="dbg-check-section">${esc(check.section)}</div>`
+      : '';
+    if (check.section) lastSection = check.section;
+    return `${sectionHTML}
       <div class="dbg-check" data-dbg-check="${esc(check.id)}">
         <div class="dbg-check-status">
           <button class="pass${value.status === 'pass' ? ' active' : ''}" data-status="pass">Pass</button>
@@ -702,9 +715,9 @@ function dbgChecksForScenario(scenarioState) {
   const baseChecks = checklistType === 'debug-assistant'
     ? DBG_TRACK_B_CHECKS
     : checklistType === 'bugfix'
-      ? (DBG_TRACK_C_CHECKS[scenarioState?.scenarioID] || [])
+      ? dbgGroupedTrackChecks(DBG_TRACK_C_CHECKS, DBG_TRACK_C_SECTIONS)
       : checklistType === 'bug-watch'
-        ? (DBG_TRACK_D_CHECKS[scenarioState?.scenarioID] || [])
+        ? dbgGroupedTrackChecks(DBG_TRACK_D_CHECKS, DBG_TRACK_D_SECTIONS)
         : DBG_CHECKS;
   return baseChecks.concat((scenarioState?.customChecks || []).map(check => ({
     id: check.id,
@@ -717,9 +730,16 @@ function dbgChecksForScenario(scenarioState) {
 
 function dbgChecklistTypeForScenario(scenarioID) {
   if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
-  if (scenarioID.startsWith('track-c-')) return 'bugfix';
-  if (scenarioID.startsWith('track-d-')) return 'bug-watch';
+  if (scenarioID === 'track-c-commit-verification') return 'bugfix';
+  if (scenarioID === 'track-d-debug-link-watch') return 'bug-watch';
   return 'match';
+}
+
+function dbgGroupedTrackChecks(groups, labels) {
+  return Object.entries(groups).flatMap(([sectionID, checks]) => {
+    const section = labels[sectionID] || sectionID;
+    return checks.map(check => ({ ...check, id: `${sectionID}-${check.id}`, section }));
+  });
 }
 
 function dbgTrackName(scenario) {
@@ -1296,8 +1316,13 @@ function dbgBuildPlainReport() {
     for (const link of activeLinks) lines.push(`  - ${dbgLinkedMatchLine(link)}`);
     lines.push('');
     lines.push('### Active Checklist');
+    let activeSection = '';
     for (const check of dbgChecksForScenario(scenarioState)) {
       const item = scenarioState?.checks?.[check.id] || {};
+      if (check.section && check.section !== activeSection) {
+        lines.push(`- **${check.section}**`);
+        activeSection = check.section;
+      }
       lines.push(`- **${dbgStatusLabel(item.status)}** - ${check.title}`);
       if (item.note) lines.push(`  - Note: ${item.note}`);
       for (const image of dbgImageNames(item)) lines.push(`  - Screenshot: ${image}`);
@@ -1318,9 +1343,14 @@ function dbgBuildPlainReport() {
       lines.push('  - Linked debug matches:');
       for (const link of links) lines.push(`    - ${dbgLinkedMatchLine(link)}`);
     }
+    let scopedSection = '';
     for (const check of dbgChecksForScenario(scopedState)) {
       const item = scopedState?.checks?.[check.id] || {};
       if (!item.status && !item.note && !item.images) continue;
+      if (check.section && check.section !== scopedSection) {
+        lines.push(`  - **${check.section}**`);
+        scopedSection = check.section;
+      }
       lines.push(`  - **${dbgStatusLabel(item.status)}** - ${check.title}`);
       if (item.note) lines.push(`    Note: ${item.note}`);
       for (const image of dbgImageNames(item)) lines.push(`    Screenshot: ${image}`);
@@ -1428,10 +1458,20 @@ function dbgBuildDocReportHTML(exportMode) {
       }
       parts.push('</ul>');
     }
-    parts.push('<ul>');
+    let docSection = '';
+    let docListOpen = false;
     for (const check of dbgChecksForScenario(scenarioState)) {
       const item = scenarioState?.checks?.[check.id] || {};
       if (!item.status && !item.note && !item.images) continue;
+      if (check.section && check.section !== docSection) {
+        if (docListOpen) parts.push('</ul>');
+        parts.push(`<h5>${esc(check.section)}</h5><ul>`);
+        docSection = check.section;
+        docListOpen = true;
+      } else if (!docListOpen) {
+        parts.push('<ul>');
+        docListOpen = true;
+      }
       const statusClass = item.status === 'pass' ? 'pass' : item.status === 'fail' ? 'fail' : item.status === 'skip' ? 'skip' : '';
       parts.push(`<li><span class="${statusClass}">[${esc(item.status || 'unset')}]</span> ${esc(check.title)}${item.note ? `<br><em>${esc(item.note)}</em>` : ''}</li>`);
       for (const image of dbgImageNames(item)) {
@@ -1440,7 +1480,7 @@ function dbgBuildDocReportHTML(exportMode) {
         if (!exportMode) parts.push(`<img alt="${esc(image)}" src="${href}" onerror="this.style.display='none'">`);
       }
     }
-    parts.push('</ul>');
+    if (docListOpen) parts.push('</ul>');
   }
   parts.push('</section>');
 
