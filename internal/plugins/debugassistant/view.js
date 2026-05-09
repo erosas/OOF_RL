@@ -2,6 +2,7 @@
 
 const DBG_STORAGE_KEY = 'oof-rl-debug-assistant-regression-v1';
 const DBG_SESSION_KEY = 'oof-rl-debug-assistant-session-active-v1';
+const DBG_SCROLL_POSITIONS = {};
 
 const DBG_SCENARIOS = [
   { id: 'online-1v1-pvp', title: 'Normal online 1v1 PvP match', shots: ['History collapsed row', 'Expanded match details', 'Session overview'] },
@@ -154,6 +155,7 @@ window.pluginInit_debug = function() {
   dbgLoadMeta();
   dbgRenderChecks();
   dbgWireControls();
+  dbgWireInternalScrollMemory();
   dbgRefreshAll();
   setInterval(dbgRefreshAll, 3000);
 
@@ -212,6 +214,24 @@ function dbgMessage(text) {
   if (!el) return;
   el.textContent = text;
   setTimeout(() => { el.textContent = ''; }, 2600);
+}
+
+function dbgWireInternalScrollMemory() {
+  ['dbg-events', 'dbg-report', 'dbg-report-doc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.dbgScrollMemory === '1') return;
+    el.dataset.dbgScrollMemory = '1';
+    el.addEventListener('scroll', () => {
+      DBG_SCROLL_POSITIONS[id] = el.scrollTop;
+    }, { passive: true });
+  });
+}
+
+function dbgRestoreInternalScroll(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const y = DBG_SCROLL_POSITIONS[id] || 0;
+  requestAnimationFrame(() => { el.scrollTop = y; });
 }
 
 function dbgRenderScenarios() {
@@ -517,6 +537,7 @@ async function dbgLoadEvents() {
     const events = data.events || [];
     if (!events.length) {
       root.innerHTML = '<div class="dbg-sub">No observed events yet.</div>';
+      dbgRestoreInternalScroll('dbg-events');
       return;
     }
     root.innerHTML = events.slice().reverse().slice(0, 40).map(e => `
@@ -526,8 +547,10 @@ async function dbgLoadEvents() {
         <div class="dbg-event-summary">${esc(e.summary || '')}</div>
       </div>
     `).join('');
+    dbgRestoreInternalScroll('dbg-events');
   } catch (e) {
     root.innerHTML = `<div class="dbg-sub">Event load failed: ${esc(e.message || e)}</div>`;
+    dbgRestoreInternalScroll('dbg-events');
   }
 }
 
@@ -559,6 +582,7 @@ function dbgGenerateReport() {
   const report = dbgBuildPlainReport();
   const root = document.getElementById('dbg-report');
   if (root) root.textContent = report;
+  dbgRestoreInternalScroll('dbg-report');
   return report;
 }
 
@@ -647,6 +671,7 @@ function dbgGenerateDocReport() {
   const html = dbgBuildDocReportHTML(false);
   const root = document.getElementById('dbg-report-doc');
   if (root) root.innerHTML = html;
+  dbgRestoreInternalScroll('dbg-report-doc');
   return html;
 }
 

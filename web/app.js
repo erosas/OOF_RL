@@ -413,22 +413,38 @@ function restoreViewScroll(name) {
   window.scrollTo({ top: y, left: 0, behavior: 'auto' });
 }
 
+function restoreViewScrollSoon(name) {
+  requestAnimationFrame(() => restoreViewScroll(name));
+  setTimeout(() => restoreViewScroll(name), 120);
+  setTimeout(() => restoreViewScroll(name), 450);
+}
+
+function runViewLoader(name, loader) {
+  try {
+    const result = loader();
+    if (result && typeof result.finally === 'function') {
+      result.finally(() => restoreViewScrollSoon(name));
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 function showView(name) {
   rememberActiveViewScroll();
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
-  if (name === 'history'   && typeof loadHistory      === 'function') loadHistory();
-  if (name === 'settings') loadSettings();
-  if (name === 'bc'        && typeof loadBC            === 'function') loadBC();
-  if (name === 'ranks'     && typeof refreshRanks      === 'function') refreshRanks();
-  if (name === 'session'   && typeof refreshSession    === 'function') refreshSession();
-  if (name === 'dashboard' && typeof loadDashboard     === 'function') loadDashboard();
+  _activeViewName = name;
+  if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
+  if (name === 'settings') runViewLoader(name, loadSettings);
+  if (name === 'bc'        && typeof loadBC            === 'function') runViewLoader(name, loadBC);
+  if (name === 'ranks'     && typeof refreshRanks      === 'function') runViewLoader(name, refreshRanks);
+  if (name === 'session'   && typeof refreshSession    === 'function') runViewLoader(name, refreshSession);
+  if (name === 'dashboard' && typeof loadDashboard     === 'function') runViewLoader(name, loadDashboard);
   if (name !== 'history') _historyDetailReRender = null;
   if (name !== 'ranks')   _ranksReRender = null;
-  _activeViewName = name;
-  requestAnimationFrame(() => restoreViewScroll(name));
-  setTimeout(() => restoreViewScroll(name), 120);
+  restoreViewScrollSoon(name);
 }
 
 window.addEventListener('scroll', rememberActiveViewScroll, { passive: true });
