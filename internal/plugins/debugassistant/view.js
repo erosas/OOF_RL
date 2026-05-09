@@ -22,6 +22,13 @@ const DBG_SCENARIOS = [
   { id: 'track-c-report-readability', title: 'Track C: 4834f91 report readability fix', shots: ['Generated doc report', 'Failure grouping/readable sections'] },
   { id: 'track-c-export-result', title: 'Track C: 405617b export result panel fix', shots: ['Export result panel', 'debug_reports folder'] },
   { id: 'track-c-commit-scenarios', title: 'Track C: dde4ccf commit scenario fix', shots: ['Track C scenario list', 'Generated report with Track C entries'] },
+  { id: 'track-d-stale-guid', title: 'Track D: stale GUID carryover watch', shots: ['Two linked scenario cards', 'History rows for both matches', 'Debug report linked match section'] },
+  { id: 'track-d-duplicate-links', title: 'Track D: duplicate link creation watch', shots: ['Selected scenario linked match panel', 'Debug event timeline around match start'] },
+  { id: 'track-d-deselect-unarmed', title: 'Track D: scenario deselect/unarmed watch', shots: ['Deselect scenario state', 'Next match History row', 'Debug linked match panel'] },
+  { id: 'track-d-inline-stats', title: 'Track D: inline linked stats watch', shots: ['Expanded linked stats panel', 'History expanded match details'] },
+  { id: 'track-d-link-actions', title: 'Track D: linked action button wiring watch', shots: ['Linked match card before and after each action', 'Scenario panel after unlink'] },
+  { id: 'track-d-stale-storage', title: 'Track D: stale localStorage metadata watch', shots: ['Stale link before removal', 'Debug panel after unlink/clear', 'History row unchanged'] },
+  { id: 'track-d-arena-comparison', title: 'Track D: arena raw/display comparison watch', shots: ['Linked match card arena line', 'History row arena display'] },
 ];
 
 const DBG_CHECKS = [
@@ -274,6 +281,113 @@ const DBG_TRACK_C_CHECKS = {
       id: 'track-c-report-output',
       title: 'Generated reports include Track C scenario results.',
       help: 'Generate reports after marking Track C checks. Pass if the report clearly includes each commit-specific verification scenario.',
+      screenshot: true,
+    },
+  ],
+};
+
+const DBG_TRACK_D_CHECKS = {
+  'track-d-stale-guid': [
+    {
+      id: 'second-link-unique-guid',
+      title: 'Second scenario-linked match does not inherit the previous match GUID.',
+      help: 'Pass: each scenario-linked match has its own correct GUID/History ID. Fail: a new linked match shows a previous match GUID or mismatched History row. Notes: record both scenario names, both GUIDs, both History IDs, and match start/end timestamps.',
+      screenshot: true,
+    },
+    {
+      id: 'history-row-matches-link',
+      title: 'Linked History ID points to the correct match row.',
+      help: 'Pass: History ID, arena, score, and timestamp match the played scenario. Fail: link points to a prior or unrelated History row. Notes: include the History row screenshot and linked card screenshot.',
+      screenshot: true,
+    },
+  ],
+  'track-d-duplicate-links': [
+    {
+      id: 'single-link-card',
+      title: 'One selected scenario produces one linked match card.',
+      help: 'Pass: MatchCreated, MatchInitialized, and UpdateState do not create multiple links. Fail: duplicate linked cards appear for the same scenario/match. Notes: include the event timeline around match start if duplicates appear.',
+      screenshot: true,
+    },
+    {
+      id: 'manual-unlink-required-for-retry',
+      title: 'Additional attempts require manual unlink/retry behavior.',
+      help: 'Pass: the same scenario does not collect another link unless the old link is unlinked. Fail: a second match silently attaches to an already-linked scenario. Notes: record whether the scenario remained selected after the first match.',
+      screenshot: true,
+    },
+  ],
+  'track-d-deselect-unarmed': [
+    {
+      id: 'deselect-clears-active-scenario',
+      title: 'Deselect scenario returns Debug Assistant to a clean unarmed state.',
+      help: 'Pass: the Scenario Verification panel returns to the no-selection state. Fail: the old scenario remains armed or visually active. Notes: screenshot the panel after deselect.',
+      screenshot: true,
+    },
+    {
+      id: 'next-match-not-tagged',
+      title: 'Next match is not tagged after deselect.',
+      help: 'Pass: after deselecting, the next played match does not create a debug link. Fail: a match links to the deselected scenario. Notes: include the match timestamp and scenario panel after match end.',
+      screenshot: true,
+    },
+  ],
+  'track-d-inline-stats': [
+    {
+      id: 'stats-panel-opens',
+      title: 'View linked match stats expands inline.',
+      help: 'Pass: the stats panel opens visibly inside the linked card. Fail: button does nothing, opens an alert, renders blank, or collapses immediately. Notes: include before/after screenshots.',
+      screenshot: true,
+    },
+    {
+      id: 'stats-panel-fields',
+      title: 'Inline stats include all required player fields.',
+      help: 'Pass: player, goals, assists, saves, shots, demos, touches, and score are visible from the captured match snapshot. Fail: fields are missing or clearly incorrect. Notes: compare against History expanded details when available.',
+      screenshot: true,
+    },
+  ],
+  'track-d-link-actions': [
+    {
+      id: 'scenario-action-works',
+      title: 'View linked debug scenario selects the correct scenario.',
+      help: 'Pass: the button uses the correct link ID and opens/selects the scenario tied to that link. Fail: button appears clickable but does nothing or selects the wrong scenario. Notes: record scenario names before and after click.',
+      screenshot: true,
+    },
+    {
+      id: 'stats-action-works',
+      title: 'View linked match stats uses the correct link ID.',
+      help: 'Pass: the button expands stats for the selected linked match only. Fail: no action, wrong match stats, or blank panel. Notes: include the linked card GUID and visible stat panel.',
+      screenshot: true,
+    },
+    {
+      id: 'unlink-action-works',
+      title: 'Unlink match removes only the selected Debug metadata link.',
+      help: 'Pass: the button removes the linked card and does not affect History or Session data. Fail: button does nothing, removes the wrong link, or changes core match data. Notes: capture before/after Debug and History state.',
+      screenshot: true,
+    },
+  ],
+  'track-d-stale-storage': [
+    {
+      id: 'stale-link-removable',
+      title: 'Old or bad debug links can be removed from Debug metadata.',
+      help: 'Pass: stale links can be unlinked or cleared from Debug Assistant metadata only. Fail: stale links persist after unlink/clear. Notes: record whether the stale link came from an older build or current test.',
+      screenshot: true,
+    },
+    {
+      id: 'core-data-unchanged',
+      title: 'Removing stale debug metadata does not alter core match data.',
+      help: 'Pass: History and Session rows remain unchanged after stale debug metadata removal. Fail: core History/Session data changes. Notes: include before/after History or Session screenshots.',
+      screenshot: true,
+    },
+  ],
+  'track-d-arena-comparison': [
+    {
+      id: 'arena-values-visible',
+      title: 'Linked match card shows arena display name and raw API arena value.',
+      help: 'Pass: both values are visible and useful for mismatch detection. Fail: one or both values are missing, swapped, or misleading. Notes: record the display name and raw API value exactly.',
+      screenshot: true,
+    },
+    {
+      id: 'arena-compares-history',
+      title: 'Arena values can be compared against the History row.',
+      help: 'Pass: the linked card makes it easy to compare arena display/API values with History. Fail: comparison requires digging elsewhere or values conflict without clarity. Notes: include linked card and History row screenshots.',
       screenshot: true,
     },
   ],
@@ -589,7 +703,9 @@ function dbgChecksForScenario(scenarioState) {
     ? DBG_TRACK_B_CHECKS
     : checklistType === 'bugfix'
       ? (DBG_TRACK_C_CHECKS[scenarioState?.scenarioID] || [])
-      : DBG_CHECKS;
+      : checklistType === 'bug-watch'
+        ? (DBG_TRACK_D_CHECKS[scenarioState?.scenarioID] || [])
+        : DBG_CHECKS;
   return baseChecks.concat((scenarioState?.customChecks || []).map(check => ({
     id: check.id,
     title: check.title || 'Untitled custom condition',
@@ -602,6 +718,7 @@ function dbgChecksForScenario(scenarioState) {
 function dbgChecklistTypeForScenario(scenarioID) {
   if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
   if (scenarioID.startsWith('track-c-')) return 'bugfix';
+  if (scenarioID.startsWith('track-d-')) return 'bug-watch';
   return 'match';
 }
 
@@ -609,6 +726,7 @@ function dbgTrackName(scenario) {
   if (!scenario) return '';
   if (scenario.title.startsWith('Track B:')) return 'Track B';
   if (scenario.title.startsWith('Track C:')) return 'Track C';
+  if (scenario.title.startsWith('Track D:')) return 'Track D';
   return 'Track A';
 }
 
