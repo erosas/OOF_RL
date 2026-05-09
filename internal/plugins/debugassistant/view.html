@@ -18,6 +18,12 @@
 .dbg-file-import { position:relative; display:inline-flex; align-items:center; border-radius:7px; padding:7px 10px; font-size:0.76rem; font-weight:800; white-space:nowrap; background:var(--surface2); color:var(--text); border:1px solid var(--line); cursor:pointer; overflow:hidden; }
 .dbg-file-import input { position:absolute; inset:0; opacity:0; cursor:pointer; font-size:100px; }
 .dbg-msg { color:var(--green); font-size:0.75rem; }
+.dbg-export-result { display:none; margin-top:10px; background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:0.74rem; }
+.dbg-export-result.visible { display:block; }
+.dbg-export-result h4 { margin:0 0 6px; color:var(--rl-blue); font-size:0.76rem; text-transform:uppercase; letter-spacing:.07em; }
+.dbg-export-result ul { margin:6px 0 0 16px; padding:0; }
+.dbg-export-result li { margin-bottom:4px; overflow-wrap:anywhere; }
+.dbg-export-result .duplicate { color:#f59e0b; font-weight:800; }
 .dbg-scenario-list { display:flex; flex-direction:column; gap:7px; }
 .dbg-scenario { text-align:left; border:1px solid var(--line); background:rgba(255,255,255,.025); color:var(--text); border-radius:8px; padding:9px; cursor:pointer; font:inherit; }
 .dbg-scenario.active { border-color:var(--rl-blue); box-shadow:0 0 0 1px rgba(74,158,255,.25); }
@@ -120,6 +126,7 @@
       <label class="dbg-file-import">Import JSON state<input id="dbg-import-file" type="file" accept="application/json,.json"></label>
       <span id="dbg-msg" class="dbg-msg"></span>
     </div>
+    <div id="dbg-export-result" class="dbg-export-result"></div>
   </section>
 
   <div class="dbg-grid">

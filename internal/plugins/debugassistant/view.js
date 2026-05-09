@@ -216,6 +216,24 @@ function dbgMessage(text) {
   setTimeout(() => { el.textContent = ''; }, 2600);
 }
 
+function dbgShowExportResult(result) {
+  const el = document.getElementById('dbg-export-result');
+  if (!el || !result) return;
+  const status = result.duplicate
+    ? '<span class="duplicate">Duplicate export skipped.</span>'
+    : 'Report files exported.';
+  el.classList.add('visible');
+  el.innerHTML = `
+    <h4>Export Result</h4>
+    <div>${status}</div>
+    <ul>
+      <li><strong>Folder:</strong> ${esc(result.dir || '')}</li>
+      <li><strong>Markdown:</strong> ${esc(result.markdown || '')}</li>
+      <li><strong>HTML:</strong> ${esc(result.html || '')}</li>
+      <li><strong>JSON:</strong> ${esc(result.json || '')}</li>
+    </ul>`;
+}
+
 function dbgWireInternalScrollMemory() {
   ['dbg-events', 'dbg-report', 'dbg-report-doc'].forEach(id => {
     const el = document.getElementById(id);
@@ -886,9 +904,11 @@ async function dbgExportReportFiles() {
     const result = await response.json();
     dbgGenerateDocReport();
     if (result.duplicate) {
+      dbgShowExportResult(result);
       dbgMessage(result.message || 'Report already exported. Duplicate export skipped.');
       return;
     }
+    dbgShowExportResult(result);
     dbgMessage(`Exported reports to ${result.dir}`);
   } catch (e) {
     dbgMessage(`Export failed: ${e.message || e}`);
