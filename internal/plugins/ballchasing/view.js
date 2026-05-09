@@ -6,10 +6,14 @@ const BC_GROUPS_PAGE_SIZE   = 10;
 
 let _bcReminderTimer = null;
 
-// Widget controller refs — set by pluginInit_bc, used by WS handlers
+// Tab-level controller refs (set by pluginInit_bc, used for purge/sync and loadBC)
 let _matchWidget    = null;
 let _uploadedWidget = null;
 let _groupsWidget   = null;
+
+// All instances (tab + dashboard) for WS event routing
+let _bcMatchInstances    = [];
+let _bcUploadedInstances = [];
 
 // ── Tab-level load / WS-triggered refresh ──────────────────────
 
@@ -53,8 +57,10 @@ function bcMatchReplaysWidget(container) {
   let page = 0;
 
   function render() {
-    const purge = document.getElementById('bc-purge-btn');
-    if (purge) purge.classList.toggle('hidden', !list.some(m => m.uploaded));
+    if (container.closest('#view-bc')) {
+      const purge = document.getElementById('bc-purge-btn');
+      if (purge) purge.classList.toggle('hidden', !list.some(m => m.uploaded));
+    }
 
     if (!list.length) {
       container.innerHTML = '<div class="bc-empty">No matches found yet — play a game first.</div>';
@@ -85,7 +91,14 @@ function bcMatchReplaysWidget(container) {
     return list.filter(m => m.uploaded).length;
   }
 
-  return { refresh, getUploadedCount };
+  function destroy() {
+    const i = _bcMatchInstances.indexOf(entry);
+    if (i >= 0) _bcMatchInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, getUploadedCount };
+  _bcMatchInstances.push(entry);
+  return { refresh, getUploadedCount, destroy };
 }
 
 function bcUploadedReplaysWidget(container) {
@@ -124,7 +137,14 @@ function bcUploadedReplaysWidget(container) {
     render();
   }
 
-  return { refresh, onNewUploads };
+  function destroy() {
+    const i = _bcUploadedInstances.indexOf(entry);
+    if (i >= 0) _bcUploadedInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, onNewUploads };
+  _bcUploadedInstances.push(entry);
+  return { refresh, onNewUploads, destroy };
 }
 
 function bcGroupsWidget(container) {
@@ -269,8 +289,8 @@ function handleBCUploaded(data) {
   const replays = data?.replays || [];
   if (!replays.length) return;
 
-  _uploadedWidget?.onNewUploads(replays);
-  _matchWidget?.refresh();
+  _bcUploadedInstances.forEach(w => w.onNewUploads(replays));
+  _bcMatchInstances.forEach(w => w.refresh());
 
   const notify = document.getElementById('bc-notify');
   if (notify) {

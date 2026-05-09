@@ -76,12 +76,16 @@ function _dashAddWidget(widgetId, x, y, w, h) {
     <div class="widget-body"></div>
   `;
 
+  let ctrl;
+
   contentEl.querySelector('.widget-remove-btn').addEventListener('click', () => {
+    ctrl?.destroy?.();
     _dashGrid.removeWidget(itemEl);
     _dashUpdateEmpty();
   });
 
-  const ctrl = def.factory(contentEl.querySelector('.widget-body'));
+  ctrl = def.factory(contentEl.querySelector('.widget-body'));
+  itemEl._widgetCtrl = ctrl;
   ctrl?.refresh?.();
 }
 
@@ -141,6 +145,7 @@ async function _dashSave() {
 
 function _dashCancel() {
   if (_dashPreEdit !== null) {
+    _dashGrid.el.querySelectorAll('.grid-stack-item').forEach(el => el._widgetCtrl?.destroy?.());
     _dashGrid.removeAll(true);
     for (const item of _dashPreEdit) {
       _dashAddWidget(item.id, item.x, item.y, item.w, item.h);
