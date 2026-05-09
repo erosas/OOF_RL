@@ -1693,13 +1693,33 @@ function dbgWireControls() {
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
   document.getElementById('dbg-reset')?.addEventListener('click', () => {
     if (!confirm('Reset local Debug Assistant metadata, checklist, snapshots, and notes?')) return;
-    localStorage.removeItem(DBG_STORAGE_KEY);
-    dbgLoadMeta();
-    dbgRenderScenarios();
-    dbgRenderChecks();
-    dbgLoadContext();
-    dbgGenerateReport();
+    dbgResetLocalState();
   });
+}
+
+function dbgResetLocalState() {
+  localStorage.removeItem(DBG_STORAGE_KEY);
+  for (const key of Object.keys(DBG_SCROLL_POSITIONS)) delete DBG_SCROLL_POSITIONS[key];
+  DBG_LAST_LIVE_STATE = null;
+
+  const report = document.getElementById('dbg-report');
+  if (report) report.textContent = 'Generate a report after your scenario or session.';
+  const docReport = document.getElementById('dbg-report-doc');
+  if (docReport) docReport.textContent = 'Generate a doc report to preview a developer-readable report with tagged screenshots.';
+  const exportResult = document.getElementById('dbg-export-result');
+  if (exportResult) {
+    exportResult.classList.remove('visible');
+    exportResult.innerHTML = '';
+  }
+  const importInput = document.getElementById('dbg-import-file');
+  if (importInput) importInput.value = '';
+
+  dbgLoadMeta();
+  dbgRenderScenarios();
+  dbgRenderChecks();
+  dbgLoadContext();
+  dbgRefreshWidgetInstances();
+  dbgMessage('Debug Assistant reset to default state');
 }
 
 async function dbgExportReportFiles() {
