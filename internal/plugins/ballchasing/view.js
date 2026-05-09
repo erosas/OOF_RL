@@ -57,8 +57,10 @@ function bcMatchReplaysWidget(container) {
   let page = 0;
 
   function render() {
-    const purge = document.getElementById('bc-purge-btn');
-    if (purge) purge.classList.toggle('hidden', !list.some(m => m.uploaded));
+    if (container.closest('#view-bc')) {
+      const purge = document.getElementById('bc-purge-btn');
+      if (purge) purge.classList.toggle('hidden', !list.some(m => m.uploaded));
+    }
 
     if (!list.length) {
       container.innerHTML = '<div class="bc-empty">No matches found yet — play a game first.</div>';

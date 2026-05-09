@@ -219,7 +219,6 @@ function historyRecentWidget(container) {
 
   const entry = { refresh };
   _historyRecentInstances.push(entry);
-  refresh();
   return { refresh, destroy };
 }
 

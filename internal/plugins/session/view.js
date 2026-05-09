@@ -166,8 +166,6 @@ function updateElapsed() {
 }
 
 window.refreshSession = async function() {
-  _sessionSummaryInstances.forEach(w => w.refresh());
-
   const noPlayer   = document.getElementById('session-no-player');
   const notStarted = document.getElementById('session-not-started');
   const panel      = document.getElementById('session-stats-panel');
@@ -177,6 +175,7 @@ window.refreshSession = async function() {
     notStarted?.classList.add('hidden');
     panel?.classList.add('hidden');
     renderLiveGame();
+    _sessionSummaryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see stats.'));
     return;
   }
   noPlayer?.classList.add('hidden');
@@ -185,6 +184,7 @@ window.refreshSession = async function() {
     notStarted?.classList.remove('hidden');
     panel?.classList.add('hidden');
     renderLiveGame();
+    _sessionSummaryInstances.forEach(w => w.renderPlaceholder('No active session. Use the Session tab to start one.'));
     return;
   }
   notStarted?.classList.add('hidden');
@@ -195,6 +195,7 @@ window.refreshSession = async function() {
     const url  = `/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`;
     const data = await fetch(url).then(r => r.json());
     renderSessionStats(data);
+    _sessionSummaryInstances.forEach(w => w.renderData(data));
   } catch(_) {}
 };
 
@@ -525,6 +526,10 @@ function sessionSummaryWidget(container) {
       renderPlaceholder('Select a player in the Session tab to see stats.');
       return;
     }
+    if (!_sessionSince) {
+      renderPlaceholder('No active session. Use the Session tab to start one.');
+      return;
+    }
     try {
       const data = await fetch(`/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
       renderData(data);
@@ -538,9 +543,8 @@ function sessionSummaryWidget(container) {
     if (i >= 0) _sessionSummaryInstances.splice(i, 1);
   }
 
-  const entry = { refresh };
+  const entry = { refresh, renderData, renderPlaceholder };
   _sessionSummaryInstances.push(entry);
-  refresh();
   return { refresh, destroy };
 }
 
