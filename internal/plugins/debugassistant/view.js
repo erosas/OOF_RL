@@ -15,6 +15,7 @@ const DBG_SCENARIOS = [
   { id: 'all-bot-private', title: 'All-bot private match', shots: ['History row', 'Expanded match details'] },
   { id: 'abandoned-destroyed', title: 'Match abandoned or destroyed without normal MatchEnded', shots: ['History row with Incomplete badge', 'Log snippet around MatchDestroyed'] },
   { id: 'debug-assistant-track-b', title: 'Track B: Debug Assistant verification', shots: ['Debug page startup', 'Report export folder', 'Generated report panels'] },
+  { id: 'bugfix-track-c', title: 'Track C: Commit verification', shots: ['Commit list or PR diff', 'Targeted panel/evidence', 'Generated report'] },
 ];
 
 const DBG_CHECKS = [
@@ -145,6 +146,51 @@ const DBG_TRACK_B_CHECKS = [
     id: 'debug-read-only-safety',
     title: 'Debug Assistant does not mutate core OOF RL data.',
     help: 'During Track A playtesting, confirm Debug use does not change Live, Session, History, saved matches, event handling, or app config except debug-local state/export files.',
+    screenshot: true,
+  },
+];
+
+const DBG_TRACK_C_CHECKS = [
+  {
+    id: 'commit-under-test',
+    title: 'Commit under test is identified clearly.',
+    help: 'Use notes/custom conditions to record the commit SHA, commit title, PR branch, and the intended fix/change being verified. Add one custom condition per commit when a branch contains multiple checkpoints.',
+    screenshot: true,
+  },
+  {
+    id: 'commit-build-included',
+    title: 'Test build includes the commit being verified.',
+    help: 'Confirm the EXE was built from the branch/head that contains this commit. Record branch, commit SHA, EXE path, and build time in metadata or notes.',
+    screenshot: true,
+  },
+  {
+    id: 'commit-targeted-behavior',
+    title: 'The commit-specific behavior passes its targeted test.',
+    help: 'Run the exact reproduction or verification steps for this commit. Pass only if the original bug/focus is fixed in the current build.',
+    screenshot: true,
+  },
+  {
+    id: 'commit-adjacent-regression',
+    title: 'Adjacent behavior still works after the commit.',
+    help: 'Check the closest affected panels/plugins. If the commit touches Live, Session, or History, verify those views still update and store data correctly.',
+    screenshot: true,
+  },
+  {
+    id: 'commit-evidence-collected',
+    title: 'Evidence is attached for the commit result.',
+    help: 'Record screenshot filenames, log timestamps, DB/capture references when needed, and a short pass/fail explanation for this commit.',
+    screenshot: true,
+  },
+  {
+    id: 'commit-no-scope-creep',
+    title: 'Commit scope matches the PR intent.',
+    help: 'Review whether the commit changed only what it needed to. Mark fail if unrelated files, unrelated behavior, or hidden feature creep are discovered.',
+    screenshot: false,
+  },
+  {
+    id: 'commit-ready-for-pr',
+    title: 'Commit is ready to remain in the PR.',
+    help: 'Use this as the final decision for the commit. Pass if targeted behavior, adjacent regression, and evidence all look good. Fail if the commit needs rework or rollback.',
     screenshot: true,
   },
 ];
@@ -281,7 +327,7 @@ function dbgRenderScenarios() {
       current.activeScenario = next;
       current.scenarios = current.scenarios || {};
       current.scenarios[next] = current.scenarios[next] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
-      current.scenarios[next].checklistType = next === 'debug-assistant-track-b' ? 'debug-assistant' : 'match';
+      current.scenarios[next].checklistType = dbgChecklistTypeForScenario(next);
       dbgSaveState(current);
       dbgRenderScenarios();
       dbgRenderChecks();
@@ -407,7 +453,12 @@ function dbgSetCheckImages(checkID, images) {
 }
 
 function dbgChecksForScenario(scenarioState) {
-  const baseChecks = scenarioState?.checklistType === 'debug-assistant' ? DBG_TRACK_B_CHECKS : DBG_CHECKS;
+  const checklistType = scenarioState?.checklistType || 'match';
+  const baseChecks = checklistType === 'debug-assistant'
+    ? DBG_TRACK_B_CHECKS
+    : checklistType === 'bugfix'
+      ? DBG_TRACK_C_CHECKS
+      : DBG_CHECKS;
   return baseChecks.concat((scenarioState?.customChecks || []).map(check => ({
     id: check.id,
     title: check.title || 'Untitled custom condition',
@@ -415,6 +466,12 @@ function dbgChecksForScenario(scenarioState) {
     screenshot: true,
     custom: true,
   })));
+}
+
+function dbgChecklistTypeForScenario(scenarioID) {
+  if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
+  if (scenarioID === 'bugfix-track-c') return 'bugfix';
+  return 'match';
 }
 
 function dbgAddCustomCheck() {
