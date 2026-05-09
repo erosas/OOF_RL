@@ -604,24 +604,11 @@ function dbgRenderChecks() {
   const state = dbgState();
   const scenario = dbgActiveScenario();
   if (!scenario) {
+    dbgPlaceReportCard(false);
     root.innerHTML = `
       <div class="dbg-sub">Pick Track A, B, C, or D before queueing. The checklist will stay tied to that track locally.</div>
-      <div class="dbg-report-preview">
-        <div class="dbg-report-preview-card">
-          <h4>Plain Report Preview</h4>
-          <p>No active track is armed, so report context is available immediately. Generate the plain report after checks are marked to review:</p>
-          <ul>
-            <li>Build metadata</li>
-            <li>Track completion summary</li>
-            <li>Failures grouped by check</li>
-            <li>Notes and screenshot filenames</li>
-          </ul>
-        </div>
-        <div class="dbg-report-preview-card">
-          <h4>Doc Report Preview</h4>
-          <p>When no checklist is expanded, report review/export becomes the primary workflow. Selecting a track swaps focus back to verification.</p>
-        </div>
-      </div>`;
+      <div id="dbg-inline-report-slot" class="dbg-inline-report-slot"></div>`;
+    dbgPlaceReportCard(true);
     if (title) title.textContent = 'Track Verification';
     if (label) label.textContent = 'Select a debug track before queueing.';
     if (progress) progress.textContent = '';
@@ -630,6 +617,7 @@ function dbgRenderChecks() {
     if (customForm) customForm.style.display = 'none';
     return;
   }
+  dbgPlaceReportCard(false);
 
   const scenarioState = state.scenarios?.[scenario.id] || { checks: {} };
   const stats = dbgScenarioStats(scenarioState);
@@ -699,6 +687,16 @@ function dbgDeselectScenario() {
   dbgRenderChecks();
   dbgScrollToVerificationTop();
   dbgRefreshWidgetInstances();
+}
+
+function dbgPlaceReportCard(inline) {
+  const card = document.getElementById('dbg-report-card');
+  if (!card) return;
+  const target = inline
+    ? document.getElementById('dbg-inline-report-slot')
+    : document.getElementById('dbg-report-home');
+  if (!target || card.parentElement === target) return;
+  target.appendChild(card);
 }
 
 function dbgAutosizeTextarea(el) {

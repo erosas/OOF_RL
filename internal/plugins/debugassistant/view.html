@@ -82,11 +82,8 @@
 .dbg-event-name { color:var(--rl-orange); font-weight:800; }
 .dbg-event-summary { color:var(--text); min-width:0; }
 .dbg-report { white-space:pre-wrap; color:var(--text); font-size:0.74rem; max-height:220px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:10px; }
-.dbg-report-preview { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-.dbg-report-preview-card { background:rgba(0,0,0,.16); border:1px solid var(--line); border-radius:8px; padding:10px; }
-.dbg-report-preview-card h4 { margin:0 0 6px; color:var(--rl-blue); font-size:0.76rem; }
-.dbg-report-preview-card p, .dbg-report-preview-card li { color:var(--muted); font-size:0.72rem; line-height:1.45; }
-.dbg-report-preview-card ul { margin:6px 0 0 16px; padding:0; }
+.dbg-inline-report-slot { margin-top:10px; }
+.dbg-inline-report-slot .dbg-card { padding:0; border:0; background:transparent; }
 .dbg-doc-report { color:var(--text); font-size:0.78rem; max-height:520px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:10px; }
 .dbg-doc-report h2, .dbg-doc-report h3 { margin:0 0 8px; color:var(--text); }
 .dbg-doc-report h3 { margin-top:16px; color:var(--rl-blue); }
@@ -112,7 +109,6 @@
 .dbg-widget strong { color:var(--text); }
 @media (max-width: 980px) {
   .dbg-grid, .dbg-form, .dbg-context { grid-template-columns:1fr; }
-  .dbg-report-preview { grid-template-columns:1fr; }
   .dbg-event { grid-template-columns:1fr; gap:2px; }
 }
 </style>
@@ -184,7 +180,8 @@
       <div class="dbg-card-title">Observed Event Flow</div>
       <div id="dbg-events" class="dbg-events"></div>
     </section>
-    <section class="dbg-card">
+    <div id="dbg-report-home"></div>
+    <section id="dbg-report-card" class="dbg-card">
       <div class="dbg-card-title">Generated Playtest Report</div>
       <div id="dbg-report" class="dbg-report">Generate a report after your scenario or session.</div>
       <div id="dbg-report-doc" class="dbg-doc-report">Generate a doc report to preview a developer-readable report with tagged screenshots.</div>
