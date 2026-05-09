@@ -1,5 +1,9 @@
 'use strict';
 
+let _liveInstances = [];
+let _liveState     = null;
+let _liveActive    = false;
+
 function formatClock(secs) {
   if (secs == null) return '—';
   const m = Math.floor(secs / 60);
@@ -8,6 +12,10 @@ function formatClock(secs) {
 }
 
 function handleUpdateState(data) {
+  _liveState  = data;
+  _liveActive = true;
+  _liveInstances.forEach(w => w.render(data));
+
   document.getElementById('live-waiting').classList.add('hidden');
   document.getElementById('live-match').classList.remove('hidden');
 
@@ -175,6 +183,9 @@ function flashGoal(data) {
 }
 
 function clearLive() {
+  _liveActive = false;
+  _liveInstances.forEach(w => w.renderEmpty());
+
   const waiting = document.getElementById('live-waiting');
   const match   = document.getElementById('live-match');
   if (waiting) waiting.classList.remove('hidden');
@@ -182,7 +193,164 @@ function clearLive() {
   updatePossessionBar([]);
 }
 
+function liveScoreboardWidget(container) {
+  container.innerHTML = `
+    <div class="ls-waiting" style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>
+    <div class="ls-board hidden" style="padding:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="text-align:left;min-width:0">
+          <div class="ls-t0-name" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div class="ls-score0 tabular-nums" style="font-size:36px;font-weight:800;line-height:1.1">0</div>
+        </div>
+        <div style="text-align:center;flex:1">
+          <div class="ls-arena" style="font-size:11px;color:var(--muted)"></div>
+          <div class="ls-clock tabular-nums" style="font-size:20px;font-weight:700">5:00</div>
+          <div style="display:flex;gap:4px;justify-content:center;margin-top:2px">
+            <span class="ls-ot hidden" style="background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">OT</span>
+            <span class="ls-replay hidden" style="color:#a78bfa;font-size:10px;font-weight:700;letter-spacing:.05em">REPLAY</span>
+          </div>
+          <div class="ls-ball-speed" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+        </div>
+        <div style="text-align:right;min-width:0">
+          <div class="ls-t1-name" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div class="ls-score1 tabular-nums" style="font-size:36px;font-weight:800;line-height:1.1">0</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <span class="ls-pct-blue tabular-nums" style="font-size:11px;font-weight:600;width:28px;text-align:right;color:var(--rl-blue)">—</span>
+        <div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;display:flex">
+          <div class="ls-bar-blue" style="height:100%;background:var(--rl-blue);width:50%;transition:width .5s"></div>
+          <div class="ls-bar-orange" style="height:100%;background:var(--rl-orange);width:50%;transition:width .5s"></div>
+        </div>
+        <span class="ls-pct-orange tabular-nums" style="font-size:11px;font-weight:600;width:28px;color:var(--rl-orange)">—</span>
+      </div>
+    </div>
+  `;
+
+  const q = sel => container.querySelector(sel);
+
+  function renderEmpty() {
+    q('.ls-waiting').classList.remove('hidden');
+    q('.ls-board').classList.add('hidden');
+  }
+
+  function render(data) {
+    const g       = data.Game   || {};
+    const teams   = g.Teams     || [];
+    const t0      = teams.find(t => t.TeamNum === 0) || {};
+    const t1      = teams.find(t => t.TeamNum === 1) || {};
+    const players = data.Players || [];
+
+    q('.ls-waiting').classList.add('hidden');
+    q('.ls-board').classList.remove('hidden');
+
+    q('.ls-arena').textContent = friendlyArena(g.Arena);
+    q('.ls-clock').textContent = formatClock(g.TimeSeconds);
+    q('.ls-ot').classList.toggle('hidden', !g.bOvertime);
+    q('.ls-replay').classList.toggle('hidden', !g.bReplay);
+    const ball = g.Ball || {};
+    q('.ls-ball-speed').textContent = ball.Speed != null ? `${Math.round(ball.Speed)} kph` : '';
+
+    const c0 = t0.ColorPrimary ? `#${t0.ColorPrimary}` : 'var(--rl-blue)';
+    const c1 = t1.ColorPrimary ? `#${t1.ColorPrimary}` : 'var(--rl-orange)';
+    q('.ls-t0-name').textContent = t0.Name || 'Blue';
+    q('.ls-t0-name').style.color = c0;
+    q('.ls-score0').textContent  = t0.Score ?? 0;
+    q('.ls-score0').style.color  = c0;
+    q('.ls-t1-name').textContent = t1.Name || 'Orange';
+    q('.ls-t1-name').style.color = c1;
+    q('.ls-score1').textContent  = t1.Score ?? 0;
+    q('.ls-score1').style.color  = c1;
+
+    const blue   = players.filter(p => p.TeamNum === 0);
+    const orange = players.filter(p => p.TeamNum === 1);
+    const bt     = blue.reduce((s, p)   => s + (p.Touches || 0), 0);
+    const ot     = orange.reduce((s, p) => s + (p.Touches || 0), 0);
+    const total  = bt + ot;
+    if (total > 0) {
+      const bp = Math.round(bt / total * 100);
+      q('.ls-pct-blue').textContent   = `${bp}%`;
+      q('.ls-pct-orange').textContent = `${100 - bp}%`;
+      q('.ls-bar-blue').style.width   = `${bp}%`;
+      q('.ls-bar-orange').style.width = `${100 - bp}%`;
+    } else {
+      q('.ls-pct-blue').textContent   = '—';
+      q('.ls-pct-orange').textContent = '—';
+      q('.ls-bar-blue').style.width   = '50%';
+      q('.ls-bar-orange').style.width = '50%';
+    }
+  }
+
+  function refresh() {
+    fetch('/api/live/state').then(r => r.json()).then(s => {
+      if (s.active && s.state) render(s.state);
+      else renderEmpty();
+    }).catch(() => {});
+  }
+
+  function destroy() {
+    const i = _liveInstances.indexOf(entry);
+    if (i >= 0) _liveInstances.splice(i, 1);
+  }
+
+  const entry = { render, renderEmpty };
+  _liveInstances.push(entry);
+  if (_liveActive && _liveState) render(_liveState); else renderEmpty();
+  return { refresh, destroy };
+}
+
+function livePlayersWidget(container) {
+  function renderEmpty() {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>';
+  }
+
+  function render(data) {
+    const g       = data.Game   || {};
+    const teams   = g.Teams     || [];
+    const t0      = teams.find(t => t.TeamNum === 0) || {};
+    const t1      = teams.find(t => t.TeamNum === 1) || {};
+    const players = data.Players || [];
+
+    prefetchTrackerRanks(players);
+    const blue   = players.filter(p => p.TeamNum === 0);
+    const orange = players.filter(p => p.TeamNum === 1);
+    container.innerHTML =
+      `<div class="players-grid">` +
+        teamPanel('Blue',   'blue',   blue,   t0.ColorPrimary || null) +
+        teamPanel('Orange', 'orange', orange, t1.ColorPrimary || null) +
+      `</div>`;
+  }
+
+  function refresh() {
+    fetch('/api/live/state').then(r => r.json()).then(s => {
+      if (s.active && s.state) render(s.state);
+      else renderEmpty();
+    }).catch(() => {});
+  }
+
+  function destroy() {
+    const i = _liveInstances.indexOf(entry);
+    if (i >= 0) _liveInstances.splice(i, 1);
+  }
+
+  const entry = { render, renderEmpty };
+  _liveInstances.push(entry);
+  if (_liveActive && _liveState) render(_liveState); else renderEmpty();
+  return { refresh, destroy };
+}
+
 window.pluginInit_live = async function() {
+  window.registerWidget?.({
+    id: 'live-scoreboard', pluginId: 'live', title: 'Live Score',
+    defaultW: 6, defaultH: 5, minW: 4, minH: 4,
+    factory: liveScoreboardWidget,
+  });
+  window.registerWidget?.({
+    id: 'live-players', pluginId: 'live', title: 'Live Players',
+    defaultW: 12, defaultH: 10, minW: 6, minH: 6,
+    factory: livePlayersWidget,
+  });
+
   try {
     const s = await fetch('/api/live/state').then(r => r.json());
     if (s.active && s.state) handleUpdateState(s.state);
