@@ -15,7 +15,12 @@ const DBG_SCENARIOS = [
   { id: 'all-bot-private', title: 'All-bot private match', shots: ['History row', 'Expanded match details'] },
   { id: 'abandoned-destroyed', title: 'Match abandoned or destroyed without normal MatchEnded', shots: ['History row with Incomplete badge', 'Log snippet around MatchDestroyed'] },
   { id: 'debug-assistant-track-b', title: 'Track B: Debug Assistant verification', shots: ['Debug page startup', 'Report export folder', 'Generated report panels'] },
-  { id: 'bugfix-track-c', title: 'Track C: Commit verification', shots: ['Commit list or PR diff', 'Targeted panel/evidence', 'Generated report'] },
+  { id: 'track-c-note-layout', title: 'Track C: d0384a9 note layout fix', shots: ['Long note in checklist', 'Generated report note formatting'] },
+  { id: 'track-c-scroll-state', title: 'Track C: 6e9a144 scroll-state fix', shots: ['Debug scroll position', 'History scroll position'] },
+  { id: 'track-c-json-import', title: 'Track C: 39426e2 JSON import fix', shots: ['Manual import picker', 'Imported state visible after selection'] },
+  { id: 'track-c-report-readability', title: 'Track C: 4834f91 report readability fix', shots: ['Generated doc report', 'Failure grouping/readable sections'] },
+  { id: 'track-c-export-result', title: 'Track C: 405617b export result panel fix', shots: ['Export result panel', 'debug_reports folder'] },
+  { id: 'track-c-commit-scenarios', title: 'Track C: dde4ccf commit scenario fix', shots: ['Track C scenario list', 'Generated report with Track C entries'] },
 ];
 
 const DBG_CHECKS = [
@@ -150,50 +155,128 @@ const DBG_TRACK_B_CHECKS = [
   },
 ];
 
-const DBG_TRACK_C_CHECKS = [
-  {
-    id: 'commit-under-test',
-    title: 'Commit under test is identified clearly.',
-    help: 'Use notes/custom conditions to record the commit SHA, commit title, PR branch, and the intended fix/change being verified. Add one custom condition per commit when a branch contains multiple checkpoints.',
-    screenshot: true,
-  },
-  {
-    id: 'commit-build-included',
-    title: 'Test build includes the commit being verified.',
-    help: 'Confirm the EXE was built from the branch/head that contains this commit. Record branch, commit SHA, EXE path, and build time in metadata or notes.',
-    screenshot: true,
-  },
-  {
-    id: 'commit-targeted-behavior',
-    title: 'The commit-specific behavior passes its targeted test.',
-    help: 'Run the exact reproduction or verification steps for this commit. Pass only if the original bug/focus is fixed in the current build.',
-    screenshot: true,
-  },
-  {
-    id: 'commit-adjacent-regression',
-    title: 'Adjacent behavior still works after the commit.',
-    help: 'Check the closest affected panels/plugins. If the commit touches Live, Session, or History, verify those views still update and store data correctly.',
-    screenshot: true,
-  },
-  {
-    id: 'commit-evidence-collected',
-    title: 'Evidence is attached for the commit result.',
-    help: 'Record screenshot filenames, log timestamps, DB/capture references when needed, and a short pass/fail explanation for this commit.',
-    screenshot: true,
-  },
-  {
-    id: 'commit-no-scope-creep',
-    title: 'Commit scope matches the PR intent.',
-    help: 'Review whether the commit changed only what it needed to. Mark fail if unrelated files, unrelated behavior, or hidden feature creep are discovered.',
-    screenshot: false,
-  },
-  {
-    id: 'commit-ready-for-pr',
-    title: 'Commit is ready to remain in the PR.',
-    help: 'Use this as the final decision for the commit. Pass if targeted behavior, adjacent regression, and evidence all look good. Fail if the commit needs rework or rollback.',
-    screenshot: true,
-  },
-];
+const DBG_TRACK_C_CHECKS = {
+  'track-c-note-layout': [
+    {
+      id: 'note-wraps',
+      title: 'Long checklist notes wrap instead of scrolling sideways.',
+      help: 'Add a long note with several sentences. Pass if it wraps cleanly inside the checklist card.',
+      screenshot: true,
+    },
+    {
+      id: 'note-autosizes',
+      title: 'Note field expands vertically as text is added.',
+      help: 'Type multiple lines. Pass if the note body grows and remains readable without awkward horizontal overflow.',
+      screenshot: true,
+    },
+    {
+      id: 'note-report-readable',
+      title: 'Saved notes remain readable in generated reports.',
+      help: 'Generate plain and doc reports. Pass if the long note is readable and not clipped or hard to scan.',
+      screenshot: true,
+    },
+  ],
+  'track-c-scroll-state': [
+    {
+      id: 'debug-scroll-restores',
+      title: 'Debug page restores its own scroll position.',
+      help: 'Scroll down Debug, switch away, return to Debug. Pass if the Debug position is retained.',
+      screenshot: true,
+    },
+    {
+      id: 'history-scroll-restores',
+      title: 'History page restores its own scroll position separately.',
+      help: 'Scroll History to a different position, switch away, return. Pass if History restores independently from Debug.',
+      screenshot: true,
+    },
+    {
+      id: 'async-load-does-not-reset',
+      title: 'Async page refresh does not force the view back to top.',
+      help: 'Wait for History/Debug content refresh after returning. Pass if delayed loaders do not erase the restored scroll position.',
+      screenshot: true,
+    },
+  ],
+  'track-c-json-import': [
+    {
+      id: 'import-requires-picker',
+      title: 'JSON import requires manual file selection.',
+      help: 'Click Import JSON state. Pass if the app opens a file picker instead of silently loading an old backup.',
+      screenshot: true,
+    },
+    {
+      id: 'no-auto-restore',
+      title: 'Old backup state does not auto-load on fresh startup.',
+      help: 'Restart the app and open Debug. Pass if checklist state starts clean unless a JSON file is manually imported.',
+      screenshot: true,
+    },
+    {
+      id: 'imported-state-applies',
+      title: 'Selected JSON state imports and replaces local Debug state.',
+      help: 'Import a known report JSON. Pass if metadata, scenarios, notes, and checks appear only after confirmation.',
+      screenshot: true,
+    },
+  ],
+  'track-c-report-readability': [
+    {
+      id: 'doc-report-structured',
+      title: 'Doc report has readable developer-facing sections.',
+      help: 'Generate the doc report. Pass if metadata, summary, scenario details, failures, and evidence are clearly separated.',
+      screenshot: true,
+    },
+    {
+      id: 'failure-groups-readable',
+      title: 'Failure groups are easy to scan.',
+      help: 'Mark several failures with notes. Pass if the report groups failures clearly without burying the important context.',
+      screenshot: true,
+    },
+    {
+      id: 'notes-and-images-listed',
+      title: 'Notes and screenshot filenames are preserved in the report.',
+      help: 'Attach note text and image filenames. Pass if both appear in the report in a readable format.',
+      screenshot: true,
+    },
+  ],
+  'track-c-export-result': [
+    {
+      id: 'export-creates-files',
+      title: 'Export creates Markdown, HTML, and JSON files.',
+      help: 'Export report files. Pass if matching .md, .html, and .json files are created in the debug_reports folder.',
+      screenshot: true,
+    },
+    {
+      id: 'export-result-paths',
+      title: 'Export result panel shows exact output paths.',
+      help: 'After export, pass if the UI lists folder, Markdown, HTML, and JSON paths with readable wrapping.',
+      screenshot: true,
+    },
+    {
+      id: 'duplicate-export-skipped',
+      title: 'Duplicate export is skipped without creating extra copies.',
+      help: 'Click export twice without changing state. Pass if duplicate export is skipped and the user-facing notice appears.',
+      screenshot: true,
+    },
+  ],
+  'track-c-commit-scenarios': [
+    {
+      id: 'track-c-scenarios-visible',
+      title: 'Each Track C commit target appears as its own scenario.',
+      help: 'Open Debug and inspect the scenario list. Pass if note layout, scroll state, JSON import, report readability, export result, and Track C verification scenarios are separate.',
+      screenshot: true,
+    },
+    {
+      id: 'track-c-independent-status',
+      title: 'Each Track C scenario tracks pass/fail/N/A independently.',
+      help: 'Mark checks in two different Track C scenarios. Pass if their scenario cards and report sections retain separate stats.',
+      screenshot: true,
+    },
+    {
+      id: 'track-c-report-output',
+      title: 'Generated reports include Track C scenario results.',
+      help: 'Generate reports after marking Track C checks. Pass if the report clearly includes each commit-specific verification scenario.',
+      screenshot: true,
+    },
+  ],
+};
 
 window.pluginInit_debug = function() {
   dbgInitializeSessionState();
@@ -328,6 +411,7 @@ function dbgRenderScenarios() {
       current.scenarios = current.scenarios || {};
       current.scenarios[next] = current.scenarios[next] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
       current.scenarios[next].checklistType = dbgChecklistTypeForScenario(next);
+      current.scenarios[next].scenarioID = next;
       dbgSaveState(current);
       dbgRenderScenarios();
       dbgRenderChecks();
@@ -457,7 +541,7 @@ function dbgChecksForScenario(scenarioState) {
   const baseChecks = checklistType === 'debug-assistant'
     ? DBG_TRACK_B_CHECKS
     : checklistType === 'bugfix'
-      ? DBG_TRACK_C_CHECKS
+      ? (DBG_TRACK_C_CHECKS[scenarioState?.scenarioID] || [])
       : DBG_CHECKS;
   return baseChecks.concat((scenarioState?.customChecks || []).map(check => ({
     id: check.id,
@@ -470,7 +554,7 @@ function dbgChecksForScenario(scenarioState) {
 
 function dbgChecklistTypeForScenario(scenarioID) {
   if (scenarioID === 'debug-assistant-track-b') return 'debug-assistant';
-  if (scenarioID === 'bugfix-track-c') return 'bugfix';
+  if (scenarioID.startsWith('track-c-')) return 'bugfix';
   return 'match';
 }
 
