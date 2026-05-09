@@ -816,10 +816,6 @@ function dbgWireControls() {
   document.getElementById('dbg-export')?.addEventListener('click', dbgGenerateReport);
   document.getElementById('dbg-export-doc')?.addEventListener('click', dbgGenerateDocReport);
   document.getElementById('dbg-save-reports')?.addEventListener('click', dbgExportReportFiles);
-  document.getElementById('dbg-import-json')?.addEventListener('click', () => {
-    if (!confirm('Import a Debug Assistant JSON state file? This replaces the current local Debug checklist state.')) return;
-    document.getElementById('dbg-import-file')?.click();
-  });
   document.getElementById('dbg-import-file')?.addEventListener('change', dbgImportJSONState);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
   document.getElementById('dbg-reset')?.addEventListener('click', () => {
@@ -862,11 +858,13 @@ async function dbgImportJSONState(event) {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
+  if (!confirm(`Import "${file.name}" as the current Debug Assistant state? This replaces the local checklist state.`)) {
+    dbgMessage('Import cancelled');
+    return;
+  }
   try {
     const imported = JSON.parse(await file.text());
-    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
-      throw new Error('Selected file is not a valid Debug Assistant state object');
-    }
+    dbgValidateImportedState(imported);
     dbgSaveState(imported);
     dbgLoadMeta();
     dbgRenderScenarios();
@@ -877,6 +875,19 @@ async function dbgImportJSONState(event) {
     dbgMessage(`Imported ${file.name}`);
   } catch (e) {
     dbgMessage(`Import failed: ${e.message || e}`);
+  }
+}
+
+function dbgValidateImportedState(imported) {
+  if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+    throw new Error('Selected file is not a valid Debug Assistant state object');
+  }
+  const hasDebugShape = imported.metadata || imported.scenarios || imported.snapshots || imported.activeScenario;
+  if (!hasDebugShape) {
+    throw new Error('Selected JSON does not look like a Debug Assistant state export');
+  }
+  if (imported.scenarios && (typeof imported.scenarios !== 'object' || Array.isArray(imported.scenarios))) {
+    throw new Error('Debug Assistant scenarios must be a JSON object');
   }
 }
 

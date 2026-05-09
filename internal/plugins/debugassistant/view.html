@@ -15,6 +15,8 @@
 .dbg-btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--line); }
 .dbg-btn-danger { background:rgba(224,82,82,.16); color:var(--red); border:1px solid rgba(224,82,82,.25); }
 .dbg-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+.dbg-file-import { position:relative; display:inline-flex; align-items:center; border-radius:7px; padding:7px 10px; font-size:0.76rem; font-weight:800; white-space:nowrap; background:var(--surface2); color:var(--text); border:1px solid var(--line); cursor:pointer; overflow:hidden; }
+.dbg-file-import input { position:absolute; inset:0; opacity:0; cursor:pointer; font-size:100px; }
 .dbg-msg { color:var(--green); font-size:0.75rem; }
 .dbg-scenario-list { display:flex; flex-direction:column; gap:7px; }
 .dbg-scenario { text-align:left; border:1px solid var(--line); background:rgba(255,255,255,.025); color:var(--text); border-radius:8px; padding:9px; cursor:pointer; font:inherit; }
@@ -106,8 +108,7 @@
       <button id="dbg-export" class="dbg-btn dbg-btn-secondary">Generate report</button>
       <button id="dbg-export-doc" class="dbg-btn dbg-btn-secondary">Generate doc report</button>
       <button id="dbg-save-reports" class="dbg-btn dbg-btn-secondary">Export report files</button>
-      <button id="dbg-import-json" class="dbg-btn dbg-btn-secondary">Import JSON state</button>
-      <input id="dbg-import-file" type="file" accept="application/json,.json" hidden>
+      <label class="dbg-file-import">Import JSON state<input id="dbg-import-file" type="file" accept="application/json,.json"></label>
       <span id="dbg-msg" class="dbg-msg"></span>
     </div>
   </section>
