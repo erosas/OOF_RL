@@ -2,8 +2,10 @@
 
 let allPlayers = [];
 let _expandedMatchId = null;
+let _historyRecentInstances = [];
 
 async function loadHistory() {
+  _historyRecentInstances.forEach(w => w.refresh());
   allPlayers = await fetch('/api/players').then(r => r.json()) || [];
   const sel = document.getElementById('history-player-filter');
   const cur = sel.value;
@@ -136,7 +138,97 @@ async function loadMatchDetail(matchID, panel) {
   window.renderMatchDetailPanel(data, panel, _expandedMatchId, matchID);
 }
 
+function historyRecentWidget(container) {
+  let _expandedId = null;
+
+  async function refresh() {
+    try {
+      const matches = await fetch('/api/matches').then(r => r.json());
+      const valid = (matches || []).filter(m => m.Arena && m.Arena !== '-').slice(0, 10);
+      if (!valid.length) {
+        container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px 8px;font-size:13px">No matches yet.</div>';
+        return;
+      }
+      render(valid);
+    } catch(_) {
+      container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px 8px;font-size:13px">Failed to load matches.</div>';
+    }
+  }
+
+  function render(matches) {
+    const listEl = document.createElement('div');
+    for (const m of matches) {
+      const blue   = m.team0_goals ?? 0;
+      const orange = m.team1_goals ?? 0;
+      const result = m.WinnerTeamNum === 0 ? 'blue-win' : m.WinnerTeamNum === 1 ? 'orange-win' : '';
+      const badges = historyMatchBadges(m);
+      const card = document.createElement('div');
+      card.className = `match-card ${result}`;
+      card.dataset.id = m.ID;
+      card.innerHTML = `
+        <div class="match-card-left">
+          <div class="match-card-top">
+            <span class="match-card-arena">${esc(friendlyArena(m.Arena))}</span>
+            ${badges.map(b => `<span class="${esc(b.className)}"${b.style ? ` style="${esc(b.style)}"` : ''}>${esc(b.label)}</span>`).join('')}
+          </div>
+          <span class="match-card-date">${formatDate(m.StartedAt)}</span>
+        </div>
+        <div class="match-card-right">
+          <div class="match-card-scores">
+            <span class="blue">${blue}</span>
+            <span class="sep">—</span>
+            <span class="orange">${orange}</span>
+          </div>
+          <span class="match-expand-chevron">›</span>
+        </div>`;
+      card.addEventListener('click', () => toggleInline(card, m.ID));
+      listEl.appendChild(card);
+    }
+    container.innerHTML = '';
+    container.appendChild(listEl);
+  }
+
+  async function toggleInline(card, matchId) {
+    const existing = card.nextElementSibling;
+    if (existing?.classList.contains('match-inline-panel')) {
+      existing.remove();
+      card.classList.remove('expanded');
+      _expandedId = null;
+      return;
+    }
+    container.querySelectorAll('.match-inline-panel').forEach(el => el.remove());
+    container.querySelectorAll('.match-card.expanded').forEach(el => el.classList.remove('expanded'));
+    _expandedId = matchId;
+    card.classList.add('expanded');
+    const panel = document.createElement('div');
+    panel.className = 'match-inline-panel';
+    panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Loading…</div>';
+    card.insertAdjacentElement('afterend', panel);
+    try {
+      const data = await fetch(`/api/matches/${matchId}`).then(r => r.json());
+      window.renderMatchDetailPanel(data, panel, _expandedId, matchId);
+    } catch(_) {
+      panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Failed to load.</div>';
+    }
+  }
+
+  function destroy() {
+    const i = _historyRecentInstances.indexOf(entry);
+    if (i >= 0) _historyRecentInstances.splice(i, 1);
+  }
+
+  const entry = { refresh };
+  _historyRecentInstances.push(entry);
+  refresh();
+  return { refresh, destroy };
+}
+
 window.pluginInit_history = function() {
+  window.registerWidget?.({
+    id: 'history-recent', pluginId: 'history', title: 'Recent Matches',
+    defaultW: 6, defaultH: 10, minW: 4, minH: 6,
+    factory: historyRecentWidget,
+  });
   const sel = document.getElementById('history-player-filter');
   if (sel) sel.addEventListener('change', e => fetchMatches(e.target.value));
 };

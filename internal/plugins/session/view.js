@@ -1,12 +1,26 @@
 'use strict';
 
 let _sessionSince           = null;
-let _sessionPlayerID        = '';
+let _sessionPlayerID        = localStorage.getItem('oof_session_player') || '';
 let _sessionElapsedTimer    = null;
 let _sessionExpandedMatchId = null;
 let _liveStats              = null; // non-null only while a match is active
 
+let _sessionSummaryInstances = [];
+let _sessionLiveInstances    = [];
+
 window.pluginInit_session = async function() {
+  window.registerWidget?.({
+    id: 'session-summary', pluginId: 'session', title: 'Session Stats',
+    defaultW: 6, defaultH: 6, minW: 4, minH: 4,
+    factory: sessionSummaryWidget,
+  });
+  window.registerWidget?.({
+    id: 'session-live-game', pluginId: 'session', title: 'Live Game Stats',
+    defaultW: 4, defaultH: 4, minW: 3, minH: 3,
+    factory: sessionLiveGameWidget,
+  });
+
   _sessionPlayerID = localStorage.getItem('oof_session_player') || '';
 
   // Fetch server-side session start time
@@ -152,6 +166,8 @@ function updateElapsed() {
 }
 
 window.refreshSession = async function() {
+  _sessionSummaryInstances.forEach(w => w.refresh());
+
   const noPlayer   = document.getElementById('session-no-player');
   const notStarted = document.getElementById('session-not-started');
   const panel      = document.getElementById('session-stats-panel');
@@ -196,6 +212,7 @@ window.handleSessionUpdate = function(data) {
     demos:   me.Demos   || 0,
   };
   renderLiveGame();
+  _sessionLiveInstances.forEach(w => w.render());
 };
 
 // Called on MatchCreated/MatchInitialized — if session wasn't started yet, fetch the
@@ -217,6 +234,7 @@ window.handleSessionMatchStart = async function() {
 window.clearSessionLive = function() {
   _liveStats = null;
   renderLiveGame();
+  _sessionLiveInstances.forEach(w => w.renderEmpty());
 };
 
 function renderLiveGame() {
@@ -462,4 +480,99 @@ function buildSessionHistoryCard(s) {
 function set(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
+}
+
+function _statPill(label, value, valueStyle) {
+  return `<div style="background:var(--surface2);border-radius:8px;padding:8px 4px;text-align:center">
+    <div style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;${valueStyle}">${value}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:2px">${label}</div>
+  </div>`;
+}
+
+function sessionSummaryWidget(container) {
+  function renderPlaceholder(msg) {
+    container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">${msg}</div>`;
+  }
+
+  function renderData(data) {
+    const s = data.summary || {};
+    let elapsedStr = '';
+    if (_sessionSince) {
+      const secs = Math.floor((Date.now() - _sessionSince.getTime()) / 1000);
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      elapsedStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+    container.innerHTML = `<div style="padding:8px">
+      ${elapsedStr ? `<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">Session: ${elapsedStr}</div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">
+        ${_statPill('Games',  s.games  || 0, '')}
+        ${_statPill('Wins',   s.wins   || 0, 'color:var(--rl-blue)')}
+        ${_statPill('Losses', s.losses || 0, 'color:#f87171')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+        ${_statPill('G',  s.goals   || 0, '')}
+        ${_statPill('A',  s.assists || 0, '')}
+        ${_statPill('Sv', s.saves   || 0, '')}
+        ${_statPill('Sh', s.shots   || 0, '')}
+        ${_statPill('Dm', s.demos   || 0, '')}
+      </div>
+    </div>`;
+  }
+
+  async function refresh() {
+    if (!_sessionPlayerID) {
+      renderPlaceholder('Select a player in the Session tab to see stats.');
+      return;
+    }
+    try {
+      const data = await fetch(`/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+      renderData(data);
+    } catch(_) {
+      renderPlaceholder('Failed to load session stats.');
+    }
+  }
+
+  function destroy() {
+    const i = _sessionSummaryInstances.indexOf(entry);
+    if (i >= 0) _sessionSummaryInstances.splice(i, 1);
+  }
+
+  const entry = { refresh };
+  _sessionSummaryInstances.push(entry);
+  refresh();
+  return { refresh, destroy };
+}
+
+function sessionLiveGameWidget(container) {
+  function renderEmpty() {
+    const msg = !_sessionPlayerID
+      ? 'Select a player in the Session tab.'
+      : 'Waiting for a match…';
+    container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">${msg}</div>`;
+  }
+
+  function render() {
+    if (!_liveStats || !_sessionPlayerID) { renderEmpty(); return; }
+    container.innerHTML = `<div style="padding:8px">
+      <div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">Current match</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">
+        ${_statPill('Goals',   _liveStats.goals,   '')}
+        ${_statPill('Assists', _liveStats.assists, '')}
+        ${_statPill('Saves',   _liveStats.saves,   '')}
+        ${_statPill('Shots',   _liveStats.shots,   '')}
+        ${_statPill('Demos',   _liveStats.demos,   '')}
+      </div>
+    </div>`;
+  }
+
+  function destroy() {
+    const i = _sessionLiveInstances.indexOf(entry);
+    if (i >= 0) _sessionLiveInstances.splice(i, 1);
+  }
+
+  const entry = { render, renderEmpty };
+  _sessionLiveInstances.push(entry);
+  render();
+  return { refresh: render, destroy };
 }
