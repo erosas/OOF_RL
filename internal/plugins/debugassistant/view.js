@@ -298,8 +298,8 @@ const DBG_TRACK_D_CHECKS = {
   'track-d-stale-guid': [
     {
       id: 'second-link-unique-guid',
-      title: 'Second scenario-linked match does not inherit the previous match GUID.',
-      help: 'Pass: each scenario-linked match has its own correct GUID/History ID. Fail: a new linked match shows a previous match GUID or mismatched History row. Notes: record both scenario names, both GUIDs, both History IDs, and match start/end timestamps.',
+      title: 'Second issue-linked match does not inherit the previous match GUID.',
+      help: 'Pass: each issue-linked match has its own correct GUID/History ID. Fail: a new linked match shows a previous match GUID or mismatched History row. Notes: record both check names, both GUIDs, both History IDs, and match start/end timestamps.',
       screenshot: true,
     },
     {
@@ -311,63 +311,77 @@ const DBG_TRACK_D_CHECKS = {
   ],
   'track-d-duplicate-links': [
     {
-      id: 'single-link-card',
-      title: 'One selected scenario produces one linked match card.',
-      help: 'Pass: MatchCreated, MatchInitialized, and UpdateState do not create multiple links. Fail: duplicate linked cards appear for the same scenario/match. Notes: include the event timeline around match start if duplicates appear.',
+      id: 'single-confirmed-batch',
+      title: 'One confirmed issue batch creates one match evidence record.',
+      help: 'Pass: MatchCreated, MatchInitialized, and UpdateState do not create duplicate evidence for the same confirmed batch. Fail: duplicate linked evidence appears for the same check/match. Notes: include the event timeline around match start if duplicates appear.',
       screenshot: true,
     },
     {
-      id: 'manual-unlink-required-for-retry',
-      title: 'Additional attempts require manual unlink/retry behavior.',
-      help: 'Pass: the same scenario does not collect another link unless the old link is unlinked. Fail: a second match silently attaches to an already-linked scenario. Notes: record whether the scenario remained selected after the first match.',
+      id: 'batch-consumed-after-link',
+      title: 'Confirmed issue batch is consumed after the next match links.',
+      help: 'Pass: the selected checks no longer remain armed after one match is linked. Fail: the next unrelated match also attaches to the previous confirmed issue batch. Notes: record the armed count before and after the first linked match.',
+      screenshot: true,
+    },
+  ],
+  'track-d-multi-issue-linking': [
+    {
+      id: 'multiple-checks-same-match',
+      title: 'Multiple issue checks can link to the same match.',
+      help: 'Pass: selecting multiple checks, confirming links, and playing one match shows compact evidence inside every selected check. Fail: only one check receives evidence or the wrong checks receive evidence. Notes: list selected checks and compare them to the inline evidence sections.',
+      screenshot: true,
+    },
+    {
+      id: 'confirm-links-required',
+      title: 'Issue selection requires Confirm Links before match tagging.',
+      help: 'Pass: checked issue boxes alone do not tag a match until Confirm Links is used. Fail: a match links from an unconfirmed draft selection. Notes: record whether the pending/armed message was shown before match start.',
       screenshot: true,
     },
   ],
   'track-d-deselect-unarmed': [
     {
       id: 'deselect-clears-active-scenario',
-      title: 'Deselect scenario returns Debug Assistant to a clean unarmed state.',
-      help: 'Pass: the Scenario Verification panel returns to the no-selection state. Fail: the old scenario remains armed or visually active. Notes: screenshot the panel after deselect.',
+      title: 'Deselect track returns Debug Assistant to a clean unarmed state.',
+      help: 'Pass: the Track Verification panel returns to the no-selection state and clears draft/confirmed issue links. Fail: the old track remains armed or visually active. Notes: screenshot the panel after deselect.',
       screenshot: true,
     },
     {
       id: 'next-match-not-tagged',
       title: 'Next match is not tagged after deselect.',
-      help: 'Pass: after deselecting, the next played match does not create a debug link. Fail: a match links to the deselected scenario. Notes: include the match timestamp and scenario panel after match end.',
+      help: 'Pass: after deselecting, the next played match does not create debug evidence. Fail: a match links to a deselected track/check. Notes: include the match timestamp and verification panel after match end.',
       screenshot: true,
     },
   ],
-  'track-d-inline-stats': [
+  'track-d-inline-evidence': [
     {
-      id: 'stats-panel-opens',
-      title: 'View linked match stats expands inline.',
-      help: 'Pass: the stats panel opens visibly inside the linked card. Fail: button does nothing, opens an alert, renders blank, or collapses immediately. Notes: include before/after screenshots.',
+      id: 'evidence-expands-inside-check',
+      title: 'Linked Match Evidence expands inside the issue check.',
+      help: 'Pass: the compact badge stays inside the linked check and expands there without jumping to a top-level match panel. Fail: evidence appears only in a separate standalone panel or forces the user away from the check. Notes: include collapsed and expanded screenshots.',
       screenshot: true,
     },
     {
-      id: 'stats-panel-fields',
-      title: 'Inline stats include all required player fields.',
-      help: 'Pass: player, goals, assists, saves, shots, demos, touches, and score are visible from the captured match snapshot. Fail: fields are missing or clearly incorrect. Notes: compare against History expanded details when available.',
+      id: 'expanded-evidence-fields',
+      title: 'Expanded evidence includes all required match fields.',
+      help: 'Pass: GUID, History ID, score, player stats snapshot, arena display name, raw API arena value, timestamp, linked check name, and notes/evidence status are visible. Fail: any required field is missing or misleading. Notes: compare against History expanded details when available.',
       screenshot: true,
     },
   ],
   'track-d-link-actions': [
     {
-      id: 'scenario-action-works',
-      title: 'View linked debug scenario selects the correct scenario.',
-      help: 'Pass: the button uses the correct link ID and opens/selects the scenario tied to that link. Fail: button appears clickable but does nothing or selects the wrong scenario. Notes: record scenario names before and after click.',
+      id: 'expand-collapse-works',
+      title: 'Inline evidence expand/collapse controls execute correctly.',
+      help: 'Pass: Expand opens the evidence body and Collapse returns it to the compact badge. Fail: the button does nothing, opens an alert, renders blank, or expands the wrong check. Notes: record the linked check name and GUID.',
       screenshot: true,
     },
     {
-      id: 'stats-action-works',
-      title: 'View linked match stats uses the correct link ID.',
-      help: 'Pass: the button expands stats for the selected linked match only. Fail: no action, wrong match stats, or blank panel. Notes: include the linked card GUID and visible stat panel.',
+      id: 'remove-check-evidence-works',
+      title: 'Remove evidence affects only the selected issue check.',
+      help: 'Pass: removing evidence from one check does not remove the same match evidence from other linked checks unless it was the last check. Fail: wrong check evidence is removed or core match data changes. Notes: capture before/after Debug and History state.',
       screenshot: true,
     },
     {
-      id: 'unlink-action-works',
-      title: 'Unlink match removes only the selected Debug metadata link.',
-      help: 'Pass: the button removes the linked card and does not affect History or Session data. Fail: button does nothing, removes the wrong link, or changes core match data. Notes: capture before/after Debug and History state.',
+      id: 'no-standalone-panels',
+      title: 'No duplicate large standalone match panels appear.',
+      help: 'Pass: linked evidence is rendered compactly under each check, with no duplicate large top-level match panel for the same match. Fail: the same match appears as a large standalone panel and inline evidence. Notes: screenshot the top of Track D and the linked check.',
       screenshot: true,
     },
   ],
@@ -388,14 +402,22 @@ const DBG_TRACK_D_CHECKS = {
   'track-d-arena-comparison': [
     {
       id: 'arena-values-visible',
-      title: 'Linked match card shows arena display name and raw API arena value.',
-      help: 'Pass: both values are visible and useful for mismatch detection. Fail: one or both values are missing, swapped, or misleading. Notes: record the display name and raw API value exactly.',
+      title: 'Inline evidence shows arena display name and raw API arena value.',
+      help: 'Pass: both values are visible in expanded evidence and useful for mismatch detection. Fail: one or both values are missing, swapped, or misleading. Notes: record the display name and raw API value exactly.',
       screenshot: true,
     },
     {
       id: 'arena-compares-history',
       title: 'Arena values can be compared against the History row.',
-      help: 'Pass: the linked card makes it easy to compare arena display/API values with History. Fail: comparison requires digging elsewhere or values conflict without clarity. Notes: include linked card and History row screenshots.',
+      help: 'Pass: expanded inline evidence makes it easy to compare arena display/API values with History. Fail: comparison requires digging elsewhere or values conflict without clarity. Notes: include linked evidence and History row screenshots.',
+      screenshot: true,
+    },
+  ],
+  'track-d-report-placement': [
+    {
+      id: 'report-evidence-under-check',
+      title: 'Reports render linked match evidence under the correct issue check.',
+      help: 'Pass: generated plain/doc reports list GUID, score, arena, and stats under the check the match proves. Fail: evidence is only grouped globally or appears under the wrong check. Notes: include report preview/export screenshots.',
       screenshot: true,
     },
   ],
@@ -420,11 +442,13 @@ const DBG_TRACK_A_SECTIONS = {
 const DBG_TRACK_D_SECTIONS = {
   'track-d-stale-guid': 'Stale GUID carryover',
   'track-d-duplicate-links': 'Duplicate link creation',
+  'track-d-multi-issue-linking': 'Multi-issue match linking',
   'track-d-deselect-unarmed': 'Scenario deselect / unarmed state',
-  'track-d-inline-stats': 'Inline linked stats',
+  'track-d-inline-evidence': 'Inline linked evidence',
   'track-d-link-actions': 'Linked action button wiring',
   'track-d-stale-storage': 'Stale localStorage metadata',
   'track-d-arena-comparison': 'Arena raw/display comparison',
+  'track-d-report-placement': 'Report evidence placement',
 };
 
 window.pluginInit_debug = function() {
@@ -562,6 +586,9 @@ function dbgRenderScenarios() {
       const current = dbgState();
       if (!dbgConfirmScenarioSwitch(current, next)) return;
       current.activeScenario = next;
+      current.linkDraft = null;
+      current.confirmedLinkBatch = null;
+      current.debug_match = false;
       current.scenarios = current.scenarios || {};
       current.scenarios[next] = current.scenarios[next] || { checks: {}, startedAt: new Date().toISOString(), notes: '' };
       current.scenarios[next].checklistType = dbgChecklistTypeForScenario(next);
@@ -623,10 +650,13 @@ function dbgRenderChecks() {
   const stats = dbgScenarioStats(scenarioState);
   const total = dbgChecksForScenario(scenarioState).length;
   const completionPercent = total ? Math.round(stats.marked / total * 100) : 0;
+  const draftIDs = dbgLinkDraftIDs(state, scenario.id);
+  const confirmedIDs = dbgConfirmedLinkIDs(state, scenario.id);
+  const linkedIDs = dbgLinkedIssueIDs(state, scenario.id);
   if (title) title.textContent = `Testing: ${scenario.title}`;
   if (label) label.textContent = `Active scenario: ${scenario.title}`;
-  if (progress) progress.textContent = `Scenario Progress: ${stats.marked}/${total} checks complete - ${completionPercent}%`;
-  if (links) links.innerHTML = dbgLinkedMatchesHTML(state, scenario.id);
+  if (progress) progress.textContent = `Scenario Progress: ${stats.marked}/${total} checks complete - ${completionPercent}%${confirmedIDs.length ? ` | ${confirmedIDs.length} issue link(s) armed for next match` : ''}`;
+  if (links) links.innerHTML = dbgPendingLinkBatchHTML(state, scenario.id);
   if (toolbar) toolbar.style.display = 'flex';
   if (customForm) customForm.style.display = 'grid';
   dbgRenderScenarioSummary(scenarioState);
@@ -638,8 +668,12 @@ function dbgRenderChecks() {
       ? `<div class="dbg-check-section">${esc(check.section)}</div>`
       : '';
     if (check.section) lastSection = check.section;
+    const linkSelected = draftIDs.includes(check.id);
+    const linkConfirmed = confirmedIDs.includes(check.id);
+    const linkSaved = linkedIDs.includes(check.id);
+    const evidenceHTML = dbgCheckEvidenceHTML(state, scenario.id, scenario.title, check.id, check.title, value);
     return `${sectionHTML}
-      <div class="dbg-check" data-dbg-check="${esc(check.id)}">
+      <div class="dbg-check${linkSelected ? ' link-selected' : ''}${linkConfirmed || linkSaved ? ' link-confirmed' : ''}" data-dbg-check="${esc(check.id)}">
         <div class="dbg-check-status">
           <button class="pass${value.status === 'pass' ? ' active' : ''}" data-status="pass">Pass</button>
           <button class="fail${value.status === 'fail' ? ' active' : ''}" data-status="fail">Fail</button>
@@ -649,6 +683,13 @@ function dbgRenderChecks() {
           <div class="dbg-check-title">${esc(check.title)}${check.custom ? '<span class="dbg-custom-tag">custom</span>' : ''}</div>
           <div class="dbg-check-help">${esc(check.help)}</div>
           ${check.screenshot ? '<span class="dbg-shot">Screenshot/data recommended if failed or uncertain</span>' : ''}
+          <label class="dbg-link-toggle">
+            <input type="checkbox" data-link-check="1"${linkSelected || linkConfirmed ? ' checked' : ''}>
+            Link this issue to the next confirmed debug match
+          </label>
+          ${linkConfirmed ? '<div class="dbg-link-help">Confirmed for the next match. Uncheck and confirm again to change the armed set.</div>' : ''}
+          ${linkSaved ? '<div class="dbg-link-help">This issue has linked match evidence. Use the linked match card above to inspect or unlink it.</div>' : ''}
+          ${evidenceHTML}
           <textarea class="dbg-note" placeholder="Evidence note, screenshot filename, log timestamp, or reproduction detail">${esc(value.note || '')}</textarea>
           <input class="dbg-images" value="${esc(value.images || '')}" placeholder="Optional screenshot filenames, comma-separated">
           ${check.custom ? '<button class="dbg-check-remove" data-remove-custom="1">Remove custom condition</button>' : ''}
@@ -669,12 +710,18 @@ function dbgRenderChecks() {
       });
     }
     row.querySelector('.dbg-images')?.addEventListener('input', e => dbgSetCheckImages(row.dataset.dbgCheck, e.target.value));
+    row.querySelector('[data-link-check]')?.addEventListener('change', e => dbgToggleLinkDraft(row.dataset.dbgCheck, e.target.checked));
     row.querySelector('[data-remove-custom]')?.addEventListener('click', () => dbgRemoveCustomCheck(row.dataset.dbgCheck));
   });
   links?.querySelectorAll('[data-dbg-link-action]').forEach(btn => {
     btn.addEventListener('click', () => dbgHandleLinkedMatchAction(btn.dataset.dbgLinkAction, btn.dataset.dbgLinkId));
   });
+  root.querySelectorAll('[data-dbg-evidence-action]').forEach(btn => {
+    btn.addEventListener('click', () => dbgHandleEvidenceAction(btn.dataset.dbgEvidenceAction, btn.dataset.dbgLinkId, btn.dataset.dbgCheckId));
+  });
   document.getElementById('dbg-deselect-scenario')?.addEventListener('click', dbgDeselectScenario);
+  document.getElementById('dbg-confirm-links')?.addEventListener('click', dbgConfirmLinkDraft);
+  document.getElementById('dbg-clear-link-selection')?.addEventListener('click', dbgClearLinkDraft);
 }
 
 function dbgDeselectScenario() {
@@ -682,11 +729,98 @@ function dbgDeselectScenario() {
   if (!dbgConfirmScenarioSwitch(state, '')) return;
   state.activeScenario = '';
   state.debug_match = false;
+  state.linkDraft = null;
+  state.confirmedLinkBatch = null;
   dbgSaveState(state);
   dbgRenderScenarios();
   dbgRenderChecks();
   dbgScrollToVerificationTop();
   dbgRefreshWidgetInstances();
+}
+
+function dbgLinkDraftIDs(state, scenarioID) {
+  return state.linkDraft?.scenarioID === scenarioID && Array.isArray(state.linkDraft.checkIDs)
+    ? state.linkDraft.checkIDs
+    : [];
+}
+
+function dbgConfirmedLinkIDs(state, scenarioID) {
+  return state.confirmedLinkBatch?.scenarioID === scenarioID && Array.isArray(state.confirmedLinkBatch.checkIDs)
+    ? state.confirmedLinkBatch.checkIDs
+    : [];
+}
+
+function dbgLinkedIssueIDs(state, scenarioID) {
+  const ids = new Set();
+  for (const link of (state.matchLinks || [])) {
+    if (link.scenarioID !== scenarioID || !Array.isArray(link.checkIDs)) continue;
+    for (const id of link.checkIDs) ids.add(id);
+  }
+  return [...ids];
+}
+
+function dbgLinksForCheck(state, scenarioID, checkID) {
+  return (state.matchLinks || []).filter(link =>
+    link.scenarioID === scenarioID &&
+    Array.isArray(link.checkIDs) &&
+    link.checkIDs.includes(checkID)
+  );
+}
+
+function dbgToggleLinkDraft(checkID, selected) {
+  const state = dbgState();
+  const scenario = dbgActiveScenario();
+  if (!scenario) return;
+  state.linkDraft = state.linkDraft?.scenarioID === scenario.id
+    ? state.linkDraft
+    : { scenarioID: scenario.id, checkIDs: [] };
+  const ids = new Set(state.linkDraft.checkIDs || []);
+  if (selected) ids.add(checkID);
+  else ids.delete(checkID);
+  state.linkDraft.checkIDs = [...ids];
+  if (!state.linkDraft.checkIDs.length) state.linkDraft = null;
+  state.confirmedLinkBatch = null;
+  dbgSaveState(state);
+  dbgRenderChecks();
+  dbgRefreshWidgetInstances();
+}
+
+function dbgConfirmLinkDraft() {
+  const state = dbgState();
+  const scenario = dbgActiveScenario();
+  if (!scenario) return;
+  const draftIDs = dbgLinkDraftIDs(state, scenario.id);
+  if (!draftIDs.length) {
+    dbgMessage('Select one or more issue checks before confirming links');
+    return;
+  }
+  const checksByID = new Map(dbgChecksForScenario(state.scenarios?.[scenario.id]).map(check => [check.id, check]));
+  const labels = draftIDs.map(id => checksByID.get(id)?.title || id);
+  const ok = confirm(`Confirm the next played match should link to ${draftIDs.length} issue check(s)?\n\n- ${labels.join('\n- ')}`);
+  if (!ok) return;
+  state.confirmedLinkBatch = {
+    scenarioID: scenario.id,
+    scenarioName: scenario.title,
+    trackName: dbgTrackName(scenario),
+    checkIDs: draftIDs,
+    checkTitles: labels,
+    confirmedAt: new Date().toISOString(),
+  };
+  state.debug_match = true;
+  dbgSaveState(state);
+  dbgRenderChecks();
+  dbgMessage(`Armed ${draftIDs.length} issue link(s) for the next match`);
+}
+
+function dbgClearLinkDraft() {
+  const state = dbgState();
+  state.linkDraft = null;
+  state.confirmedLinkBatch = null;
+  state.debug_match = false;
+  dbgSaveState(state);
+  dbgRenderChecks();
+  dbgRefreshWidgetInstances();
+  dbgMessage('Cleared pending debug match link selection');
 }
 
 function dbgPlaceReportCard(inline) {
@@ -826,6 +960,18 @@ function dbgLinkedMatchesForScenario(state, scenarioID) {
   return (state.matchLinks || []).filter(link => link.scenarioID === scenarioID);
 }
 
+function dbgPendingLinkBatchHTML(state, scenarioID) {
+  const confirmedIDs = dbgConfirmedLinkIDs(state, scenarioID);
+  const draftIDs = dbgLinkDraftIDs(state, scenarioID);
+  if (confirmedIDs.length) {
+    return `<div class="dbg-sub">${confirmedIDs.length} issue check(s) confirmed for the next match. Linked evidence will appear inside each selected check after the match starts.</div>`;
+  }
+  if (draftIDs.length) {
+    return `<div class="dbg-sub">${draftIDs.length} issue check(s) selected. Use Confirm Links before the next match starts.</div>`;
+  }
+  return '<div class="dbg-sub">Select issue checks below, then confirm links to attach the next match as inline evidence.</div>';
+}
+
 function dbgLinkedMatchesHTML(state, scenarioID) {
   const links = dbgLinkedMatchesForScenario(state, scenarioID);
   if (!links.length) {
@@ -838,10 +984,14 @@ function dbgLinkedMatchesHTML(state, scenarioID) {
     const source = link.autoTagged ? 'auto-tagged' : 'manual';
     const arenaRaw = link.arenaRaw || link.arena || '';
     const arenaDisplay = link.arenaDisplay || dbgArenaDisplayName(arenaRaw);
+    const linkedIssues = Array.isArray(link.checkTitles) && link.checkTitles.length
+      ? link.checkTitles
+      : (Array.isArray(link.checkIDs) ? link.checkIDs : []);
     return `
       <div class="dbg-linked-match">
         <strong>Debug Match: ${esc(link.scenarioName || 'scenario')}</strong>
         <small>${esc(status)} - ${esc(source)} - ${esc(mode)} - ${esc(score)}</small>
+        ${linkedIssues.length ? `<small>Linked issues: ${esc(linkedIssues.join(' | '))}</small>` : ''}
         <small>Arena: ${esc(arenaDisplay || 'pending')} ${arenaRaw ? `(API: ${esc(arenaRaw)})` : ''}</small>
         <small>GUID: ${esc(link.matchGuid || 'pending')} ${link.matchID ? `- History ID: ${esc(link.matchID)}` : ''}</small>
         <small>Started: ${esc(link.startedAt || '')}</small>
@@ -853,6 +1003,49 @@ function dbgLinkedMatchesHTML(state, scenarioID) {
         ${state.expandedDebugMatchLink === link.linkID ? dbgLinkedMatchStatsHTML(link) : ''}
       </div>`;
   }).join('');
+}
+
+function dbgCheckEvidenceHTML(state, scenarioID, scenarioTitle, checkID, checkTitle, checkState) {
+  const links = dbgLinksForCheck(state, scenarioID, checkID);
+  if (!links.length) return '';
+  return `<div class="dbg-evidence-list">
+    ${links.slice().reverse().map(link => dbgEvidenceCardHTML(state, link, checkID, checkTitle, scenarioTitle, checkState)).join('')}
+  </div>`;
+}
+
+function dbgEvidenceCardHTML(state, link, checkID, checkTitle, scenarioTitle, checkState) {
+  const expandedKey = `${link.linkID}:${checkID}`;
+  const expanded = state.expandedEvidenceLink === expandedKey;
+  const score = link.score ? `${link.score.blue ?? 0}-${link.score.orange ?? 0}` : 'score pending';
+  const arenaRaw = link.arenaRaw || link.arena || '';
+  const arenaDisplay = link.arenaDisplay || dbgArenaDisplayName(arenaRaw);
+  const source = link.autoTagged ? 'auto-tagged' : 'manual';
+  const mode = link.playlistName || link.matchType || 'mode pending';
+  const status = dbgStatusLabel(checkState?.status);
+  const note = (checkState?.note || '').trim();
+  const images = dbgImageNames(checkState || {});
+  return `<div class="dbg-evidence">
+    <div class="dbg-evidence-head">
+      <span class="dbg-evidence-badge">Linked Match Evidence</span>
+      <div class="dbg-evidence-actions">
+        <button data-dbg-evidence-action="toggle" data-dbg-link-id="${esc(link.linkID)}" data-dbg-check-id="${esc(checkID)}">${expanded ? 'Collapse' : 'Expand'}</button>
+        <button data-dbg-evidence-action="unlink-check" data-dbg-link-id="${esc(link.linkID)}" data-dbg-check-id="${esc(checkID)}">Remove evidence</button>
+      </div>
+    </div>
+    ${expanded ? `<div class="dbg-evidence-body">
+      <small>Linked scenario: ${esc(scenarioTitle || link.scenarioName || 'scenario')}</small>
+      <small>Linked check: ${esc(checkTitle)}</small>
+      <small>GUID: ${esc(link.matchGuid || 'pending')} ${link.matchID ? `- History ID: ${esc(link.matchID)}` : ''}</small>
+      <small>Score: ${esc(score)}</small>
+      <small>Arena: ${esc(arenaDisplay || 'pending')} ${arenaRaw ? `(API: ${esc(arenaRaw)})` : ''}</small>
+      <small>Mode/source: ${esc(mode)} - ${esc(source)}</small>
+      <small>Timestamp: ${esc(link.startedAt || '')}</small>
+      <small>Confirmed at: ${esc(link.confirmedAt || '')}</small>
+      <small>Status: ${esc(link.completed ? `completed via ${link.completionEvent || 'match end'}` : 'active/pending')}</small>
+      <small>Notes/evidence status: ${esc(status)}${note ? ` - ${esc(note)}` : ''}${images.length ? ` - screenshots: ${esc(images.join(', '))}` : ''}</small>
+      ${dbgLinkedMatchStatsHTML(link)}
+    </div>` : ''}
+  </div>`;
 }
 
 function dbgLinkedMatchStatsHTML(link) {
@@ -915,6 +1108,34 @@ function dbgHandleLinkedMatchAction(action, linkID) {
     if (!state.matchLinks.some(item => item.scenarioID === scenarioID) && state.scenarios?.[scenarioID]) {
       delete state.scenarios[scenarioID].matchLinkedAt;
     }
+    dbgSaveState(state);
+    dbgRenderScenarios();
+    dbgRenderChecks();
+  }
+}
+
+function dbgHandleEvidenceAction(action, linkID, checkID) {
+  const state = dbgState();
+  const link = (state.matchLinks || []).find(item => item.linkID === linkID);
+  if (!link) return;
+  if (action === 'toggle') {
+    const key = `${linkID}:${checkID}`;
+    state.expandedEvidenceLink = state.expandedEvidenceLink === key ? '' : key;
+    dbgSaveState(state);
+    dbgRenderChecks();
+    return;
+  }
+  if (action === 'unlink-check') {
+    if (!confirm('Remove this linked match evidence from this issue check? Core History and Session data will not be changed.')) return;
+    const index = Array.isArray(link.checkIDs) ? link.checkIDs.indexOf(checkID) : -1;
+    if (index >= 0) {
+      link.checkIDs.splice(index, 1);
+      if (Array.isArray(link.checkTitles)) link.checkTitles.splice(index, 1);
+    }
+    if (!Array.isArray(link.checkIDs) || !link.checkIDs.length) {
+      state.matchLinks = (state.matchLinks || []).filter(item => item.linkID !== linkID);
+    }
+    if (state.expandedEvidenceLink === `${linkID}:${checkID}`) state.expandedEvidenceLink = '';
     dbgSaveState(state);
     dbgRenderScenarios();
     dbgRenderChecks();
@@ -990,7 +1211,10 @@ function dbgLinkedMatchLine(link) {
   const mode = link.playlistName || link.matchType || 'mode pending';
   const status = link.completed ? `completed via ${link.completionEvent || 'match end'}` : 'pending';
   const source = link.autoTagged ? 'auto-tagged' : 'manual';
-  return `${link.startedAt || ''} | ${source} | ${status} | GUID ${link.matchGuid || 'pending'} | History ID ${link.matchID || 'pending'} | ${mode} | ${link.arena || 'arena pending'} | ${score}`;
+  const issues = Array.isArray(link.checkTitles) && link.checkTitles.length
+    ? ` | issues: ${link.checkTitles.join('; ')}`
+    : '';
+  return `${link.startedAt || ''} | ${source} | ${status} | GUID ${link.matchGuid || 'pending'} | History ID ${link.matchID || 'pending'} | ${mode} | ${link.arena || 'arena pending'} | ${score}${issues}`;
 }
 
 function dbgAddCustomCheck() {
@@ -1240,7 +1464,10 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
   if (!dbgIsDebugViewActive()) return;
 
   const state = dbgState();
-  const scenario = dbgActiveScenario();
+  const batch = state.confirmedLinkBatch;
+  const scenario = batch?.scenarioID
+    ? DBG_SCENARIOS.find(s => s.id === batch.scenarioID)
+    : null;
   if (!scenario) {
     state.debug_match = false;
     dbgSaveState(state);
@@ -1249,10 +1476,11 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
 
   const scenarioState = state.scenarios?.[scenario.id] || { checks: {} };
   const progress = dbgScenarioProgressSnapshot(scenarioState);
-  if (progress.total > 0 && progress.marked >= progress.total) {
+  if (progress.total > 0 && progress.marked >= progress.total && !batch.allowCompleteScenario) {
     const ok = confirm('This scenario appears complete. Do you still want to tag the next match to this scenario?');
     if (!ok) {
       state.debug_match = false;
+      state.confirmedLinkBatch = null;
       state.debugWarnings = state.debugWarnings || [];
       state.debugWarnings.push({
         at: new Date().toISOString(),
@@ -1264,16 +1492,11 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
       dbgRenderChecks();
       return;
     }
+    batch.allowCompleteScenario = true;
   }
 
   const key = dbgMatchKey(data, eventName);
   state.matchLinks = state.matchLinks || [];
-  const existingForScenario = state.matchLinks.find(link => link.scenarioID === scenario.id);
-  if (existingForScenario) {
-    state.debug_match = false;
-    dbgSaveState(state);
-    return;
-  }
   const existing = state.matchLinks.find(link => !link.completed && (link.matchGuid === key || link.startKey === key));
   if (existing) return;
 
@@ -1291,6 +1514,9 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
     scenarioID: scenario.id,
     scenarioName: scenario.title,
     trackName: dbgTrackName(scenario),
+    checkIDs: Array.isArray(batch.checkIDs) ? batch.checkIDs : [],
+    checkTitles: Array.isArray(batch.checkTitles) ? batch.checkTitles : [],
+    confirmedAt: batch.confirmedAt || '',
     startedAt: new Date().toISOString(),
     autoTagged: true,
     progressAtStart: progress,
@@ -1300,10 +1526,12 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
   state.debug_match = true;
   state.matchLinks.push(link);
   state.matchLinks = state.matchLinks.slice(-50);
+  state.linkDraft = null;
+  state.confirmedLinkBatch = null;
   dbgSaveState(state);
   dbgRenderScenarios();
   dbgRenderChecks();
-  dbgMessage(`Linked next match to ${scenario.title}`);
+  dbgMessage(`Linked next match to ${scenario.title} (${link.checkIDs.length} issue check(s))`);
 }
 
 function dbgUpdateActiveDebugMatch(live) {
@@ -1414,8 +1642,7 @@ function dbgBuildPlainReport() {
     lines.push(`- **Scenario:** ${scenario.title}`);
     lines.push(`- **Suggested evidence:** ${scenario.shots.join(', ')}`);
     const activeLinks = dbgLinkedMatchesForScenario(state, scenario.id);
-    lines.push(`- **Linked debug matches:** ${activeLinks.length}`);
-    for (const link of activeLinks) lines.push(`  - ${dbgLinkedMatchLine(link)}`);
+    lines.push(`- **Linked debug matches:** ${activeLinks.length} total, rendered under their linked checks`);
     lines.push('');
     lines.push('### Active Checklist');
     let activeSection = '';
@@ -1428,6 +1655,9 @@ function dbgBuildPlainReport() {
       lines.push(`- **${dbgStatusLabel(item.status)}** - ${check.title}`);
       if (item.note) lines.push(`  - Note: ${item.note}`);
       for (const image of dbgImageNames(item)) lines.push(`  - Screenshot: ${image}`);
+      for (const link of dbgLinksForCheck(state, scenario.id, check.id)) {
+        lines.push(`  - Linked Match Evidence: ${dbgLinkedMatchLine(link)}`);
+      }
     }
     lines.push('');
   }
@@ -1442,13 +1672,13 @@ function dbgBuildPlainReport() {
     lines.push(`- **${s.title}:** ${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate`);
     const links = dbgLinkedMatchesForScenario(state, s.id);
     if (links.length) {
-      lines.push('  - Linked debug matches:');
-      for (const link of links) lines.push(`    - ${dbgLinkedMatchLine(link)}`);
+      lines.push(`  - Linked debug matches: ${links.length} total, rendered under their linked checks`);
     }
     let scopedSection = '';
     for (const check of dbgChecksForScenario(scopedState)) {
       const item = scopedState?.checks?.[check.id] || {};
-      if (!item.status && !item.note && !item.images) continue;
+      const evidenceLinks = dbgLinksForCheck(state, s.id, check.id);
+      if (!item.status && !item.note && !item.images && !evidenceLinks.length) continue;
       if (check.section && check.section !== scopedSection) {
         lines.push(`  - **${check.section}**`);
         scopedSection = check.section;
@@ -1456,6 +1686,7 @@ function dbgBuildPlainReport() {
       lines.push(`  - **${dbgStatusLabel(item.status)}** - ${check.title}`);
       if (item.note) lines.push(`    Note: ${item.note}`);
       for (const image of dbgImageNames(item)) lines.push(`    Screenshot: ${image}`);
+      for (const link of evidenceLinks) lines.push(`    Linked Match Evidence: ${dbgLinkedMatchLine(link)}`);
     }
   }
   lines.push('');
@@ -1554,17 +1785,14 @@ function dbgBuildDocReportHTML(exportMode) {
     parts.push(`<p>${stats.pass} pass, ${stats.fail} fail, ${stats.skip} N/A, ${stats.percent}% pass rate</p>`);
     const links = dbgLinkedMatchesForScenario(state, scenario.id);
     if (links.length) {
-      parts.push('<h5>Linked Debug Matches</h5><ul>');
-      for (const link of links) {
-        parts.push(`<li>${esc(dbgLinkedMatchLine(link))}</li>`);
-      }
-      parts.push('</ul>');
+      parts.push(`<p><strong>Linked debug matches:</strong> ${links.length} total, rendered under their linked checks.</p>`);
     }
     let docSection = '';
     let docListOpen = false;
     for (const check of dbgChecksForScenario(scenarioState)) {
       const item = scenarioState?.checks?.[check.id] || {};
-      if (!item.status && !item.note && !item.images) continue;
+      const evidenceLinks = dbgLinksForCheck(state, scenario.id, check.id);
+      if (!item.status && !item.note && !item.images && !evidenceLinks.length) continue;
       if (check.section && check.section !== docSection) {
         if (docListOpen) parts.push('</ul>');
         parts.push(`<h5>${esc(check.section)}</h5><ul>`);
@@ -1576,6 +1804,9 @@ function dbgBuildDocReportHTML(exportMode) {
       }
       const statusClass = item.status === 'pass' ? 'pass' : item.status === 'fail' ? 'fail' : item.status === 'skip' ? 'skip' : '';
       parts.push(`<li><span class="${statusClass}">[${esc(item.status || 'unset')}]</span> ${esc(check.title)}${item.note ? `<br><em>${esc(item.note)}</em>` : ''}</li>`);
+      for (const link of evidenceLinks) {
+        parts.push(`<li><strong>Linked Match Evidence:</strong> ${esc(dbgLinkedMatchLine(link))}</li>`);
+      }
       for (const image of dbgImageNames(item)) {
         const href = exportMode ? dbgExportScreenshotPath(image) : dbgScreenshotURL(image);
         parts.push(`<div class="shot-link"><a href="${href}" target="_blank" rel="noopener">Open screenshot: ${esc(image)}</a></div>`);

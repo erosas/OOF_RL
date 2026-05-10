@@ -410,6 +410,7 @@ function rememberActiveViewScroll() {
 }
 
 function restoreViewScroll(name) {
+  if (name !== _activeViewName) return;
   const y = _viewScrollPositions[name] || 0;
   window.scrollTo({ top: y, left: 0, behavior: 'auto' });
 }
