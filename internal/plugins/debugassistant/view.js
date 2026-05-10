@@ -636,6 +636,7 @@ function dbgRenderChecks() {
       <div class="dbg-sub">Pick Track A, B, C, or D before queueing. The checklist will stay tied to that track locally.</div>
       <div id="dbg-inline-report-slot" class="dbg-inline-report-slot"></div>`;
     dbgPlaceReportCard(true);
+    dbgRenderFloatingActions();
     if (title) title.textContent = 'Track Verification';
     if (label) label.textContent = 'Select a debug track before queueing.';
     if (progress) progress.textContent = '';
@@ -659,6 +660,7 @@ function dbgRenderChecks() {
   if (links) links.innerHTML = dbgPendingLinkBatchHTML(state, scenario.id);
   if (toolbar) toolbar.style.display = 'flex';
   if (customForm) customForm.style.display = 'grid';
+  dbgRenderFloatingActions();
   dbgRenderScenarioSummary(scenarioState);
 
   let lastSection = '';
@@ -734,8 +736,29 @@ function dbgDeselectScenario() {
   dbgSaveState(state);
   dbgRenderScenarios();
   dbgRenderChecks();
+  dbgRenderFloatingActions();
   dbgScrollToVerificationTop();
   dbgRefreshWidgetInstances();
+}
+
+function dbgRenderFloatingActions() {
+  const panel = document.getElementById('dbg-floating-actions');
+  if (!panel) return;
+  const state = dbgState();
+  const scenario = dbgActiveScenario();
+  const hasScenario = !!scenario;
+  const draftCount = scenario ? dbgLinkDraftIDs(state, scenario.id).length : 0;
+  const confirmedCount = scenario ? dbgConfirmedLinkIDs(state, scenario.id).length : 0;
+  panel.classList.toggle('visible', hasScenario);
+  const confirmBtn = document.getElementById('dbg-float-confirm-links');
+  const clearBtn = document.getElementById('dbg-float-clear-link-selection');
+  const deselectBtn = document.getElementById('dbg-float-deselect-scenario');
+  if (confirmBtn) {
+    confirmBtn.disabled = !draftCount;
+    confirmBtn.textContent = draftCount ? `Confirm Links (${draftCount})` : 'Confirm Links';
+  }
+  if (clearBtn) clearBtn.disabled = !draftCount && !confirmedCount;
+  if (deselectBtn) deselectBtn.disabled = !hasScenario;
 }
 
 function dbgLinkDraftIDs(state, scenarioID) {
@@ -782,6 +805,7 @@ function dbgToggleLinkDraft(checkID, selected) {
   state.confirmedLinkBatch = null;
   dbgSaveState(state);
   dbgRenderChecks();
+  dbgRenderFloatingActions();
   dbgRefreshWidgetInstances();
 }
 
@@ -809,6 +833,7 @@ function dbgConfirmLinkDraft() {
   state.debug_match = true;
   dbgSaveState(state);
   dbgRenderChecks();
+  dbgRenderFloatingActions();
   dbgMessage(`Armed ${draftIDs.length} issue link(s) for the next match`);
 }
 
@@ -819,6 +844,7 @@ function dbgClearLinkDraft() {
   state.debug_match = false;
   dbgSaveState(state);
   dbgRenderChecks();
+  dbgRenderFloatingActions();
   dbgRefreshWidgetInstances();
   dbgMessage('Cleared pending debug match link selection');
 }
@@ -1531,6 +1557,7 @@ function dbgMaybeAutoLinkMatch(eventName, data) {
   dbgSaveState(state);
   dbgRenderScenarios();
   dbgRenderChecks();
+  dbgRenderFloatingActions();
   dbgMessage(`Linked next match to ${scenario.title} (${link.checkIDs.length} issue check(s))`);
 }
 
@@ -1922,6 +1949,9 @@ function dbgWireControls() {
   document.getElementById('dbg-save-reports')?.addEventListener('click', dbgExportReportFiles);
   document.getElementById('dbg-import-file')?.addEventListener('change', dbgImportJSONState);
   document.getElementById('dbg-add-condition')?.addEventListener('click', dbgAddCustomCheck);
+  document.getElementById('dbg-float-confirm-links')?.addEventListener('click', dbgConfirmLinkDraft);
+  document.getElementById('dbg-float-clear-link-selection')?.addEventListener('click', dbgClearLinkDraft);
+  document.getElementById('dbg-float-deselect-scenario')?.addEventListener('click', dbgDeselectScenario);
   document.getElementById('dbg-reset')?.addEventListener('click', async () => {
     if (!confirm('Reset local Debug Assistant metadata, checklist, snapshots, and notes?')) return;
     await dbgResetLocalState();
@@ -1950,6 +1980,7 @@ async function dbgResetLocalState() {
   dbgRenderScenarios();
   dbgRenderChecks();
   await Promise.all([dbgLoadContext(), dbgLoadEvents()]);
+  dbgRenderFloatingActions();
   dbgRefreshWidgetInstances();
   dbgMessage('Debug Assistant reset to default state');
 }

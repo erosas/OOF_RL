@@ -70,6 +70,13 @@
 .dbg-context-value { color:var(--text); font-size:0.8rem; margin-top:3px; overflow-wrap:anywhere; }
 .dbg-scenario-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 10px; }
 .dbg-scenario-toolbar button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:8px; padding:6px 9px; font:inherit; font-size:0.72rem; font-weight:800; cursor:pointer; }
+.dbg-floating-actions { position:fixed; right:18px; bottom:18px; z-index:50; display:none; flex-direction:column; gap:7px; width:min(220px, calc(100vw - 36px)); background:rgba(17,19,24,.94); border:1px solid rgba(74,158,255,.24); border-radius:12px; padding:10px; box-shadow:0 12px 34px rgba(0,0,0,.38); backdrop-filter:blur(10px); transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.dbg-floating-actions.visible { display:flex; }
+.dbg-floating-actions:hover { border-color:rgba(74,158,255,.45); box-shadow:0 14px 38px rgba(0,0,0,.45), 0 0 0 1px rgba(74,158,255,.12); transform:translateY(-1px); }
+.dbg-floating-title { color:var(--rl-blue); font-size:0.68rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.dbg-floating-actions button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:8px; padding:7px 9px; font:inherit; font-size:0.72rem; font-weight:800; cursor:pointer; text-align:left; }
+.dbg-floating-actions button.primary { background:var(--rl-blue); border-color:transparent; color:#06101f; }
+.dbg-floating-actions button:disabled { opacity:.45; cursor:not-allowed; }
 .dbg-linked-matches { display:flex; flex-direction:column; gap:7px; margin:8px 0 10px; }
 .dbg-linked-match { border:1px solid rgba(74,158,255,.22); background:rgba(74,158,255,.045); border-radius:8px; padding:8px; font-size:0.72rem; }
 .dbg-linked-match strong { color:var(--text); }
@@ -201,6 +208,13 @@
       <div id="dbg-report" class="dbg-report">Generate a report after your scenario or session.</div>
       <div id="dbg-report-doc" class="dbg-doc-report">Generate a doc report to preview a developer-readable report with tagged screenshots.</div>
     </section>
+  </div>
+
+  <div id="dbg-floating-actions" class="dbg-floating-actions" aria-label="Debug Assistant floating actions">
+    <div class="dbg-floating-title">Debug Actions</div>
+    <button id="dbg-float-confirm-links" class="primary" type="button">Confirm Links</button>
+    <button id="dbg-float-clear-link-selection" type="button">Clear Link Selection</button>
+    <button id="dbg-float-deselect-scenario" type="button">Deselect Scenario</button>
   </div>
 </div>
 
