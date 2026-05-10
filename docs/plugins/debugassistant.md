@@ -65,5 +65,6 @@ This behavior is UI-only:
 - Persistent database-backed debug links.
 - Screenshot embedding expansion.
 - Reusable future-app Debug Assistant framework documentation.
+- Custom track template export/import for adding tester-defined tracks without replacing built-in Track A/B/C/D.
 - External replay metadata lookup.
 - Core History/Session heuristic changes.
