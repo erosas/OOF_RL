@@ -504,14 +504,24 @@ function dbgLoadMeta() {
   }
 }
 
-function dbgSaveMeta() {
-  const state = dbgState();
-  state.metadata = {};
+function dbgReadMetaFromForm() {
+  const metadata = {};
   for (const key of dbgMetaFields()) {
     const el = document.getElementById(`dbg-${key}`);
-    if (el) state.metadata[key] = el.value.trim();
+    if (el) metadata[key] = el.value.trim();
   }
+  return metadata;
+}
+
+function dbgSyncMetaFromForm() {
+  const state = dbgState();
+  state.metadata = dbgReadMetaFromForm();
   dbgSaveState(state);
+  return state;
+}
+
+function dbgSaveMeta() {
+  dbgSyncMetaFromForm();
   dbgMessage('Saved locally');
 }
 
@@ -1614,6 +1624,7 @@ async function dbgAttachHistoryMatch(linkID) {
 }
 
 function dbgGenerateReport() {
+  dbgSyncMetaFromForm();
   const report = dbgBuildPlainReport();
   const root = document.getElementById('dbg-report');
   if (root) root.textContent = report;
@@ -1745,6 +1756,7 @@ function dbgStatusLabel(status) {
 }
 
 function dbgGenerateDocReport() {
+  dbgSyncMetaFromForm();
   const html = dbgBuildDocReportHTML(false);
   const root = document.getElementById('dbg-report-doc');
   if (root) root.innerHTML = html;
@@ -1849,10 +1861,11 @@ function dbgBuildDocReportHTML(exportMode) {
   parts.push(`<p>${untestedScenarios.length} remaining${untestedScenarios.length ? `: ${esc(untestedScenarios.map(s => s.title).join('; '))}` : ': none'}</p>`);
   parts.push('</section>');
 
-  if (meta.notes) {
+  const notes = String(meta.notes || '').trim();
+  if (notes) {
     parts.push('<section class="report-card">');
     parts.push('<h3>Session Notes</h3>');
-    parts.push(`<p>${esc(meta.notes)}</p>`);
+    parts.push(`<div class="report-notes">${esc(notes)}</div>`);
     parts.push('</section>');
   }
   if ((state.debugWarnings || []).length) {
@@ -1893,6 +1906,7 @@ li { margin-bottom:6px; }
 .pass { color:#3ecf72; font-weight:800; }
 .fail { color:#e05252; font-weight:800; }
 .skip { color:#f59e0b; font-weight:800; }
+.report-notes { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.45; }
 .shot-link { margin:8px 0; }
 </style>
 </head>
@@ -1988,6 +2002,7 @@ async function dbgResetLocalState() {
 async function dbgExportReportFiles() {
   try {
     if (!confirm('Export the current Debug Assistant report files to the OOF RL debug_reports folder? Duplicate exports of the same state will be skipped.')) return;
+    dbgSyncMetaFromForm();
     const plain = dbgGenerateReport();
     const html = dbgBuildStandaloneDocHTML();
     const state = JSON.stringify(dbgState(), null, 2);

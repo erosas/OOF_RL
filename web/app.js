@@ -403,16 +403,20 @@ function refreshPostMatchViews() {
 // --- Navigation ---
 let _activeViewName = null;
 const _viewScrollPositions = {};
+let _restoringViewScroll = false;
 
 function rememberActiveViewScroll() {
-  if (!_activeViewName) return;
-  _viewScrollPositions[_activeViewName] = window.scrollY || document.documentElement.scrollTop || 0;
+  if (!_activeViewName || _restoringViewScroll) return;
+  _viewScrollPositions[_activeViewName] = getViewScrollTop(_activeViewName);
 }
 
 function restoreViewScroll(name) {
   if (name !== _activeViewName) return;
   const y = _viewScrollPositions[name] || 0;
-  window.scrollTo({ top: y, left: 0, behavior: 'auto' });
+  _restoringViewScroll = true;
+  setViewScrollTop(name, y);
+  requestAnimationFrame(() => { _restoringViewScroll = false; });
+  setTimeout(() => { _restoringViewScroll = false; }, 80);
 }
 
 function restoreViewScrollSoon(name) {
@@ -450,6 +454,32 @@ function showView(name) {
   restoreViewScrollSoon(name);
 }
 
+function viewElement(name) {
+  return document.getElementById('view-' + name);
+}
+
+function getViewScrollTop(name) {
+  const el = viewElement(name);
+  if (el) return el.scrollTop || 0;
+  return window.scrollY || document.documentElement.scrollTop || 0;
+}
+
+function setViewScrollTop(name, y) {
+  const el = viewElement(name);
+  if (el) {
+    const maxY = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTop = Math.min(Number(y || 0), maxY);
+    return;
+  }
+  window.scrollTo({ top: Number(y || 0), left: 0, behavior: 'auto' });
+}
+
+document.addEventListener('scroll', event => {
+  const view = event.target?.closest?.('.view.active');
+  if (!view || !view.id?.startsWith('view-')) return;
+  if (_restoringViewScroll) return;
+  _viewScrollPositions[view.id.slice(5)] = view.scrollTop || 0;
+}, true);
 window.addEventListener('scroll', rememberActiveViewScroll, { passive: true });
 
 // --- Settings / overlay hotkey capture ---

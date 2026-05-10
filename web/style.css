@@ -17,6 +17,44 @@
 .view.active { display: block; }
 .hidden      { display: none !important; }
 
+body:not(.overlay-mode) {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body:not(.overlay-mode) > header {
+  flex: 0 0 auto;
+}
+
+body:not(.overlay-mode) > main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+body:not(.overlay-mode) #plugin-views {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body:not(.overlay-mode) main > .view.active,
+body:not(.overlay-mode) .view.active {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* Dashboard expands to full window width (bypasses max-w-3xl on <main>) */
 main.dash-active { max-width: none; }
 
