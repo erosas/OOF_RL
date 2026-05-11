@@ -667,7 +667,7 @@ function dbgRenderChecks() {
   if (title) title.textContent = `Testing: ${scenario.title}`;
   if (label) label.textContent = `Active scenario: ${scenario.title}`;
   if (progress) progress.textContent = `Scenario Progress: ${stats.marked}/${total} checks complete - ${completionPercent}%${confirmedIDs.length ? ` | ${confirmedIDs.length} issue link(s) armed for next match` : ''}`;
-  if (links) links.innerHTML = dbgPendingLinkBatchHTML(state, scenario.id);
+  if (links) links.innerHTML = `${dbgPendingLinkBatchHTML(state, scenario.id)}${dbgLinkedMatchesHTML(state, scenario.id)}`;
   if (toolbar) toolbar.style.display = 'flex';
   if (customForm) customForm.style.display = 'grid';
   dbgRenderFloatingActions();
