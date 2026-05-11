@@ -41,7 +41,7 @@ This behavior is UI-only:
 - It does not affect WebSocket handling.
 - It does not affect backend match/session/history logic.
 - It does not write scroll state to the database or app data directory.
-- If a plugin/page is disabled, that page is not rendered and therefore has no active scroll state.
+- If a plugin/page is disabled, that page may still be injected by the app shell, but it is hidden from navigation and not user-reachable as an active view for scroll-state purposes.
 
 ## Acceptance Criteria
 
