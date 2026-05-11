@@ -1,0 +1,230 @@
+<style>
+.dbg-shell { display:flex; flex-direction:column; gap:14px; }
+.dbg-header { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+.dbg-title { margin:0; color:var(--text); font-size:1.25rem; font-weight:800; }
+.dbg-sub { color:var(--muted); font-size:0.78rem; margin-top:3px; line-height:1.5; }
+.dbg-grid { display:grid; grid-template-columns:0.82fr 1.18fr; gap:14px; align-items:start; }
+.dbg-card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px; }
+.dbg-card-title { color:var(--rl-blue); font-size:0.74rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px; }
+.dbg-form { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.dbg-field { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:0.72rem; font-weight:700; }
+.dbg-input, .dbg-textarea, .dbg-select { background:var(--surface2); border:1px solid var(--line); border-radius:7px; color:var(--text); padding:8px 9px; font:inherit; font-size:0.78rem; min-width:0; }
+.dbg-textarea { min-height:70px; resize:vertical; }
+.dbg-input:focus, .dbg-textarea:focus, .dbg-select:focus { outline:1px solid var(--rl-blue); }
+.dbg-btn { background:var(--rl-blue); color:#06101f; border:0; border-radius:7px; padding:7px 10px; font-size:0.76rem; font-weight:800; cursor:pointer; white-space:nowrap; }
+.dbg-btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--line); }
+.dbg-btn-danger { background:rgba(224,82,82,.16); color:var(--red); border:1px solid rgba(224,82,82,.25); }
+.dbg-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+.dbg-file-import { position:relative; display:inline-flex; align-items:center; border-radius:7px; padding:7px 10px; font-size:0.76rem; font-weight:800; white-space:nowrap; background:var(--surface2); color:var(--text); border:1px solid var(--line); cursor:pointer; overflow:hidden; }
+.dbg-file-import input { position:absolute; inset:0; opacity:0; cursor:pointer; font-size:100px; }
+.dbg-msg { color:var(--green); font-size:0.75rem; }
+.dbg-export-result { display:none; margin-top:10px; background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:0.74rem; }
+.dbg-export-result.visible { display:block; }
+.dbg-export-result h4 { margin:0 0 6px; color:var(--rl-blue); font-size:0.76rem; text-transform:uppercase; letter-spacing:.07em; }
+.dbg-export-result ul { margin:6px 0 0 16px; padding:0; }
+.dbg-export-result li { margin-bottom:4px; overflow-wrap:anywhere; }
+.dbg-export-result .duplicate { color:#f59e0b; font-weight:800; }
+.dbg-scenario-list { display:flex; flex-direction:column; gap:7px; }
+.dbg-scenario { text-align:left; border:1px solid var(--line); background:rgba(255,255,255,.025); color:var(--text); border-radius:8px; padding:9px; cursor:pointer; font:inherit; }
+.dbg-scenario.active { border-color:var(--rl-blue); box-shadow:0 0 0 1px rgba(74,158,255,.25); }
+.dbg-scenario.queued { border-color:rgba(245,158,11,.32); background:rgba(245,158,11,.035); }
+.dbg-scenario.touched { border-color:rgba(62,207,114,.35); background:rgba(62,207,114,.045); }
+.dbg-scenario.failed { border-color:rgba(224,82,82,.45); background:rgba(224,82,82,.05); }
+.dbg-scenario small { display:block; color:var(--muted); margin-top:3px; }
+.dbg-scenario-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.dbg-pill { display:inline-flex; align-items:center; border-radius:999px; padding:2px 6px; font-size:0.66rem; font-weight:800; background:rgba(255,255,255,.07); color:var(--muted); }
+.dbg-pill.pass { color:var(--green); background:rgba(62,207,114,.1); }
+.dbg-pill.fail { color:var(--red); background:rgba(224,82,82,.1); }
+.dbg-pill.skip { color:#f59e0b; background:rgba(245,158,11,.1); }
+.dbg-checks { display:flex; flex-direction:column; gap:8px; }
+.dbg-check { display:grid; grid-template-columns:68px 1fr; gap:8px; border:1px solid rgba(255,255,255,.05); background:rgba(255,255,255,.025); border-radius:8px; padding:8px; }
+.dbg-check.link-selected { border-color:rgba(245,158,11,.45); background:rgba(245,158,11,.045); }
+.dbg-check.link-confirmed { border-color:rgba(74,158,255,.38); box-shadow:0 0 0 1px rgba(74,158,255,.14); }
+.dbg-check-section { color:var(--accent); font-size:0.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.07em; margin:12px 0 2px; }
+.dbg-check-status { display:flex; flex-direction:column; gap:4px; }
+.dbg-check-status button { border:1px solid var(--line); background:var(--surface2); color:var(--muted); border-radius:5px; padding:3px 4px; font:inherit; font-size:0.68rem; cursor:pointer; }
+.dbg-check-status button.active.pass { color:var(--green); border-color:rgba(62,207,114,.45); background:rgba(62,207,114,.1); }
+.dbg-check-status button.active.fail { color:var(--red); border-color:rgba(224,82,82,.45); background:rgba(224,82,82,.1); }
+.dbg-check-status button.active.skip { color:#f59e0b; border-color:rgba(245,158,11,.45); background:rgba(245,158,11,.1); }
+.dbg-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+.dbg-summary-item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); border-radius:8px; padding:8px; }
+.dbg-summary-value { font-size:1.05rem; font-weight:900; color:var(--text); }
+.dbg-summary-label { color:var(--muted); font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+.dbg-check-title { color:var(--text); font-size:0.8rem; font-weight:700; }
+.dbg-check-help { color:var(--muted); font-size:0.72rem; line-height:1.45; margin-top:3px; }
+.dbg-shot { display:inline-flex; align-items:center; gap:4px; color:#f59e0b; font-size:0.68rem; margin-top:4px; }
+.dbg-link-toggle { display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:0.68rem; margin-top:6px; cursor:pointer; }
+.dbg-link-toggle input { accent-color:var(--rl-blue); }
+.dbg-link-help { color:#f59e0b; font-size:0.68rem; margin:4px 0 8px; }
+.dbg-note { width:100%; min-height:74px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); border-radius:6px; color:var(--muted); font-size:0.74rem; padding:7px 8px; margin-top:6px; resize:none; line-height:1.5; white-space:pre-wrap; overflow:hidden; overflow-wrap:anywhere; }
+.dbg-note:focus { outline:0; border-bottom-color:var(--rl-blue); color:var(--text); }
+.dbg-images { width:100%; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.06); border-radius:6px; color:var(--muted); font-size:0.7rem; padding:5px 7px; margin-top:6px; }
+.dbg-images:focus { outline:1px solid var(--rl-blue); color:var(--text); }
+.dbg-custom-form { display:grid; grid-template-columns:1fr 1.4fr auto; gap:8px; align-items:end; margin-bottom:10px; }
+.dbg-custom-tag { color:#f59e0b; font-size:0.65rem; font-weight:800; margin-left:6px; text-transform:uppercase; }
+.dbg-check-remove { margin-top:6px; color:var(--muted); background:transparent; border:0; padding:0; font:inherit; font-size:0.68rem; cursor:pointer; }
+.dbg-check-remove:hover { color:var(--red); }
+.dbg-context { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.dbg-context-item { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.05); border-radius:8px; padding:8px; min-width:0; }
+.dbg-context-label { color:var(--muted); font-size:0.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+.dbg-context-value { color:var(--text); font-size:0.8rem; margin-top:3px; overflow-wrap:anywhere; }
+.dbg-scenario-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 10px; }
+.dbg-scenario-toolbar button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:8px; padding:6px 9px; font:inherit; font-size:0.72rem; font-weight:800; cursor:pointer; }
+.dbg-floating-actions { position:fixed; right:18px; bottom:18px; z-index:50; display:none; flex-direction:column; gap:7px; width:min(220px, calc(100vw - 36px)); background:rgba(17,19,24,.94); border:1px solid rgba(74,158,255,.24); border-radius:12px; padding:10px; box-shadow:0 12px 34px rgba(0,0,0,.38); backdrop-filter:blur(10px); transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.dbg-floating-actions.visible { display:flex; }
+.dbg-floating-actions:hover { border-color:rgba(74,158,255,.45); box-shadow:0 14px 38px rgba(0,0,0,.45), 0 0 0 1px rgba(74,158,255,.12); transform:translateY(-1px); }
+.dbg-floating-title { color:var(--rl-blue); font-size:0.68rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.dbg-floating-actions button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:8px; padding:7px 9px; font:inherit; font-size:0.72rem; font-weight:800; cursor:pointer; text-align:left; }
+.dbg-floating-actions button.primary { background:var(--rl-blue); border-color:transparent; color:#06101f; }
+.dbg-floating-actions button:disabled { opacity:.45; cursor:not-allowed; }
+.dbg-linked-matches { display:flex; flex-direction:column; gap:7px; margin:8px 0 10px; }
+.dbg-linked-match { border:1px solid rgba(74,158,255,.22); background:rgba(74,158,255,.045); border-radius:8px; padding:8px; font-size:0.72rem; }
+.dbg-linked-match strong { color:var(--text); }
+.dbg-linked-match small { display:block; color:var(--muted); margin-top:3px; line-height:1.45; overflow-wrap:anywhere; }
+.dbg-linked-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.dbg-linked-actions button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:6px; padding:4px 7px; font:inherit; font-size:0.68rem; font-weight:800; cursor:pointer; }
+.dbg-link-stats { margin-top:8px; border-top:1px solid rgba(255,255,255,.07); padding-top:8px; }
+.dbg-link-stats table { width:100%; border-collapse:collapse; font-size:0.7rem; }
+.dbg-link-stats th, .dbg-link-stats td { text-align:left; padding:4px 5px; border-bottom:1px solid rgba(255,255,255,.05); }
+.dbg-link-stats th { color:var(--muted); font-size:0.64rem; text-transform:uppercase; letter-spacing:.05em; }
+.dbg-link-stats td:not(:first-child), .dbg-link-stats th:not(:first-child) { text-align:right; }
+.dbg-evidence-list { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.dbg-evidence { border:1px solid rgba(74,158,255,.22); background:rgba(74,158,255,.045); border-radius:8px; padding:8px; font-size:0.72rem; }
+.dbg-evidence-head { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
+.dbg-evidence-badge { color:var(--rl-blue); font-weight:900; }
+.dbg-evidence-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.dbg-evidence-actions button { border:1px solid var(--line); background:var(--surface2); color:var(--text); border-radius:6px; padding:4px 7px; font:inherit; font-size:0.68rem; font-weight:800; cursor:pointer; }
+.dbg-evidence-body { margin-top:7px; color:var(--muted); line-height:1.5; }
+.dbg-evidence-body small { display:block; overflow-wrap:anywhere; }
+.dbg-events { max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:6px; padding-right:3px; }
+.dbg-event { display:grid; grid-template-columns:74px 112px 1fr; gap:8px; border-bottom:1px solid rgba(255,255,255,.05); padding:7px 0; font-size:0.74rem; }
+.dbg-event-time { color:var(--muted); font-variant-numeric:tabular-nums; }
+.dbg-event-name { color:var(--rl-orange); font-weight:800; }
+.dbg-event-summary { color:var(--text); min-width:0; }
+.dbg-report { white-space:pre-wrap; color:var(--text); font-size:0.74rem; max-height:220px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:10px; }
+.dbg-inline-report-slot { margin-top:10px; }
+.dbg-inline-report-slot .dbg-card { padding:0; border:0; background:transparent; }
+.dbg-doc-report { color:var(--text); font-size:0.78rem; max-height:520px; overflow:auto; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:14px; margin-top:10px; }
+.dbg-doc-report h2, .dbg-doc-report h3 { margin:0 0 8px; color:var(--text); }
+.dbg-doc-report h3 { margin-top:16px; color:var(--rl-blue); }
+.dbg-doc-report a { color:var(--rl-blue); font-weight:800; }
+.dbg-doc-report ul { margin:6px 0 12px 18px; padding:0; }
+.dbg-doc-report li { margin-bottom:5px; }
+.dbg-doc-report img { display:block; max-width:100%; border:1px solid var(--line); border-radius:8px; margin:8px 0 12px; }
+.dbg-doc-report .shot-link { margin:8px 0 4px; }
+.dbg-doc-report .report-card { background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:10px; padding:12px; margin:12px 0; }
+.dbg-doc-report .report-card h3 { margin-top:0; }
+.dbg-doc-report .report-meta { display:grid; grid-template-columns:170px 1fr; gap:6px 12px; margin:0; }
+.dbg-doc-report .report-meta dt { color:var(--muted); font-weight:800; }
+.dbg-doc-report .report-meta dd { margin:0; overflow-wrap:anywhere; }
+.dbg-doc-report .report-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; }
+.dbg-doc-report .report-summary div { background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:8px; padding:8px; }
+.dbg-doc-report .report-summary strong { display:block; font-size:1.2rem; }
+.dbg-doc-report .report-summary span { display:block; color:var(--muted); font-size:0.68rem; font-weight:800; text-transform:uppercase; }
+.dbg-doc-report .report-notes { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.45; }
+.dbg-doc-report .fail { color:var(--red); font-weight:800; }
+.dbg-doc-report .pass { color:var(--green); font-weight:800; }
+.dbg-doc-report .skip { color:#f59e0b; font-weight:800; }
+.dbg-widget { display:flex; flex-direction:column; gap:8px; font-size:0.76rem; }
+.dbg-widget-row { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid rgba(255,255,255,.05); padding-bottom:6px; }
+.dbg-widget strong { color:var(--text); }
+@media (max-width: 980px) {
+  .dbg-grid, .dbg-form, .dbg-context { grid-template-columns:1fr; }
+  .dbg-event { grid-template-columns:1fr; gap:2px; }
+}
+</style>
+
+<div class="dbg-shell">
+  <div class="dbg-header">
+    <div>
+      <h1 class="dbg-title">Debug Assistant</h1>
+      <p class="dbg-sub">Read-only regression companion for structured playtests. It observes event flow and helps collect evidence without mutating Live, Session, History, or saved match data.</p>
+    </div>
+    <button id="dbg-reset" class="dbg-btn dbg-btn-danger">Reset local test</button>
+  </div>
+
+  <section class="dbg-card">
+    <div class="dbg-card-title">Test Build Metadata</div>
+    <div class="dbg-form">
+      <label class="dbg-field">Branch<input id="dbg-branch" class="dbg-input" placeholder="feature-debug-regression-assistant"></label>
+      <label class="dbg-field">Commit SHA<input id="dbg-sha" class="dbg-input" placeholder="short or full SHA"></label>
+      <label class="dbg-field">EXE path<input id="dbg-exe" class="dbg-input" placeholder="C:\...\OOF_RL_test.exe"></label>
+      <label class="dbg-field">Tester<input id="dbg-tester" class="dbg-input" placeholder="Robert"></label>
+      <label class="dbg-field">Intent<select id="dbg-intent" class="dbg-select"><option value="">Select intent</option><option>Regression testing</option><option>Bug reproduction</option><option>Bug verification</option><option>Stability testing</option><option>Normal play</option></select></label>
+      <label class="dbg-field">Rocket League mode/version<input id="dbg-rl-mode" class="dbg-input" placeholder="Ranked / Private / current RL build"></label>
+    </div>
+    <label class="dbg-field" style="margin-top:10px">Session notes<textarea id="dbg-notes" class="dbg-textarea" placeholder="What are we proving in this playtest?"></textarea></label>
+    <div class="dbg-actions">
+      <button id="dbg-save-meta" class="dbg-btn">Save metadata</button>
+      <button id="dbg-snapshot" class="dbg-btn dbg-btn-secondary">Snapshot app state</button>
+      <button id="dbg-export" class="dbg-btn dbg-btn-secondary">Generate report</button>
+      <button id="dbg-export-doc" class="dbg-btn dbg-btn-secondary">Generate doc report</button>
+      <button id="dbg-save-reports" class="dbg-btn dbg-btn-secondary">Export report files</button>
+      <label class="dbg-file-import">Import JSON state<input id="dbg-import-file" type="file" accept="application/json,.json"></label>
+      <span id="dbg-msg" class="dbg-msg"></span>
+    </div>
+    <div id="dbg-export-result" class="dbg-export-result"></div>
+  </section>
+
+  <div class="dbg-grid">
+    <section class="dbg-card">
+      <div class="dbg-card-title">Test Scenario</div>
+      <div id="dbg-overall-summary" class="dbg-summary"></div>
+      <div id="dbg-scenarios" class="dbg-scenario-list"></div>
+    </section>
+
+    <section class="dbg-card">
+      <div id="dbg-verification-title" class="dbg-card-title">Scenario Verification</div>
+      <div id="dbg-active-scenario" class="dbg-sub" style="margin-bottom:10px">Select a test scenario before queueing.</div>
+      <div id="dbg-scenario-progress" class="dbg-sub" style="margin-bottom:10px"></div>
+      <div id="dbg-scenario-toolbar" class="dbg-scenario-toolbar" style="display:none">
+        <button id="dbg-deselect-scenario" type="button">Deselect scenario</button>
+        <button id="dbg-confirm-links" type="button">Confirm Links</button>
+        <button id="dbg-clear-link-selection" type="button">Clear Link Selection</button>
+      </div>
+      <div id="dbg-scenario-summary" class="dbg-summary"></div>
+      <div id="dbg-linked-matches" class="dbg-linked-matches"></div>
+      <div id="dbg-custom-condition" class="dbg-custom-form">
+        <label class="dbg-field">Additional condition<input id="dbg-custom-title" class="dbg-input" placeholder="Example: arena mismatch after overtime"></label>
+        <label class="dbg-field">Details / expected behavior<input id="dbg-custom-help" class="dbg-input" placeholder="What should be verified?"></label>
+        <button id="dbg-add-condition" class="dbg-btn dbg-btn-secondary">Add</button>
+      </div>
+      <div id="dbg-checks" class="dbg-checks"></div>
+    </section>
+  </div>
+
+  <section class="dbg-card">
+    <div class="dbg-card-title">Observed App Context</div>
+    <div id="dbg-context" class="dbg-context"></div>
+  </section>
+
+  <div class="dbg-grid">
+    <section class="dbg-card">
+      <div class="dbg-card-title">Observed Event Flow</div>
+      <div id="dbg-events" class="dbg-events"></div>
+    </section>
+    <div id="dbg-report-home"></div>
+    <section id="dbg-report-card" class="dbg-card">
+      <div class="dbg-card-title">Generated Playtest Report</div>
+      <div id="dbg-report" class="dbg-report">Generate a report after your scenario or session.</div>
+      <div id="dbg-report-doc" class="dbg-doc-report">Generate a doc report to preview a developer-readable report with tagged screenshots.</div>
+    </section>
+  </div>
+
+  <div id="dbg-floating-actions" class="dbg-floating-actions" aria-label="Debug Assistant floating actions">
+    <div class="dbg-floating-title">Debug Actions</div>
+    <button id="dbg-float-confirm-links" class="primary" type="button">Confirm Links</button>
+    <button id="dbg-float-clear-link-selection" type="button">Clear Link Selection</button>
+    <button id="dbg-float-deselect-scenario" type="button">Deselect Scenario</button>
+  </div>
+</div>
+
+<template id="dbg-widget-template">
+  <div class="dbg-widget">
+    <div class="dbg-widget-row"><span>Scenario</span><strong data-dbgw-scenario>none</strong></div>
+    <div class="dbg-widget-row"><span>Checklist</span><strong data-dbgw-progress>0 / 0</strong></div>
+    <div class="dbg-widget-row"><span>Pass rate</span><strong data-dbgw-rate>0%</strong></div>
+    <div class="dbg-widget-row"><span>Last event</span><strong data-dbgw-event>none</strong></div>
+    <button class="dbg-btn dbg-btn-secondary" data-dbgw-refresh>Refresh</button>
+  </div>
+</template>
