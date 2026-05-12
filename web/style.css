@@ -899,6 +899,32 @@ details[open] .settings-details-summary::before { transform: rotate(90deg); }
 .overlay-mode .overlay-drag-bar { display: flex; }
 /* Push the sticky header below the fixed drag bar so nav tabs aren't obscured. */
 .overlay-mode header { margin-top: 30px; top: 30px; }
+.overlay-hud-mode {
+  background: rgb(1, 2, 3) !important;
+  overflow: hidden;
+}
+.overlay-hud-mode header {
+  display: none;
+}
+.overlay-hud-mode main {
+  background: rgb(1, 2, 3) !important;
+  height: 100vh;
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  width: 100vw;
+}
+.overlay-hud-mode #plugin-views {
+  height: 100vh;
+}
+.overlay-hud-mode .view.active {
+  height: 100vh;
+  overflow: hidden;
+}
+.overlay-hud-mode .overlay-drag-bar {
+  background: rgba(4, 7, 14, 0.72);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
 .overlay-resize-grip {
   display: none; position: fixed; bottom: 0; right: 0;
   width: 18px; height: 18px; cursor: se-resize; z-index: 9999;

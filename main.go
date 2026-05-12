@@ -29,6 +29,7 @@ import (
 	"OOF_RL/internal/plugins/debugassistant"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
+	"OOF_RL/internal/plugins/overlayhud"
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
@@ -69,7 +70,8 @@ func main() {
 
 	database, err := db.Open(cfg.DBPath())
 	if err != nil {
-		log.Fatalf("db: %v", err)
+		log.Printf("db: %v", err)
+		return
 	}
 	defer database.Close()
 
@@ -98,6 +100,7 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
+	srv.Use(overlayhud.New())
 	srv.Register(mux)
 
 	if err := srv.InitPlugins(); err != nil {

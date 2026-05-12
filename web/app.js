@@ -836,19 +836,26 @@ async function injectPluginViews(allSchema) {
 }
 
 async function initApp() {
+  const params = new URLSearchParams(location.search);
   const [tabs, schema] = await Promise.all([
     fetch('/api/nav').then(r => r.json()).catch(() => []),
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
   ]);
   buildNav(tabs, schema);
   await injectPluginViews(schema);
-  showView(tabs[0]?.id || 'settings');
+  const requestedView = params.get('view');
+  const knownViews = new Set([...tabs.map(t => t.id), 'settings']);
+  showView(knownViews.has(requestedView) ? requestedView : (tabs[0]?.id || 'settings'));
   connectWS();
 }
 
 // Overlay-mode init: runs only in the overlay window (url has ?overlay=1)
-if (new URLSearchParams(location.search).has('overlay')) {
+const _appParams = new URLSearchParams(location.search);
+if (_appParams.has('overlay')) {
   document.body.classList.add('overlay-mode');
+  if (_appParams.has('hud')) {
+    document.body.classList.add('overlay-hud-mode');
+  }
   document.getElementById('overlay-drag-bar').addEventListener('mousedown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.button === 0) window.overlayStartDrag?.();
