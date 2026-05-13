@@ -253,7 +253,7 @@ The corroborated `Inferred` event carries references to all contributing signals
 
 **What if two plugins emit a duplicate `Authoritative`-level event?**
 
-This shouldn't happen — only the RL translator emits `Authoritative`. If it fires twice (e.g. reconnect replays an event), the bus deduplicates by `(Type, MatchGUID, timestamp window)`. Duplicates are dropped and logged.
+This shouldn't happen — only the RL translator emits `Authoritative`. If it fires twice (e.g. reconnect replays an event), deduplication by `(Type, MatchGUID, timestamp window)` is desirable, but it is not implemented in the bus/translator yet. For now, treat replayed `Authoritative` events as a known gap and future work; once implemented, duplicates should be dropped and logged.
 
 ---
 
