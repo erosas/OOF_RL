@@ -2,7 +2,6 @@ package history
 
 import (
 	"embed"
-	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
@@ -12,12 +11,10 @@ import (
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
-
-// db import kept for RunMigration / AddColumnIfNotExists calls in New().
 
 //go:embed view.html view.js
 var viewFS embed.FS
@@ -124,22 +121,19 @@ CREATE INDEX IF NOT EXISTS idx_hist_sf_match  ON hist_statfeed_events(match_id);
 CREATE INDEX IF NOT EXISTS idx_hist_sf_player ON hist_statfeed_events(player_id);
 `
 
-// Plugin is tightly coupled with rl.Client's event dispatch: the client feeds
-// all Rocket League events here via HandleEvent, and this plugin owns all
-// match/player/goal/statfeed DB persistence. The client retains its own copy
-// of lastPlayers and matchGuid solely for raw-packet-capture metadata.
 type Plugin struct {
 	plugin.BasePlugin
 	cfg   *config.Config
 	store *store
+	subs  []oofevents.Subscription
 
 	// per-match state, reset on MatchDestroyed
 	matchID         int64
 	matchGuid       string
 	overtime        bool
 	playlistType    *int
-	lastPlayers     map[string]events.Player
-	lastTeams       []events.Team
+	lastPlayers     map[string]oofevents.PlayerSnapshot
+	lastTeams       []oofevents.TeamSnapshot
 	lastTimeSeconds int
 }
 
@@ -174,115 +168,113 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/matches/", p.handleMatchDetail)
 }
 
-func (p *Plugin) SettingsSchema() []plugin.Setting { return nil }
+func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
+func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) Assets() fs.FS { return viewFS }
-
-func (p *Plugin) HandleEvent(env events.Envelope) {
-	switch env.Event {
-	case "MatchCreated", "MatchInitialized":
-		p.onMatchStart(env)
-	case "UpdateState":
-		p.onUpdateState(env)
-	case "GoalScored":
-		p.onGoalScored(env)
-	case "BallHit":
-		p.onBallHit(env)
-	case "ClockUpdatedSeconds":
-		p.onClockUpdatedSeconds(env)
-	case "StatfeedEvent":
-		p.onStatfeedEvent(env)
-	case "MatchEnded":
-		p.onMatchEnded(env)
-	case "MatchDestroyed":
-		p.onMatchDestroyed()
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.subs = []oofevents.Subscription{
+		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
+		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
+		bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored),
+		bus.Subscribe(oofevents.TypeBallHit, p.onBallHit),
+		bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated),
+		bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed),
+		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
+		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
 	}
+	return nil
 }
 
-func (p *Plugin) onMatchStart(env events.Envelope) {
-	var d events.MatchGuidData
-	if err := json.Unmarshal(env.Data, &d); err != nil || d.MatchGuid == "" {
-		return
+func (p *Plugin) Shutdown() error {
+	for _, s := range p.subs {
+		s.Cancel()
 	}
-	p.switchMatch(d.MatchGuid)
+	return nil
 }
 
-func (p *Plugin) onUpdateState(env events.Envelope) {
-	var d events.UpdateStateData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
+func (p *Plugin) onMatchStarted(e oofevents.OOFEvent) {
+	if e.MatchGUID() == "" {
 		return
 	}
-	if p.matchID == 0 && d.Game.BHasWinner {
+	p.switchMatch(e.MatchGUID())
+}
+
+func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.StateUpdatedEvent)
+	if !ok {
 		return
 	}
-	if d.MatchGuid != "" {
-		p.switchMatch(d.MatchGuid)
+	if p.matchID == 0 && ev.Game.HasWinner {
+		return
 	}
-	p.overtime = d.Game.BOvertime
-	p.lastTimeSeconds = d.Game.TimeSeconds
+	if ev.MatchGUID() != "" {
+		p.switchMatch(ev.MatchGUID())
+	}
+	p.overtime = ev.Game.IsOvertime
+	p.lastTimeSeconds = ev.Game.TimeSeconds
 
 	if p.matchID == 0 && p.matchGuid != "" {
-		id, err := p.store.upsertMatch(p.matchGuid, d.Game.Arena, time.Now())
+		id, err := p.store.upsertMatch(p.matchGuid, ev.Game.Arena, time.Now())
 		if err == nil {
 			p.matchID = id
 		}
 	}
 
-	if len(d.Players) > 0 {
-		currentPlayers := make(map[string]events.Player, len(d.Players))
-		for _, pl := range d.Players {
-			primaryID := historyPlayerID(d.MatchGuid, pl.PrimaryId, pl.Shortcut, pl.Name)
+	if len(ev.Players) > 0 {
+		currentPlayers := make(map[string]oofevents.PlayerSnapshot, len(ev.Players))
+		for _, pl := range ev.Players {
+			primaryID := historyPlayerID(ev.MatchGUID(), pl.PrimaryID, pl.Shortcut, pl.Name)
 			if primaryID != "" {
-				pl.PrimaryId = primaryID
+				pl.PrimaryID = primaryID
 				currentPlayers[primaryID] = pl
 			}
 		}
-		if len(currentPlayers) >= len(p.lastPlayers) || !d.Game.BReplay {
+		if len(currentPlayers) >= len(p.lastPlayers) || !ev.Game.IsReplay {
 			p.lastPlayers = currentPlayers
 		}
 	}
 
-	if len(d.Game.Teams) > 0 {
-		p.lastTeams = d.Game.Teams
+	if len(ev.Game.Teams) > 0 {
+		p.lastTeams = ev.Game.Teams
 	}
 
-	if p.matchID != 0 && d.Game.Playlist != nil && p.playlistType == nil {
-		p.playlistType = d.Game.Playlist
-		_ = p.store.updateMatchPlaylist(p.matchID, *d.Game.Playlist)
+	if p.matchID != 0 && ev.Game.Playlist != nil && p.playlistType == nil {
+		p.playlistType = ev.Game.Playlist
+		_ = p.store.updateMatchPlaylist(p.matchID, *ev.Game.Playlist)
 	}
 }
 
-func (p *Plugin) onGoalScored(env events.Envelope) {
+func (p *Plugin) onGoalScored(e oofevents.OOFEvent) {
 	if p.matchID == 0 {
 		return
 	}
-	var d events.GoalScoredData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
+	ev, ok := e.(oofevents.GoalScoredEvent)
+	if !ok {
 		return
 	}
-	if !p.isActiveMatch(d.MatchGuid) {
+	if !p.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
 	// GoalScored fires twice per goal: first with scorer info, then a replay-end packet
 	// with an empty scorer name. Filter the duplicate.
-	if d.Scorer.Name == "" {
+	if ev.Scorer == "" {
 		return
 	}
-	scorerID := p.findPlayerByShortcut(d.Scorer.Shortcut)
+	scorerID := p.findPlayerByShortcut(ev.ScorerShortcut)
 	assisterID, assisterName := "", ""
-	if d.Assister != nil {
-		assisterID = p.findPlayerByShortcut(d.Assister.Shortcut)
-		assisterName = d.Assister.Name
+	if ev.Assister != "" {
+		assisterID = p.findPlayerByShortcut(ev.AssisterShortcut)
+		assisterName = ev.Assister
 	}
-	lastTouchID := p.findPlayerByShortcut(d.BallLastTouch.Player.Shortcut)
+	lastTouchID := p.findPlayerByShortcut(ev.LastTouchShortcut)
 	_ = p.store.insertGoal(p.matchID,
-		scorerID, d.Scorer.Name, assisterID, assisterName, lastTouchID,
-		d.GoalSpeed, d.GoalTime,
-		d.ImpactLocation.X, d.ImpactLocation.Y, d.ImpactLocation.Z)
+		scorerID, ev.Scorer, assisterID, assisterName, lastTouchID,
+		ev.GoalSpeed, ev.GoalTime,
+		ev.ImpactX, ev.ImpactY, ev.ImpactZ)
 }
 
-// findPlayerByShortcut returns the PrimaryId of the player with the given Shortcut,
+// findPlayerByShortcut returns the PrimaryID of the player with the given Shortcut,
 // or "" if not found in the current lastPlayers snapshot.
 func (p *Plugin) findPlayerByShortcut(shortcut int) string {
 	for id, pl := range p.lastPlayers {
@@ -293,81 +285,78 @@ func (p *Plugin) findPlayerByShortcut(shortcut int) string {
 	return ""
 }
 
-func (p *Plugin) onBallHit(env events.Envelope) {
+func (p *Plugin) onBallHit(e oofevents.OOFEvent) {
 	if !p.cfg.Storage.BallHitEvents || p.matchID == 0 {
 		return
 	}
-	var d events.BallHitData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
+	ev, ok := e.(oofevents.BallHitEvent)
+	if !ok {
 		return
 	}
-	if !p.isActiveMatch(d.MatchGuid) {
+	if !p.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
-	playerID := ""
-	if len(d.Players) > 0 {
-		playerID = historyPlayerID(d.MatchGuid, d.Players[0].PrimaryId, d.Players[0].Shortcut, d.Players[0].Name)
-	}
+	playerID := historyPlayerID(ev.MatchGUID(), ev.PlayerPrimaryID, ev.PlayerShortcut, ev.PlayerName)
 	_ = p.store.insertBallHit(p.matchID, playerID,
-		d.Ball.PreHitSpeed, d.Ball.PostHitSpeed,
-		d.Ball.Location.X, d.Ball.Location.Y, d.Ball.Location.Z)
+		ev.PreHitSpeed, ev.PostHitSpeed,
+		ev.LocX, ev.LocY, ev.LocZ)
 }
 
-func (p *Plugin) onClockUpdatedSeconds(env events.Envelope) {
+func (p *Plugin) onClockUpdated(e oofevents.OOFEvent) {
 	if p.matchID == 0 {
 		return
 	}
-	var d events.ClockData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
+	ev, ok := e.(oofevents.ClockUpdatedEvent)
+	if !ok {
 		return
 	}
-	if !p.isActiveMatch(d.MatchGuid) {
+	if !p.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
-	p.overtime = d.BOvertime
-	p.lastTimeSeconds = d.TimeSeconds
+	p.overtime = ev.IsOvertime
+	p.lastTimeSeconds = ev.TimeSeconds
 }
 
-func (p *Plugin) onStatfeedEvent(env events.Envelope) {
-	var d events.StatfeedEventData
-	if err := json.Unmarshal(env.Data, &d); err != nil || d.EventName == "" {
+func (p *Plugin) onStatFeed(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.StatFeedEvent)
+	if !ok || ev.EventName == "" {
 		return
 	}
-	if !p.isActiveMatch(d.MatchGuid) {
+	if !p.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
-	if d.MainTarget.Name == "" {
+	if ev.MainTarget == "" {
 		return
 	}
 
-	actorID := p.findPlayerByShortcut(d.MainTarget.Shortcut)
+	actorID := p.findPlayerByShortcut(ev.MainTargetShortcut)
 	targetID, targetName := "", ""
-	if d.SecondaryTarget != nil {
-		targetID = p.findPlayerByShortcut(d.SecondaryTarget.Shortcut)
-		targetName = d.SecondaryTarget.Name
+	if ev.SecondaryTarget != "" {
+		targetID = p.findPlayerByShortcut(ev.SecondaryTargetShortcut)
+		targetName = ev.SecondaryTarget
 	}
 
 	if p.matchID != 0 {
-		_ = p.store.insertStatfeedEvent(p.matchID, actorID, d.MainTarget.Name, d.MainTarget.TeamNum, d.EventName, targetID, targetName)
+		_ = p.store.insertStatfeedEvent(p.matchID, actorID, ev.MainTarget, ev.MainTargetTeamNum, ev.EventName, targetID, targetName)
 	}
 }
 
-func (p *Plugin) onMatchEnded(env events.Envelope) {
-	var d events.MatchEndedData
-	if err := json.Unmarshal(env.Data, &d); err != nil || p.matchID == 0 {
+func (p *Plugin) onMatchEnded(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.MatchEndedEvent)
+	if !ok || p.matchID == 0 {
 		return
 	}
-	if !p.isActiveMatch(d.MatchGuid) {
+	if !p.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
 	// Forfeit: if any clock time remained when MatchEnded fired, the game didn't run to zero — someone forfeited.
 	forfeit := !p.overtime && p.lastTimeSeconds > 5
-	p.flushMatch(d.WinnerTeamNum, false, forfeit)
+	p.flushMatch(ev.WinnerTeamNum, false, forfeit)
 }
 
 // onMatchDestroyed handles the case where MatchEnded is never sent (private matches,
 // disconnects). Any active match is flushed and marked incomplete — winner is unknown.
-func (p *Plugin) onMatchDestroyed() {
+func (p *Plugin) onMatchDestroyed(_ oofevents.OOFEvent) {
 	if p.matchID != 0 {
 		p.flushMatch(-1, true, false)
 	} else {
@@ -394,8 +383,8 @@ func (p *Plugin) flushMatch(winnerTeamNum int, incomplete, forfeit bool) {
 	}
 
 	for _, pl := range p.lastPlayers {
-		_ = p.store.upsertPlayer(pl.PrimaryId, pl.Name)
-		_ = p.store.upsertPlayerMatchStats(p.matchID, pl.PrimaryId,
+		_ = p.store.upsertPlayer(pl.PrimaryID, pl.Name)
+		_ = p.store.upsertPlayerMatchStats(p.matchID, pl.PrimaryID,
 			pl.TeamNum, pl.Score, pl.Goals, pl.Shots, pl.Assists, pl.Saves,
 			pl.Touches, pl.CarTouches, pl.Demos)
 	}

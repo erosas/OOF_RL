@@ -1,5 +1,8 @@
 # OOF RL
 
+[![CI](https://github.com/erosas/OOF_RL/actions/workflows/ci.yml/badge.svg)](https://github.com/erosas/OOF_RL/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/erosas/OOF_RL/branch/main/graph/badge.svg)](https://codecov.io/gh/erosas/OOF_RL)
+
 A local Rocket League companion app. Connects to the official RL Stats API, tracks match history in an embedded SQLite database, and shows live stats in a desktop window — all from a single `.exe`, no install required.
 
 **Plugins included:** Live scoreboard · Match history · Player ranks · Session tracker · Ballchasing.com upload

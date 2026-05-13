@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/plugin"
 )
@@ -49,7 +48,6 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
-func (p *Plugin) HandleEvent(_ events.Envelope)           {}
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
 // layoutItem is the validated shape of each entry in the dashboard layout array.

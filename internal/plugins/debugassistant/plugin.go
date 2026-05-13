@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"OOF_RL/internal/config"
-	"OOF_RL/internal/events"
+	"OOF_RL/internal/db"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
 
@@ -45,6 +46,7 @@ type Plugin struct {
 	cfg    *config.Config
 	mu     sync.RWMutex
 	events []recentEvent
+	subs   []oofevents.Subscription
 }
 
 func New(cfg *config.Config) *Plugin {
@@ -74,42 +76,72 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) HandleEvent(env events.Envelope) {
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
 	if !p.enabled() {
+		return nil
+	}
+	p.subs = []oofevents.Subscription{
+		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
+		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
+		bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored),
+		bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed),
+		bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated),
+		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
+		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
+	}
+	return nil
+}
+
+func (p *Plugin) Shutdown() error {
+	for _, s := range p.subs {
+		s.Cancel()
+	}
+	return nil
+}
+
+func (p *Plugin) onMatchStarted(e oofevents.OOFEvent) {
+	p.append(e.Type(), e.MatchGUID(), "match lifecycle started")
+}
+
+func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.StateUpdatedEvent)
+	if !ok {
+		p.append(e.Type(), e.MatchGUID(), "received state update")
 		return
 	}
+	p.append(e.Type(), ev.MatchGUID(), updateStateSummary(ev))
+}
 
-	switch env.Event {
-	case "MatchCreated", "MatchInitialized":
-		var d events.MatchGuidData
-		_ = json.Unmarshal(env.Data, &d)
-		p.append(env.Event, d.MatchGuid, "match lifecycle started")
-	case "UpdateState":
-		var d events.UpdateStateData
-		if err := json.Unmarshal(env.Data, &d); err != nil {
-			p.append(env.Event, "", "received state update")
-			return
-		}
-		p.append(env.Event, d.MatchGuid, updateStateSummary(d))
-	case "GoalScored":
-		var d events.GoalScoredData
-		_ = json.Unmarshal(env.Data, &d)
-		p.append(env.Event, d.MatchGuid, playerSummary(d.Scorer.Name, "goal scored"))
-	case "StatfeedEvent":
-		var d events.StatfeedEventData
-		_ = json.Unmarshal(env.Data, &d)
-		p.append(env.Event, d.MatchGuid, playerSummary(d.MainTarget.Name, d.EventName))
-	case "ClockUpdatedSeconds":
-		var d events.ClockData
-		_ = json.Unmarshal(env.Data, &d)
-		p.append(env.Event, d.MatchGuid, clockSummary(d))
-	case "MatchEnded":
-		var d events.MatchEndedData
-		_ = json.Unmarshal(env.Data, &d)
-		p.append(env.Event, d.MatchGuid, "match ended")
-	case "MatchDestroyed":
-		p.append(env.Event, "", "match destroyed")
+func (p *Plugin) onGoalScored(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.GoalScoredEvent)
+	if !ok {
+		return
 	}
+	p.append(e.Type(), ev.MatchGUID(), playerSummary(ev.Scorer, "goal scored"))
+}
+
+func (p *Plugin) onStatFeed(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.StatFeedEvent)
+	if !ok {
+		return
+	}
+	p.append(e.Type(), ev.MatchGUID(), playerSummary(ev.MainTarget, ev.EventName))
+}
+
+func (p *Plugin) onClockUpdated(e oofevents.OOFEvent) {
+	ev, ok := e.(oofevents.ClockUpdatedEvent)
+	if !ok {
+		return
+	}
+	p.append(e.Type(), ev.MatchGUID(), clockSummary(ev))
+}
+
+func (p *Plugin) onMatchEnded(e oofevents.OOFEvent) {
+	p.append(e.Type(), e.MatchGUID(), "match ended")
+}
+
+func (p *Plugin) onMatchDestroyed(e oofevents.OOFEvent) {
+	p.append(e.Type(), "", "match destroyed")
 }
 
 func (p *Plugin) enabled() bool {
@@ -355,9 +387,9 @@ func (p *Plugin) append(event, matchGUID, summary string) {
 	}
 }
 
-func updateStateSummary(d events.UpdateStateData) string {
+func updateStateSummary(ev oofevents.StateUpdatedEvent) string {
 	blueScore, orangeScore := 0, 0
-	for _, team := range d.Game.Teams {
+	for _, team := range ev.Game.Teams {
 		switch team.TeamNum {
 		case 0:
 			blueScore = team.Score
@@ -366,15 +398,15 @@ func updateStateSummary(d events.UpdateStateData) string {
 		}
 	}
 	return "state update: " +
-		strconv.Itoa(len(d.Players)) + " players, score " +
+		strconv.Itoa(len(ev.Players)) + " players, score " +
 		strconv.Itoa(blueScore) + "-" + strconv.Itoa(orangeScore)
 }
 
-func clockSummary(d events.ClockData) string {
-	if d.BOvertime {
+func clockSummary(ev oofevents.ClockUpdatedEvent) string {
+	if ev.IsOvertime {
 		return "clock update: overtime"
 	}
-	return "clock update: " + strconv.Itoa(d.TimeSeconds) + "s"
+	return "clock update: " + strconv.Itoa(ev.TimeSeconds) + "s"
 }
 
 func playerSummary(name, action string) string {
