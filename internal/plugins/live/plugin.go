@@ -55,10 +55,11 @@ func (p *Plugin) Shutdown() error {
 	return nil
 }
 
-func (p *Plugin) DeclaredEvents() []oofevents.EventDeclaration { return nil }
-
 func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
-	ev := e.(oofevents.StateUpdatedEvent)
+	ev, ok := e.(oofevents.StateUpdatedEvent)
+	if !ok {
+		return
+	}
 	p.mu.Lock()
 	p.state = &ev
 	p.mu.Unlock()

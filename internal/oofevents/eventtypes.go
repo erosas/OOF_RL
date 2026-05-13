@@ -194,7 +194,6 @@ type PlayerSnapshot struct {
 }
 
 // GameSnapshot is a point-in-time game state extracted from a game update.
-// JSON tags mirror the RL API wire format so snapshots can be served directly to the frontend.
 type GameSnapshot struct {
 	Teams       []TeamSnapshot `json:"Teams"`
 	TimeSeconds int            `json:"TimeSeconds"`
