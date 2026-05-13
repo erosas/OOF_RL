@@ -13,6 +13,7 @@ import (
 	"OOF_RL/internal/core"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
 )
@@ -31,7 +32,12 @@ func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	h := hub.New()
 
 	cfgPath := filepath.Join(tmpDir, "config.toml")
-	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, nil)
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
 	srv.Use(history.New(&cfg, database))
 	srv.Use(ballchasing.New(&cfg, database, h))
 

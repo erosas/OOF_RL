@@ -32,6 +32,7 @@ var viewFS embed.FS
 const bcBase = "https://ballchasing.com"
 
 type Plugin struct {
+	plugin.BasePlugin
 	cfg           *config.Config
 	store         *store
 	hub           *hub.Hub

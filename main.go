@@ -22,6 +22,7 @@ import (
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/mmr/rlstats"
 	"OOF_RL/internal/mmr/trackergg"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/dashboard"
@@ -74,6 +75,11 @@ func main() {
 
 	h := hub.New()
 
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		log.Fatalf("event bus: %v", err)
+	}
+
 	trnProvider := mmr.NewFallbackProvider(trackergg.New(), rlstats.New())
 
 	webSub, _ := fs.Sub(webFS, "web")
@@ -84,7 +90,7 @@ func main() {
 		if rlReconnect != nil {
 			rlReconnect()
 		}
-	}, trnProvider)
+	}, trnProvider, bus)
 	srv.Use(live.New())
 	srv.Use(ranks.New())
 	srv.Use(history.New(&cfg, database))
@@ -93,6 +99,10 @@ func main() {
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
 	srv.Register(mux)
+
+	if err := srv.InitPlugins(); err != nil {
+		log.Fatalf("plugin init: %v", err)
+	}
 
 	rlClient := rl.New(&cfg, h)
 	rlReconnect = rlClient.Reconnect
@@ -133,6 +143,8 @@ func main() {
 	}
 
 	w.Run()
+	srv.ShutdownPlugins()
+	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
 }
 

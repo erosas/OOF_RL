@@ -19,6 +19,7 @@ import (
 var viewFS embed.FS
 
 type Plugin struct {
+	plugin.BasePlugin
 	conn *sql.DB
 }
 
