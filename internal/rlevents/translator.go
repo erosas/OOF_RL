@@ -60,11 +60,15 @@ func (t *Translator) advanceGUID(newGUID string) {
 }
 
 func (t *Translator) onMatchStart(env events.Envelope) {
-	d, ok := decode[events.MatchGuidData](env, "MatchCreated")
+	d, ok := decode[events.MatchGuidData](env, env.Event)
 	if !ok || d.MatchGuid == "" {
 		return
 	}
+	prev := t.currentGUID
 	t.advanceGUID(d.MatchGuid)
+	if d.MatchGuid == prev {
+		return // same GUID already seen; don't re-emit match.started
+	}
 	t.bus.PublishAuthoritative(oofevents.NewMatchStarted(d.MatchGuid))
 }
 
@@ -75,6 +79,7 @@ func (t *Translator) onMatchEnded(env events.Envelope) {
 	}
 	t.bus.PublishAuthoritative(oofevents.NewMatchEnded(d.MatchGuid, d.WinnerTeamNum))
 	t.lastOvertime = false
+	t.currentGUID = ""
 }
 
 func (t *Translator) onGoalScored(env events.Envelope) {

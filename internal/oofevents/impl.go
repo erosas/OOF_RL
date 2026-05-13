@@ -18,17 +18,20 @@ func New() Bus {
 }
 
 type busImpl struct {
-	mu      sync.RWMutex
-	ch      chan OOFEvent
-	subs    map[string][]*sub
-	allSubs []*sub
-	stopped atomic.Bool
-	done    chan struct{}
+	mu        sync.RWMutex
+	ch        chan OOFEvent
+	subs      map[string][]*sub
+	allSubs   []*sub
+	stopped   atomic.Bool
+	done      chan struct{}
+	startOnce sync.Once
 }
 
 func (b *busImpl) Start() error {
-	b.done = make(chan struct{})
-	go b.dispatch()
+	b.startOnce.Do(func() {
+		b.done = make(chan struct{})
+		go b.dispatch()
+	})
 	return nil
 }
 
@@ -168,7 +171,18 @@ type stampedEvent struct {
 	src Source
 }
 
-func (s stampedEvent) Source() Source { return s.src }
+func (s stampedEvent) Source() Source   { return s.src }
+func (s stampedEvent) Unwrap() OOFEvent { return s.OOFEvent }
+
+// Unwrap returns the concrete event beneath any bus-stamped wrapper.
+// Handlers that need to type-assert to a specific event struct must call
+// this first: oofevents.Unwrap(e).(oofevents.StateUpdatedEvent)
+func Unwrap(e OOFEvent) OOFEvent {
+	if u, ok := e.(interface{ Unwrap() OOFEvent }); ok {
+		return u.Unwrap()
+	}
+	return e
+}
 
 func (pb *pluginBus) stamp(e OOFEvent) OOFEvent {
 	return stampedEvent{OOFEvent: e, src: Source{PluginID: pb.pluginID}}

@@ -32,7 +32,7 @@ type OOFEvent interface {
 }
 ```
 
-The `Type()` string is the primary dispatch key for subscriptions. It must be stable across versions. Convention: `snake_case`, namespaced for plugin events (`forfeit.detected`, `party.detected`).
+The `Type()` string is the primary dispatch key for subscriptions. It must be stable across versions. Convention: `dot.separated` lowercase, namespaced for plugin events (`forfeit.detected`, `party.detected`).
 
 ### Certainty
 
@@ -221,7 +221,7 @@ type Subscription interface {
 
 **Single goroutine, ordered dispatch.** The bus runs one internal goroutine reading from a buffered channel. All `Publish` calls enqueue; all handler calls happen sequentially on the dispatcher goroutine.
 
-Trade-off accepted: a slow handler blocks all subsequent events. Mitigation: handlers must not do I/O or long computation inline — they should enqueue to their own internal channel and process asynchronously. The bus enforces a per-handler timeout (e.g. 50ms) and logs warnings.
+Trade-off accepted: a slow handler blocks all subsequent events. Mitigation: handlers must not do I/O or long computation inline — they should enqueue to their own internal channel and process asynchronously. Panics in handlers are recovered and logged so one bad handler cannot stop the bus.
 
 This guarantees:
 - Events arrive at subscribers in publication order.
