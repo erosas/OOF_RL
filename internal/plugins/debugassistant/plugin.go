@@ -41,6 +41,7 @@ type exportReportRequest struct {
 // Plugin is a read-only regression helper. It observes RL event flow and serves
 // tester-facing state without writing match/session/history data.
 type Plugin struct {
+	plugin.BasePlugin
 	cfg    *config.Config
 	mu     sync.RWMutex
 	events []recentEvent

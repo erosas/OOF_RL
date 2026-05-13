@@ -31,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at
 `
 
 type Plugin struct {
+	plugin.BasePlugin
 	store *store
 	mu    sync.Mutex
 	since time.Time

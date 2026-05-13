@@ -129,6 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_hist_sf_player ON hist_statfeed_events(player_id)
 // match/player/goal/statfeed DB persistence. The client retains its own copy
 // of lastPlayers and matchGuid solely for raw-packet-capture metadata.
 type Plugin struct {
+	plugin.BasePlugin
 	cfg   *config.Config
 	store *store
 

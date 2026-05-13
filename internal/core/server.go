@@ -20,7 +20,9 @@ import (
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
+	"OOF_RL/internal/rlevents"
 )
 
 var upgrader = websocket.Upgrader{
@@ -36,10 +38,61 @@ type Server struct {
 	reconnect   func()
 	mmrProvider mmr.Provider
 	plugins     []plugin.Plugin
+	bus         oofevents.Bus
+	translator  *rlevents.Translator
 }
 
-func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider) *Server {
-	return &Server{cfgPath: cfgPath, cfg: cfg, db: database, hub: h, fs: static, reconnect: reconnect, mmrProvider: mmrProvider}
+func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
+	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
+	return &Server{
+		cfgPath:     cfgPath,
+		cfg:         cfg,
+		db:          database,
+		hub:         h,
+		fs:          static,
+		reconnect:   reconnect,
+		mmrProvider: mmrProvider,
+		bus:         bus,
+		translator:  rlevents.New(rlBus),
+	}
+}
+
+// InitPlugins calls Init on every registered plugin after all plugins are registered.
+// Must be called before the RL client starts delivering events.
+func (s *Server) InitPlugins() error {
+	for _, p := range s.plugins {
+		if err := p.Init(s.bus.ForPlugin(p.ID()), s, s.db); err != nil {
+			return fmt.Errorf("plugin %s Init: %w", p.ID(), err)
+		}
+	}
+	return nil
+}
+
+// ShutdownPlugins calls Shutdown on every registered plugin in reverse order.
+func (s *Server) ShutdownPlugins() {
+	for i := len(s.plugins) - 1; i >= 0; i-- {
+		p := s.plugins[i]
+		if err := p.Shutdown(); err != nil {
+			log.Printf("[core] plugin %s Shutdown: %v", p.ID(), err)
+		}
+	}
+}
+
+// Get implements plugin.Registry.
+func (s *Server) Get(id string) (plugin.Plugin, bool) {
+	for _, p := range s.plugins {
+		if p.ID() == id {
+			return p, true
+		}
+	}
+	return nil, false
+}
+
+// List implements plugin.Registry.
+func (s *Server) List() []plugin.Plugin {
+	out := make([]plugin.Plugin, len(s.plugins))
+	copy(out, s.plugins)
+	return out
 }
 
 // Use registers a plugin. Call before Register.
@@ -322,9 +375,11 @@ func (s *Server) handleDataDir(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, map[string]string{"path": s.cfg.DataDir})
 }
 
-// DispatchEvent delivers an event envelope to every registered plugin.
-// A panic in any plugin is recovered so one bad plugin cannot crash the process.
+// DispatchEvent delivers an event envelope to the OOF bus (via the translator)
+// and to every plugin's legacy HandleEvent. Plugins still using HandleEvent
+// continue to work; the bus path is additive during the migration.
 func (s *Server) DispatchEvent(env events.Envelope) {
+	s.translator.Translate(env)
 	for _, p := range s.plugins {
 		func(p plugin.Plugin) {
 			defer func() {

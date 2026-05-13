@@ -22,6 +22,7 @@ type rankPlayer struct {
 }
 
 type Plugin struct {
+	plugin.BasePlugin
 	mu      sync.RWMutex
 	players []rankPlayer
 }

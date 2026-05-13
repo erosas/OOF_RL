@@ -18,6 +18,7 @@ var viewFS embed.FS
 // Plugin caches the current game state and serves it to new page loads.
 // It receives updates via HandleEvent once the Bus is wired to rl.Client (Phase 10).
 type Plugin struct {
+	plugin.BasePlugin
 	mu    sync.RWMutex
 	state *events.UpdateStateData // nil = no active match
 }
