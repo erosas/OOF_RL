@@ -172,35 +172,51 @@ func NewStateUpdated(guid string, players []PlayerSnapshot, game GameSnapshot) S
 }
 
 // PlayerSnapshot is a point-in-time player state extracted from a game update.
+// JSON tags mirror the RL API wire format so snapshots can be served directly to the frontend.
 type PlayerSnapshot struct {
-	Name      string
-	PrimaryID string
-	TeamNum   int
-	Score     int
-	Goals     int
-	Shots     int
-	Assists   int
-	Saves     int
-	Demos     int
-	Speed     *float64
-	Boost     *int
+	Name           string   `json:"Name"`
+	PrimaryID      string   `json:"PrimaryId"`
+	TeamNum        int      `json:"TeamNum"`
+	Score          int      `json:"Score"`
+	Goals          int      `json:"Goals"`
+	Shots          int      `json:"Shots"`
+	Assists        int      `json:"Assists"`
+	Saves          int      `json:"Saves"`
+	Touches        int      `json:"Touches"`
+	Demos          int      `json:"Demos"`
+	Speed          *float64 `json:"Speed,omitempty"`
+	Boost          *int     `json:"Boost,omitempty"`
+	IsBoosting     *bool    `json:"bBoosting,omitempty"`
+	IsOnWall       *bool    `json:"bOnWall,omitempty"`
+	IsPowersliding *bool    `json:"bPowersliding,omitempty"`
+	IsDemolished   *bool    `json:"bDemolished,omitempty"`
+	IsSupersonic   *bool    `json:"bSupersonic,omitempty"`
 }
 
 // GameSnapshot is a point-in-time game state extracted from a game update.
+// JSON tags mirror the RL API wire format so snapshots can be served directly to the frontend.
 type GameSnapshot struct {
-	Teams       []TeamSnapshot
-	TimeSeconds int
-	IsOvertime  bool
-	BallSpeed   float64
-	Arena       string
-	Playlist    *int
-	HasWinner   bool
-	Winner      string
+	Teams       []TeamSnapshot `json:"Teams"`
+	TimeSeconds int            `json:"TimeSeconds"`
+	IsOvertime  bool           `json:"bOvertime"`
+	IsReplay    bool           `json:"bReplay"`
+	Ball        BallSnapshot   `json:"Ball"`
+	Arena       string         `json:"Arena"`
+	Playlist    *int           `json:"Playlist,omitempty"`
+	HasWinner   bool           `json:"bHasWinner"`
+	Winner      string         `json:"Winner"`
+}
+
+// BallSnapshot carries ball state from a game update.
+type BallSnapshot struct {
+	Speed float64 `json:"Speed"`
 }
 
 // TeamSnapshot is a point-in-time team state.
 type TeamSnapshot struct {
-	Name    string
-	TeamNum int
-	Score   int
+	Name           string `json:"Name"`
+	TeamNum        int    `json:"TeamNum"`
+	Score          int    `json:"Score"`
+	ColorPrimary   string `json:"ColorPrimary,omitempty"`
+	ColorSecondary string `json:"ColorSecondary,omitempty"`
 }

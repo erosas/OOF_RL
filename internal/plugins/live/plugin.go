@@ -2,25 +2,24 @@ package live
 
 import (
 	"embed"
-	"encoding/json"
 	"io/fs"
 	"net/http"
 	"sync"
 
-	"OOF_RL/internal/events"
+	"OOF_RL/internal/db"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
 
 //go:embed view.html view.js
 var viewFS embed.FS
 
-// Plugin caches the current game state and serves it to new page loads.
-// It receives updates via HandleEvent once the Bus is wired to rl.Client (Phase 10).
 type Plugin struct {
 	plugin.BasePlugin
 	mu    sync.RWMutex
-	state *events.UpdateStateData // nil = no active match
+	state *oofevents.StateUpdatedEvent // nil = no active match
+	subs  []oofevents.Subscription
 }
 
 func New() *Plugin { return &Plugin{} }
@@ -41,23 +40,37 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) HandleEvent(env events.Envelope) {
-	switch env.Event {
-	case "UpdateState":
-		var d events.UpdateStateData
-		if err := json.Unmarshal(env.Data, &d); err == nil {
-			p.mu.Lock()
-			p.state = &d
-			p.mu.Unlock()
-		}
-	case "MatchDestroyed":
-		p.mu.Lock()
-		p.state = nil
-		p.mu.Unlock()
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.subs = []oofevents.Subscription{
+		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
+		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
 	}
+	return nil
 }
 
-// handleState returns the last known game state so the frontend can restore
+func (p *Plugin) Shutdown() error {
+	for _, s := range p.subs {
+		s.Cancel()
+	}
+	return nil
+}
+
+func (p *Plugin) DeclaredEvents() []oofevents.EventDeclaration { return nil }
+
+func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
+	ev := e.(oofevents.StateUpdatedEvent)
+	p.mu.Lock()
+	p.state = &ev
+	p.mu.Unlock()
+}
+
+func (p *Plugin) onMatchDestroyed(_ oofevents.OOFEvent) {
+	p.mu.Lock()
+	p.state = nil
+	p.mu.Unlock()
+}
+
+// handleState returns the last known game state so the frontend can hydrate
 // the live view immediately on page load without waiting for the next tick.
 func (p *Plugin) handleState(w http.ResponseWriter, r *http.Request) {
 	p.mu.RLock()
@@ -68,5 +81,12 @@ func (p *Plugin) handleState(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, map[string]any{"active": false})
 		return
 	}
-	httputil.WriteJSON(w, map[string]any{"active": true, "state": state})
+	httputil.WriteJSON(w, map[string]any{
+		"active": true,
+		"state": map[string]any{
+			"MatchGuid": state.MatchGUID(),
+			"Players":   state.Players,
+			"Game":      state.Game,
+		},
+	})
 }
