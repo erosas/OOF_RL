@@ -375,21 +375,10 @@ func (s *Server) handleDataDir(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, map[string]string{"path": s.cfg.DataDir})
 }
 
-// DispatchEvent delivers an event envelope to the OOF bus (via the translator)
-// and to every plugin's legacy HandleEvent. Plugins still using HandleEvent
-// continue to work; the bus path is additive during the migration.
+// DispatchEvent translates a raw RL envelope into typed OOF events and publishes
+// them on the bus. All plugin event handling is now via bus subscriptions.
 func (s *Server) DispatchEvent(env events.Envelope) {
 	s.translator.Translate(env)
-	for _, p := range s.plugins {
-		func(p plugin.Plugin) {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("[dispatch] plugin %s panicked on %s: %v", p.ID(), env.Event, r)
-				}
-			}()
-			p.HandleEvent(env)
-		}(p)
-	}
 }
 
 // -- Tracker profile --

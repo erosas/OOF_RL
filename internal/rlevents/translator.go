@@ -88,8 +88,13 @@ func (t *Translator) onGoalScored(env events.Envelope) {
 		return
 	}
 	t.bus.PublishAuthoritative(oofevents.NewGoalScored(
-		d.MatchGuid, d.Scorer.Name, nameOrEmpty(d.Assister),
-		d.GoalSpeed, d.GoalTime, d.Scorer.TeamNum,
+		d.MatchGuid,
+		d.Scorer.Name, d.Scorer.Shortcut,
+		nameOrEmpty(d.Assister), shortcutOrZero(d.Assister),
+		d.BallLastTouch.Player.Shortcut,
+		d.GoalSpeed, d.GoalTime,
+		d.ImpactLocation.X, d.ImpactLocation.Y, d.ImpactLocation.Z,
+		d.Scorer.TeamNum,
 	))
 }
 
@@ -99,7 +104,9 @@ func (t *Translator) onStatFeed(env events.Envelope) {
 		return
 	}
 	t.bus.PublishAuthoritative(oofevents.NewStatFeed(
-		d.MatchGuid, d.EventName, d.MainTarget.Name, nameOrEmpty(d.SecondaryTarget),
+		d.MatchGuid, d.EventName,
+		d.MainTarget.Name, d.MainTarget.Shortcut, d.MainTarget.TeamNum,
+		nameOrEmpty(d.SecondaryTarget), shortcutOrZero(d.SecondaryTarget),
 	))
 }
 
@@ -120,11 +127,18 @@ func (t *Translator) onBallHit(env events.Envelope) {
 	if !ok {
 		return
 	}
-	playerName := ""
+	playerName, playerPrimaryID := "", ""
+	playerShortcut := 0
 	if len(d.Players) > 0 {
 		playerName = d.Players[0].Name
+		playerPrimaryID = d.Players[0].PrimaryId
+		playerShortcut = d.Players[0].Shortcut
 	}
-	t.bus.PublishAuthoritative(oofevents.NewBallHit(d.MatchGuid, playerName, d.Ball.PreHitSpeed, d.Ball.PostHitSpeed))
+	t.bus.PublishAuthoritative(oofevents.NewBallHit(
+		d.MatchGuid, playerName, playerPrimaryID, playerShortcut,
+		d.Ball.PreHitSpeed, d.Ball.PostHitSpeed,
+		d.Ball.Location.X, d.Ball.Location.Y, d.Ball.Location.Z,
+	))
 }
 
 func (t *Translator) onCrossbarHit(env events.Envelope) {
@@ -150,6 +164,7 @@ func (t *Translator) onUpdateState(env events.Envelope) {
 		players[i] = oofevents.PlayerSnapshot{
 			Name:           p.Name,
 			PrimaryID:      p.PrimaryId,
+			Shortcut:       p.Shortcut,
 			TeamNum:        p.TeamNum,
 			Score:          p.Score,
 			Goals:          p.Goals,
@@ -157,6 +172,7 @@ func (t *Translator) onUpdateState(env events.Envelope) {
 			Assists:        p.Assists,
 			Saves:          p.Saves,
 			Touches:        p.Touches,
+			CarTouches:     p.CarTouches,
 			Demos:          p.Demos,
 			Speed:          p.Speed,
 			Boost:          p.Boost,
@@ -206,4 +222,11 @@ func nameOrEmpty(p *events.PlayerRef) string {
 		return ""
 	}
 	return p.Name
+}
+
+func shortcutOrZero(p *events.PlayerRef) int {
+	if p == nil {
+		return 0
+	}
+	return p.Shortcut
 }

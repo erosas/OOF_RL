@@ -1,13 +1,13 @@
 package history
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"testing"
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
+	"OOF_RL/internal/oofevents"
 )
 
 func newTestPlugin(t *testing.T) *Plugin {
@@ -21,13 +21,43 @@ func newTestPlugin(t *testing.T) *Plugin {
 	return New(&cfg, database)
 }
 
-func emitHistoryEvent(t *testing.T, p *Plugin, name string, data any) {
-	t.Helper()
-	raw, err := json.Marshal(data)
-	if err != nil {
-		t.Fatalf("Marshal %s: %v", name, err)
+// translateUpdateState converts a raw RL UpdateStateData to a StateUpdatedEvent
+// so tests can call plugin handlers directly (synchronous, no bus needed).
+func translateUpdateState(d events.UpdateStateData) oofevents.StateUpdatedEvent {
+	players := make([]oofevents.PlayerSnapshot, len(d.Players))
+	for i, p := range d.Players {
+		players[i] = oofevents.PlayerSnapshot{
+			Name:       p.Name,
+			PrimaryID:  p.PrimaryId,
+			Shortcut:   p.Shortcut,
+			TeamNum:    p.TeamNum,
+			Score:      p.Score,
+			Goals:      p.Goals,
+			Shots:      p.Shots,
+			Assists:    p.Assists,
+			Saves:      p.Saves,
+			Touches:    p.Touches,
+			CarTouches: p.CarTouches,
+			Demos:      p.Demos,
+		}
 	}
-	p.HandleEvent(events.Envelope{Event: name, Data: raw})
+	teams := make([]oofevents.TeamSnapshot, len(d.Game.Teams))
+	for i, tm := range d.Game.Teams {
+		teams[i] = oofevents.TeamSnapshot{
+			Name:    tm.Name,
+			TeamNum: tm.TeamNum,
+			Score:   tm.Score,
+		}
+	}
+	return oofevents.NewStateUpdated(d.MatchGuid, players, oofevents.GameSnapshot{
+		Teams:       teams,
+		TimeSeconds: d.Game.TimeSeconds,
+		IsOvertime:  d.Game.BOvertime,
+		IsReplay:    d.Game.BReplay,
+		HasWinner:   d.Game.BHasWinner,
+		Arena:       d.Game.Arena,
+		Playlist:    d.Game.Playlist,
+	})
 }
 
 func updateState(guid, arena string, players []events.Player, blueScore, orangeScore, seconds int) events.UpdateStateData {
@@ -106,16 +136,16 @@ func matchCount(t *testing.T, p *Plugin) int {
 func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-a", "DFH Stadium", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
 		player("stale-blue", "Stale Blue", 0, 111),
 		player("stale-orange", "Stale Orange", 1, 222),
-	}, 1, 2, 120))
+	}, 1, 2, 120)))
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-b", "Paname_Dusk_P", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-b", "Paname_Dusk_P", []events.Player{
 		player("current-blue", "Current Blue", 0, 333),
 		player("current-orange", "Current Orange", 1, 444),
-	}, 3, 4, 0))
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-b", WinnerTeamNum: 1})
+	}, 3, 4, 0)))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
 
 	oldMatch := matchByGUID(t, p, "guid-a")
 	if !oldMatch.Incomplete {
@@ -142,20 +172,20 @@ func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
 func TestStaleMatchEndedDoesNotFlushActiveMatch(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-a", "DFH Stadium", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
 		player("a-player", "A Player", 0, 100),
-	}, 1, 0, 10))
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-b", "Mannfield", []events.Player{
+	}, 1, 0, 10)))
+	p.onStateUpdated(translateUpdateState(updateState("guid-b", "Mannfield", []events.Player{
 		player("b-player", "B Player", 1, 200),
-	}, 0, 1, 0))
+	}, 0, 1, 0)))
 
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-a", WinnerTeamNum: 0})
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-a", 0))
 
 	if p.matchGuid != "guid-b" || p.matchID == 0 {
 		t.Fatalf("stale MatchEnded should not reset active match, guid=%q id=%d", p.matchGuid, p.matchID)
 	}
 
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-b", WinnerTeamNum: 1})
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
 	newMatch := matchByGUID(t, p, "guid-b")
 	if newMatch.Incomplete || newMatch.WinnerTeamNum != 1 {
 		t.Fatalf("active match should complete after its own MatchEnded: %+v", newMatch)
@@ -165,18 +195,18 @@ func TestStaleMatchEndedDoesNotFlushActiveMatch(t *testing.T) {
 func TestUpdateStateReplacesCurrentRosterSnapshot(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-roster", "Utopia Coliseum", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
 		player("real-blue", "Real Blue", 0, 100),
 		player("real-orange", "Real Orange", 1, 200),
 		player("stale-blue", "Stale Blue", 0, 300),
 		player("stale-orange", "Stale Orange", 1, 400),
-	}, 1, 1, 120))
+	}, 1, 1, 120)))
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-roster", "Utopia Coliseum", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
 		player("real-blue", "Real Blue", 0, 500),
 		player("real-orange", "Real Orange", 1, 600),
-	}, 2, 3, 0))
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-roster", WinnerTeamNum: 1})
+	}, 2, 3, 0)))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-roster", 1))
 
 	match := matchByGUID(t, p, "guid-roster")
 	players := playerIDsForMatch(t, p, match.ID)
@@ -191,18 +221,18 @@ func TestUpdateStateReplacesCurrentRosterSnapshot(t *testing.T) {
 func TestLatePartialRosterDoesNotShrinkCompletedMatch(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-overtime", "Utopia Coliseum", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-overtime", "Utopia Coliseum", []events.Player{
 		player("blue-one", "Blue One", 0, 100),
 		player("blue-two", "Blue Two", 0, 200),
 		player("orange-one", "Orange One", 1, 300),
 		player("orange-two", "Orange Two", 1, 400),
-	}, 4, 3, 0))
+	}, 4, 3, 0)))
 
-	emitHistoryEvent(t, p, "UpdateState", updateStateWithReplay("guid-overtime", "Utopia Coliseum", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-overtime", "Utopia Coliseum", []events.Player{
 		player("blue-one", "Blue One", 0, 500),
 		player("blue-two", "Blue Two", 0, 600),
-	}, 4, 3, 0, true))
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-overtime", WinnerTeamNum: 0})
+	}, 4, 3, 0, true)))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-overtime", 0))
 
 	match := matchByGUID(t, p, "guid-overtime")
 	players := playerIDsForMatch(t, p, match.ID)
@@ -218,13 +248,13 @@ func TestTerminalUpdateAfterMatchEndedDoesNotReopenMatch(t *testing.T) {
 		player("Unknown|0|0", "Sultan", 1, 34),
 	}
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-real", "Wasteland", players, 1, 0, 12))
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-real", WinnerTeamNum: 0})
+	p.onStateUpdated(translateUpdateState(updateState("guid-real", "Wasteland", players, 1, 0, 12)))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-real", 0))
 
-	emitHistoryEvent(t, p, "UpdateState", terminalUpdateState("guid-real", "Wasteland", players, 1, 0))
-	emitHistoryEvent(t, p, "MatchDestroyed", nil)
-	emitHistoryEvent(t, p, "UpdateState", terminalUpdateState("guid-postgame", "Wasteland", players, 1, 0))
-	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+	p.onStateUpdated(translateUpdateState(terminalUpdateState("guid-real", "Wasteland", players, 1, 0)))
+	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
+	p.onStateUpdated(translateUpdateState(terminalUpdateState("guid-postgame", "Wasteland", players, 1, 0)))
+	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
 	if got := matchCount(t, p); got != 1 {
 		t.Fatalf("terminal post-match updates should not create duplicate matches, got %d", got)
@@ -238,12 +268,12 @@ func TestTerminalUpdateAfterMatchEndedDoesNotReopenMatch(t *testing.T) {
 func TestMatchEndedNearZeroClockIsNotForfeit(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-full-time", "TrainStation", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-full-time", "TrainStation", []events.Player{
 		player("blue-one", "Blue One", 0, 200),
 		player("orange-one", "Orange One", 1, 100),
-	}, 2, 1, 173))
-	emitHistoryEvent(t, p, "ClockUpdatedSeconds", events.ClockData{MatchGuid: "guid-full-time", TimeSeconds: 4})
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-full-time", WinnerTeamNum: 0})
+	}, 2, 1, 173)))
+	p.onClockUpdated(oofevents.NewClockUpdated("guid-full-time", 4, false))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-full-time", 0))
 
 	match := matchByGUID(t, p, "guid-full-time")
 	if match.Forfeit {
@@ -254,12 +284,12 @@ func TestMatchEndedNearZeroClockIsNotForfeit(t *testing.T) {
 func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-forfeit", "TrainStation", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-forfeit", "TrainStation", []events.Player{
 		player("blue-one", "Blue One", 0, 200),
 		player("orange-one", "Orange One", 1, 100),
-	}, 2, 1, 173))
-	emitHistoryEvent(t, p, "ClockUpdatedSeconds", events.ClockData{MatchGuid: "guid-forfeit", TimeSeconds: 173})
-	emitHistoryEvent(t, p, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-forfeit", WinnerTeamNum: 0})
+	}, 2, 1, 173)))
+	p.onClockUpdated(oofevents.NewClockUpdated("guid-forfeit", 173, false))
+	p.onMatchEnded(oofevents.NewMatchEnded("guid-forfeit", 0))
 
 	match := matchByGUID(t, p, "guid-forfeit")
 	if !match.Forfeit {
@@ -270,17 +300,17 @@ func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
 func TestUnknownBotIDsAreScopedToMatchAndShortcut(t *testing.T) {
 	p := newTestPlugin(t)
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-gerwin", "Wasteland", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-gerwin", "Wasteland", []events.Player{
 		player("steam|player|0", "Mr Mung Beans", 0, 100),
 		player("Unknown|0|0", "Gerwin", 1, 200),
-	}, 1, 0, 0))
-	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+	}, 1, 0, 0)))
+	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
-	emitHistoryEvent(t, p, "UpdateState", updateState("guid-khan", "Wasteland", []events.Player{
+	p.onStateUpdated(translateUpdateState(updateState("guid-khan", "Wasteland", []events.Player{
 		player("steam|player|0", "Mr Mung Beans", 0, 100),
 		player("Unknown|0|0", "Khan", 1, 200),
-	}, 1, 0, 0))
-	emitHistoryEvent(t, p, "MatchDestroyed", nil)
+	}, 1, 0, 0)))
+	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
 	gerwinMatch := matchByGUID(t, p, "guid-gerwin")
 	gerwinPlayers, err := p.store.matchPlayers(gerwinMatch.ID)

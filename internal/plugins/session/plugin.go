@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
 
@@ -35,6 +35,7 @@ type Plugin struct {
 	store *store
 	mu    sync.Mutex
 	since time.Time
+	subs  []oofevents.Subscription
 }
 
 func New(database *db.DB) *Plugin {
@@ -65,10 +66,21 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) HandleEvent(env events.Envelope) {
-	if env.Event != "MatchCreated" && env.Event != "MatchInitialized" {
-		return
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.subs = []oofevents.Subscription{
+		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
 	}
+	return nil
+}
+
+func (p *Plugin) Shutdown() error {
+	for _, s := range p.subs {
+		s.Cancel()
+	}
+	return nil
+}
+
+func (p *Plugin) onMatchStarted(_ oofevents.OOFEvent) {
 	p.mu.Lock()
 	if p.since.IsZero() {
 		p.since = time.Now()

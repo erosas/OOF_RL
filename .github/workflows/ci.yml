@@ -21,7 +21,15 @@ jobs:
           cache: true
 
       - name: Run tests
-        run: go test ./...
+        shell: pwsh
+        run: go test -coverprofile="$env:RUNNER_TEMP/coverage.out" ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ runner.temp }}/coverage.out
+          fail_ci_if_error: false
 
   # ── Release binary ────────────────────────────────────────────────────────
   # Only runs when a version tag (e.g. v1.2.3) is pushed.

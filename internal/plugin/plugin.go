@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/oofevents"
 )
 
@@ -41,18 +40,12 @@ type Plugin interface {
 	NavTab() NavTab
 	Routes(mux *http.ServeMux)
 	Assets() fs.FS
-
-	// HandleEvent delivers a raw RL envelope. Deprecated: plugins should
-	// subscribe in Init instead. Kept as an adapter during migration.
-	HandleEvent(env events.Envelope)
 }
 
-// BasePlugin provides no-op implementations of the lifecycle methods added
-// in the event-bus migration. Embed this in existing plugins to satisfy the
-// updated interface without changing any existing logic.
+// BasePlugin provides no-op implementations of the lifecycle methods.
+// Embed this in plugins to satisfy the interface without boilerplate.
 type BasePlugin struct{}
 
 func (BasePlugin) Init(_ oofevents.PluginBus, _ Registry, _ *db.DB) error { return nil }
 func (BasePlugin) Shutdown() error                                         { return nil }
 func (BasePlugin) DeclaredEvents() []oofevents.EventDeclaration            { return nil }
-func (BasePlugin) HandleEvent(_ events.Envelope)                           {}

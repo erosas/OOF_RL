@@ -71,21 +71,33 @@ func NewOvertimeStarted(guid string, clockSeconds int) OvertimeStartedEvent {
 // GoalScoredEvent carries goal details.
 type GoalScoredEvent struct {
 	Base
-	Scorer    string
-	Assister  string // "" if no assist
-	GoalSpeed float64
-	GoalTime  float64
-	TeamNum   int
+	Scorer            string
+	ScorerShortcut    int
+	Assister          string // "" if no assist
+	AssisterShortcut  int
+	LastTouchShortcut int
+	GoalSpeed         float64
+	GoalTime          float64
+	ImpactX           float64
+	ImpactY           float64
+	ImpactZ           float64
+	TeamNum           int
 }
 
-func NewGoalScored(guid, scorer, assister string, speed, goalTime float64, teamNum int) GoalScoredEvent {
+func NewGoalScored(guid, scorer string, scorerShortcut int, assister string, assisterShortcut, lastTouchShortcut int, speed, goalTime, impactX, impactY, impactZ float64, teamNum int) GoalScoredEvent {
 	return GoalScoredEvent{
-		Base:      NewBase(TypeGoalScored, Authoritative, guid),
-		Scorer:    scorer,
-		Assister:  assister,
-		GoalSpeed: speed,
-		GoalTime:  goalTime,
-		TeamNum:   teamNum,
+		Base:              NewBase(TypeGoalScored, Authoritative, guid),
+		Scorer:            scorer,
+		ScorerShortcut:    scorerShortcut,
+		Assister:          assister,
+		AssisterShortcut:  assisterShortcut,
+		LastTouchShortcut: lastTouchShortcut,
+		GoalSpeed:         speed,
+		GoalTime:          goalTime,
+		ImpactX:           impactX,
+		ImpactY:           impactY,
+		ImpactZ:           impactZ,
+		TeamNum:           teamNum,
 	}
 }
 
@@ -93,17 +105,23 @@ func NewGoalScored(guid, scorer, assister string, speed, goalTime float64, teamN
 // EventName: "Goal", "OwnGoal", "Save", "EpicSave", "Assist", "Demolish", "Shot".
 type StatFeedEvent struct {
 	Base
-	EventName       string
-	MainTarget      string
-	SecondaryTarget string // present for Demolish (victim)
+	EventName               string
+	MainTarget              string
+	MainTargetShortcut      int
+	MainTargetTeamNum       int
+	SecondaryTarget         string // present for Demolish (victim)
+	SecondaryTargetShortcut int
 }
 
-func NewStatFeed(guid, eventName, mainTarget, secondaryTarget string) StatFeedEvent {
+func NewStatFeed(guid, eventName, mainTarget string, mainTargetShortcut, mainTargetTeamNum int, secondaryTarget string, secondaryTargetShortcut int) StatFeedEvent {
 	return StatFeedEvent{
-		Base:            NewBase(TypeStatFeed, Authoritative, guid),
-		EventName:       eventName,
-		MainTarget:      mainTarget,
-		SecondaryTarget: secondaryTarget,
+		Base:                    NewBase(TypeStatFeed, Authoritative, guid),
+		EventName:               eventName,
+		MainTarget:              mainTarget,
+		MainTargetShortcut:      mainTargetShortcut,
+		MainTargetTeamNum:       mainTargetTeamNum,
+		SecondaryTarget:         secondaryTarget,
+		SecondaryTargetShortcut: secondaryTargetShortcut,
 	}
 }
 
@@ -125,17 +143,27 @@ func NewClockUpdated(guid string, seconds int, overtime bool) ClockUpdatedEvent 
 // BallHitEvent carries a ball touch. High-frequency; off by default.
 type BallHitEvent struct {
 	Base
-	PlayerName   string
-	PreHitSpeed  float64
-	PostHitSpeed float64
+	PlayerName      string
+	PlayerPrimaryID string
+	PlayerShortcut  int
+	PreHitSpeed     float64
+	PostHitSpeed    float64
+	LocX            float64
+	LocY            float64
+	LocZ            float64
 }
 
-func NewBallHit(guid, playerName string, preSpeed, postSpeed float64) BallHitEvent {
+func NewBallHit(guid, playerName, playerPrimaryID string, playerShortcut int, preSpeed, postSpeed, locX, locY, locZ float64) BallHitEvent {
 	return BallHitEvent{
-		Base:         NewBase(TypeBallHit, Authoritative, guid),
-		PlayerName:   playerName,
-		PreHitSpeed:  preSpeed,
-		PostHitSpeed: postSpeed,
+		Base:            NewBase(TypeBallHit, Authoritative, guid),
+		PlayerName:      playerName,
+		PlayerPrimaryID: playerPrimaryID,
+		PlayerShortcut:  playerShortcut,
+		PreHitSpeed:     preSpeed,
+		PostHitSpeed:    postSpeed,
+		LocX:            locX,
+		LocY:            locY,
+		LocZ:            locZ,
 	}
 }
 
@@ -176,6 +204,7 @@ func NewStateUpdated(guid string, players []PlayerSnapshot, game GameSnapshot) S
 type PlayerSnapshot struct {
 	Name           string   `json:"Name"`
 	PrimaryID      string   `json:"PrimaryId"`
+	Shortcut       int      `json:"Shortcut"`
 	TeamNum        int      `json:"TeamNum"`
 	Score          int      `json:"Score"`
 	Goals          int      `json:"Goals"`
@@ -183,6 +212,7 @@ type PlayerSnapshot struct {
 	Assists        int      `json:"Assists"`
 	Saves          int      `json:"Saves"`
 	Touches        int      `json:"Touches"`
+	CarTouches     int      `json:"CarTouches"`
 	Demos          int      `json:"Demos"`
 	Speed          *float64 `json:"Speed,omitempty"`
 	Boost          *int     `json:"Boost,omitempty"`

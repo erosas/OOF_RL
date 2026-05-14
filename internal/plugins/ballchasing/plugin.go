@@ -20,16 +20,25 @@ import (
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
 
 //go:embed view.html view.js
 var viewFS embed.FS
 
-const bcBase = "https://ballchasing.com"
+const (
+	bcBase = "https://ballchasing.com"
+
+	// WSEventSaveReplayReminder is broadcast to the browser when a match ends,
+	// prompting the user to save the replay before leaving the post-match screen.
+	WSEventSaveReplayReminder = "bc:save-replay-reminder"
+
+	// WSEventUploaded is broadcast to the browser after a successful auto-upload.
+	WSEventUploaded = "bc:uploaded"
+)
 
 type Plugin struct {
 	plugin.BasePlugin
@@ -39,6 +48,7 @@ type Plugin struct {
 	startupTime   time.Time
 	mu            sync.Mutex
 	uploadPending bool
+	subs          []oofevents.Subscription
 }
 
 func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Plugin {
@@ -101,41 +111,53 @@ func (p *Plugin) ApplySettings(values map[string]string) error {
 	return nil
 }
 
-// HandleEvent fires the save-replay reminder on MatchEnded (while the user is
-// still on the post-match screen), and triggers auto-upload on MatchDestroyed.
-func (p *Plugin) HandleEvent(env events.Envelope) {
-	switch env.Event {
-	case "MatchEnded":
-		// Remind user to save the replay while they can still act on it.
-		evt, _ := json.Marshal(map[string]any{"Event": "bc:save-replay-reminder"})
-		p.hub.Broadcast(evt)
+func (p *Plugin) Assets() fs.FS { return viewFS }
 
-	case "MatchDestroyed":
-		if p.cfg.BallchasingAPIKey == "" {
-			return
-		}
-		p.mu.Lock()
-		if p.uploadPending {
-			p.mu.Unlock()
-			return
-		}
-		p.uploadPending = true
-		p.mu.Unlock()
-
-		go func() {
-			defer func() {
-				p.mu.Lock()
-				p.uploadPending = false
-				p.mu.Unlock()
-			}()
-			// Give RL time to finish writing the replay file to disk.
-			time.Sleep(12 * time.Second)
-			p.autoUpload()
-		}()
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.subs = []oofevents.Subscription{
+		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
+		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
 	}
+	return nil
 }
 
-func (p *Plugin) Assets() fs.FS { return viewFS }
+func (p *Plugin) Shutdown() error {
+	for _, s := range p.subs {
+		s.Cancel()
+	}
+	return nil
+}
+
+// onMatchEnded fires the save-replay reminder while the user is still on the post-match screen.
+func (p *Plugin) onMatchEnded(_ oofevents.OOFEvent) {
+	evt, _ := json.Marshal(map[string]any{"Event": WSEventSaveReplayReminder})
+	p.hub.Broadcast(evt)
+}
+
+// onMatchDestroyed triggers auto-upload after the match session is torn down.
+func (p *Plugin) onMatchDestroyed(_ oofevents.OOFEvent) {
+	if p.cfg.BallchasingAPIKey == "" {
+		return
+	}
+	p.mu.Lock()
+	if p.uploadPending {
+		p.mu.Unlock()
+		return
+	}
+	p.uploadPending = true
+	p.mu.Unlock()
+
+	go func() {
+		defer func() {
+			p.mu.Lock()
+			p.uploadPending = false
+			p.mu.Unlock()
+		}()
+		// Give RL time to finish writing the replay file to disk.
+		time.Sleep(12 * time.Second)
+		p.autoUpload()
+	}()
+}
 
 // -- BC API helpers --
 
@@ -238,7 +260,7 @@ func (p *Plugin) autoUpload() {
 		return
 	}
 	evt, _ := json.Marshal(map[string]any{
-		"Event": "bc:uploaded",
+		"Event": WSEventUploaded,
 		"Data":  map[string]any{"replays": uploaded},
 	})
 	p.hub.Broadcast(evt)

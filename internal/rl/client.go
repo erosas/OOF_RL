@@ -24,7 +24,6 @@ type Client struct {
 	kick     chan struct{}
 	dispatch func(events.Envelope)
 	// matchGuid and lastPlayers are tracked solely for raw-packet-capture metadata.
-	// All match/player/event DB persistence is owned by the history plugin via HandleEvent.
 	matchGuid   string
 	lastPlayers map[string]events.Player
 

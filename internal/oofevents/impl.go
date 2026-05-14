@@ -38,7 +38,9 @@ func (b *busImpl) Start() error {
 func (b *busImpl) Stop() {
 	if b.stopped.CompareAndSwap(false, true) {
 		close(b.ch)
-		<-b.done
+		if b.done != nil {
+			<-b.done
+		}
 	}
 }
 
@@ -97,9 +99,10 @@ func (b *busImpl) SubscribeAll(fn func(OOFEvent)) Subscription {
 	return &canceller{s: s}
 }
 
-// SubscribeMinCertainty registers fn for eventType events at or above min certainty.
-// Certainty is ordered Authoritative(0) < Inferred(1) < Signal(2) numerically,
-// so "at or above min" means e.Certainty() <= min.
+// SubscribeMinCertainty registers fn for eventType events that are at least as
+// certain as min. Certainty ranks Authoritative(0) < Inferred(1) < Signal(2),
+// so the filter is e.Certainty() <= min — e.g. min=Inferred passes Authoritative
+// and Inferred but drops Signal.
 func (b *busImpl) SubscribeMinCertainty(eventType string, min Certainty, fn func(OOFEvent)) Subscription {
 	return b.Subscribe(eventType, func(e OOFEvent) {
 		if e.Certainty() <= min {
