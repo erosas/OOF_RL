@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OOF RL Momentum Control Ring Preview</title>
+  <style>
+    :root {
+      --blue: #1e88ff;
+      --blue-bright: #61b7ff;
+      --orange: #ff7a18;
+      --orange-bright: #ffb02e;
+      --purple: #a855f7;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --panel: rgba(4, 9, 18, 0.76);
+      --line: rgba(148, 163, 184, 0.20);
+      --blue-share: 58%;
+      --orange-share: 42%;
+      --confidence: 0.74;
+      --ring-size: 296px;
+      --ring-thick: 34px;
+      --blue-glow: 0 0 24px rgba(30, 136, 255, 0.58);
+      --orange-glow: 0 0 24px rgba(255, 122, 24, 0.58);
+      color: var(--text);
+      font-family: Inter, Sora, "Space Grotesk", Segoe UI, system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background:
+        radial-gradient(circle at 30% 10%, rgba(30, 136, 255, 0.14), transparent 28%),
+        radial-gradient(circle at 75% 18%, rgba(255, 122, 24, 0.13), transparent 30%),
+        #05070c;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: grid;
+      gap: 16px;
+      margin: 0 auto;
+      max-width: 1500px;
+      padding: 18px;
+    }
+
+    .stage {
+      aspect-ratio: 16 / 9;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 24%, transparent 72%, rgba(0, 0, 0, 0.34)),
+        url("internal/plugins/overlayhud/casey-bar-down111.png") center / cover no-repeat;
+      border: 1px solid var(--line);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.56);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hud {
+      inset: 0;
+      pointer-events: none;
+      position: absolute;
+    }
+
+    .score-strip {
+      align-items: center;
+      background: linear-gradient(180deg, rgba(5, 10, 20, 0.72), rgba(5, 10, 20, 0.46));
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 10px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.44);
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 126px 112px 126px;
+      left: 50%;
+      padding: 10px 16px;
+      position: absolute;
+      top: 28px;
+      transform: translateX(-50%);
+    }
+
+    .score-block {
+      align-items: center;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr auto;
+    }
+
+    .score-block--orange {
+      grid-template-columns: auto 1fr;
+    }
+
+    .score-label {
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .score-value {
+      font-size: 1.75rem;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .score-block--blue .score-value { color: var(--blue-bright); text-shadow: var(--blue-glow); }
+    .score-block--orange .score-value { color: var(--orange-bright); text-shadow: var(--orange-glow); }
+
+    .score-clock {
+      border-left: 1px solid rgba(148, 163, 184, 0.18);
+      border-right: 1px solid rgba(148, 163, 184, 0.18);
+      text-align: center;
+    }
+
+    .score-time {
+      font-size: 1.6rem;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+    }
+
+    .score-mode {
+      color: var(--muted);
+      font-size: 0.56rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      margin-top: 3px;
+      text-transform: uppercase;
+    }
+
+    .ring-host {
+      left: 52px;
+      position: absolute;
+      top: 114px;
+      transform-origin: top left;
+    }
+
+    .control-ring {
+      --blue-deg: calc(var(--blue-share) * 3.6deg);
+      --front-deg: calc(var(--blue-share) * 3.6deg);
+      align-items: center;
+      display: grid;
+      height: var(--ring-size);
+      justify-items: center;
+      position: relative;
+      width: var(--ring-size);
+    }
+
+    .ring-glow {
+      background:
+        radial-gradient(circle, rgba(0, 0, 0, 0) 48%, rgba(30, 136, 255, calc(0.20 + var(--confidence) * 0.24)) 50%, transparent 69%),
+        radial-gradient(circle, rgba(0, 0, 0, 0) 48%, rgba(255, 122, 24, calc(0.20 + var(--confidence) * 0.24)) 50%, transparent 69%);
+      border-radius: 999px;
+      filter: blur(13px);
+      inset: -18px;
+      opacity: 0.86;
+      position: absolute;
+    }
+
+    .ring-arc {
+      background:
+        conic-gradient(from -90deg,
+          var(--blue) 0deg,
+          var(--blue-bright) calc(var(--blue-deg) - 8deg),
+          rgba(229, 231, 235, 0.95) calc(var(--blue-deg) - 2deg),
+          rgba(229, 231, 235, 0.95) calc(var(--blue-deg) + 2deg),
+          var(--orange-bright) calc(var(--blue-deg) + 8deg),
+          var(--orange) 360deg);
+      border-radius: 999px;
+      box-shadow:
+        0 0 calc(16px + var(--confidence) * 18px) rgba(30, 136, 255, 0.36),
+        0 0 calc(16px + var(--confidence) * 18px) rgba(255, 122, 24, 0.34);
+      inset: 0;
+      position: absolute;
+    }
+
+    .ring-arc::before {
+      background:
+        repeating-conic-gradient(from -90deg,
+          rgba(255, 255, 255, 0.76) 0deg 3deg,
+          rgba(0, 0, 0, 0.68) 3deg 6deg,
+          rgba(0, 0, 0, 0) 6deg 9deg);
+      border-radius: inherit;
+      content: "";
+      inset: 7px;
+      mix-blend-mode: screen;
+      opacity: 0.82;
+      position: absolute;
+    }
+
+    .ring-arc::after {
+      background: #05070c;
+      border-radius: inherit;
+      box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.8);
+      content: "";
+      inset: var(--ring-thick);
+      position: absolute;
+    }
+
+    .ring-inner-ticks {
+      background:
+        repeating-conic-gradient(from -90deg,
+          rgba(148, 163, 184, 0.40) 0deg 1deg,
+          transparent 1deg 8deg);
+      border-radius: 999px;
+      inset: 48px;
+      opacity: 0.68;
+      position: absolute;
+    }
+
+    .ring-inner-ticks::after {
+      background: rgba(5, 10, 20, 0.84);
+      border-radius: inherit;
+      content: "";
+      inset: 12px;
+      position: absolute;
+    }
+
+    .front-line {
+      height: calc(var(--ring-size) / 2 + 9px);
+      left: 50%;
+      position: absolute;
+      top: 50%;
+      transform: rotate(calc(var(--front-deg) - 90deg));
+      transform-origin: top center;
+      width: 2px;
+      z-index: 5;
+    }
+
+    .front-line::before {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(168, 85, 247, 0.2), transparent);
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.92);
+      content: "";
+      display: block;
+      height: 88px;
+      transform: translateY(-80px);
+      width: 2px;
+    }
+
+    .front-dot {
+      background: #f8fafc;
+      border-radius: 999px;
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.94);
+      height: 9px;
+      left: -3.5px;
+      position: absolute;
+      top: -9px;
+      width: 9px;
+    }
+
+    .ring-core {
+      align-items: center;
+      background: radial-gradient(circle, rgba(15, 23, 42, 0.78), rgba(3, 7, 14, 0.96));
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 999px;
+      display: flex;
+      flex-direction: column;
+      height: calc(var(--ring-size) - var(--ring-thick) * 2.16);
+      justify-content: center;
+      position: relative;
+      text-align: center;
+      width: calc(var(--ring-size) - var(--ring-thick) * 2.16);
+      z-index: 3;
+    }
+
+    .ring-time {
+      font-size: 2.4rem;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+
+    .ring-state {
+      color: var(--blue-bright);
+      font-size: 0.9rem;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+      margin-top: 13px;
+      text-transform: uppercase;
+    }
+
+    .ring-confidence {
+      color: #7dd3fc;
+      font-size: 0.64rem;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      margin-top: 5px;
+      text-transform: uppercase;
+    }
+
+    .ring-mark {
+      border: 1px solid rgba(229, 231, 235, 0.48);
+      border-radius: 10px;
+      color: rgba(229, 231, 235, 0.62);
+      font-size: 1.2rem;
+      font-weight: 950;
+      margin-top: 15px;
+      padding: 2px 8px;
+    }
+
+    .share-strip {
+      align-items: center;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 58px 1fr 58px;
+      margin-top: 13px;
+      width: var(--ring-size);
+    }
+
+    .share-percent {
+      font-size: 1.18rem;
+      font-weight: 950;
+    }
+
+    .share-percent--blue { color: var(--blue-bright); text-align: left; }
+    .share-percent--orange { color: var(--orange-bright); text-align: right; }
+
+    .mini-rail {
+      background: rgba(148, 163, 184, 0.16);
+      border-radius: 999px;
+      display: flex;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .mini-blue { background: var(--blue); height: 100%; transition: width 220ms ease; }
+    .mini-orange { background: var(--orange); height: 100%; transition: width 220ms ease; }
+
+    .moment-label {
+      color: var(--blue-bright);
+      font-size: 0.75rem;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      margin-top: 7px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .pressure-chip {
+      background: rgba(5, 10, 20, 0.68);
+      border-left: 3px solid var(--orange);
+      bottom: 74px;
+      box-shadow: 0 0 22px rgba(249, 115, 22, 0.14);
+      left: 42px;
+      padding: 10px 13px;
+      position: absolute;
+      width: 210px;
+    }
+
+    .pressure-chip strong {
+      color: var(--orange-bright);
+      display: block;
+      font-size: 0.76rem;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .pressure-chip span {
+      color: var(--muted);
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+    .behavior-board {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      position: absolute;
+      right: 34px;
+      top: 118px;
+      width: 430px;
+    }
+
+    .behavior-card {
+      background: rgba(5, 10, 20, 0.58);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 9px;
+      padding: 10px 12px;
+    }
+
+    .behavior-card strong {
+      display: block;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .behavior-card span {
+      color: var(--muted);
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .controls {
+      background: rgba(4, 9, 18, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr auto;
+      padding: 14px;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 8px 10px;
+    }
+
+    button:hover,
+    button.active {
+      border-color: var(--blue);
+      color: #bfdbfe;
+    }
+
+    .sliders {
+      align-items: center;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(150px, 1fr));
+    }
+
+    label {
+      color: var(--muted);
+      display: grid;
+      font-size: 0.72rem;
+      font-weight: 800;
+      gap: 6px;
+      text-transform: uppercase;
+    }
+
+    input[type="range"] { accent-color: var(--blue); }
+
+    .is-orange {
+      --blue-glow: 0 0 14px rgba(30, 136, 255, 0.28);
+      --orange-glow: 0 0 30px rgba(255, 122, 24, 0.68);
+    }
+
+    .is-orange .ring-state,
+    .is-orange .moment-label,
+    .is-orange .ring-confidence {
+      color: var(--orange-bright);
+    }
+
+    .is-blue .ring-state,
+    .is-blue .moment-label,
+    .is-blue .ring-confidence {
+      color: var(--blue-bright);
+    }
+
+    .is-volatile .ring-state,
+    .is-volatile .moment-label,
+    .is-volatile .ring-confidence {
+      color: #c084fc;
+    }
+
+    .is-volatile .ring-arc {
+      box-shadow: 0 0 30px rgba(168, 85, 247, 0.44), 0 0 20px rgba(30, 136, 255, 0.24), 0 0 20px rgba(255, 122, 24, 0.24);
+    }
+
+    .is-neutral .ring-arc {
+      filter: saturate(0.78);
+      opacity: 0.84;
+    }
+
+    .is-volatile .front-dot,
+    .is-volatile .front-line::before {
+      animation: flicker 700ms ease-in-out infinite alternate;
+    }
+
+    @keyframes flicker {
+      from { opacity: 0.42; filter: hue-rotate(0deg); }
+      to { opacity: 1; filter: hue-rotate(35deg); }
+    }
+
+    @media (max-width: 1050px) {
+      .behavior-board { display: none; }
+      .ring-host { left: 28px; transform: scale(0.88); }
+      .pressure-chip { display: none; }
+      .controls, .sliders { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="stage">
+      <div class="hud is-blue" id="hud">
+        <div class="score-strip">
+          <div class="score-block score-block--blue">
+            <div class="score-label">Blue</div>
+            <div class="score-value">2</div>
+          </div>
+          <div class="score-clock">
+            <div class="score-time">2:45</div>
+            <div class="score-mode">Game 1 | 2v2</div>
+          </div>
+          <div class="score-block score-block--orange">
+            <div class="score-value">3</div>
+            <div class="score-label">Orange</div>
+          </div>
+        </div>
+
+        <div class="ring-host">
+          <div class="control-ring" id="ring">
+            <div class="ring-glow"></div>
+            <div class="ring-arc"></div>
+            <div class="ring-inner-ticks"></div>
+            <div class="front-line"><div class="front-dot"></div></div>
+            <div class="ring-core">
+              <div class="ring-time">2:45</div>
+              <div class="ring-state" id="ringState">Blue Pressure</div>
+              <div class="ring-confidence" id="confidenceText">Confidence: High</div>
+              <div class="ring-mark">OOF</div>
+            </div>
+          </div>
+          <div class="share-strip">
+            <div class="share-percent share-percent--blue" id="bluePct">58%</div>
+            <div>
+              <div class="mini-rail">
+                <div class="mini-blue" id="miniBlue"></div>
+                <div class="mini-orange" id="miniOrange"></div>
+              </div>
+              <div class="moment-label" id="momentLabel">Blue Control</div>
+            </div>
+            <div class="share-percent share-percent--orange" id="orangePct">42%</div>
+          </div>
+        </div>
+
+        <div class="pressure-chip">
+          <strong id="pressureTitle">Blue Pressure</strong>
+          <span id="pressureDetail">Front line leaning blue | high confidence</span>
+        </div>
+
+        <div class="behavior-board">
+          <div class="behavior-card"><strong>Arc Ownership</strong><span>The arc shows which team owns more event-derived momentum.</span></div>
+          <div class="behavior-card"><strong>Front Line</strong><span>The bright seam marks the contested line where control changes hands.</span></div>
+          <div class="behavior-card"><strong>Glow Intensity</strong><span>Pressure and threat level increase the blue/orange bloom.</span></div>
+          <div class="behavior-card"><strong>Confidence</strong><span>Pulse strength rises when the engine has recent strong signal.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="buttons">
+        <button data-preset="neutral">Neutral 50/50</button>
+        <button data-preset="slightBlue">Slight Blue</button>
+        <button data-preset="clearBlue" class="active">Clear Blue</button>
+        <button data-preset="slightOrange">Slight Orange</button>
+        <button data-preset="clearOrange">Clear Orange</button>
+        <button data-preset="heavyOrange">Heavy Orange</button>
+        <button data-preset="volatile">Volatile</button>
+      </div>
+      <div class="sliders">
+        <label>Blue share <input id="blueSlider" type="range" min="0" max="100" value="58"></label>
+        <label>Confidence <input id="confidenceSlider" type="range" min="0" max="100" value="74"></label>
+        <label>Ring scale <input id="scaleSlider" type="range" min="65" max="125" value="100"></label>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const presets = {
+      neutral: { blue: 50, state: 'NEUTRAL', confidence: 0.44 },
+      slightBlue: { blue: 60, state: 'BLUE_PRESSURE', confidence: 0.58 },
+      clearBlue: { blue: 72, state: 'BLUE_CONTROL', confidence: 0.78 },
+      slightOrange: { blue: 40, state: 'ORANGE_PRESSURE', confidence: 0.58 },
+      clearOrange: { blue: 28, state: 'ORANGE_CONTROL', confidence: 0.78 },
+      heavyOrange: { blue: 15, state: 'ORANGE_PRESSURE', confidence: 0.91 },
+      volatile: { blue: 52, state: 'VOLATILE', confidence: 0.62 },
+    };
+
+    const els = {
+      hud: document.getElementById('hud'),
+      ring: document.getElementById('ring'),
+      ringState: document.getElementById('ringState'),
+      confidenceText: document.getElementById('confidenceText'),
+      bluePct: document.getElementById('bluePct'),
+      orangePct: document.getElementById('orangePct'),
+      miniBlue: document.getElementById('miniBlue'),
+      miniOrange: document.getElementById('miniOrange'),
+      momentLabel: document.getElementById('momentLabel'),
+      pressureTitle: document.getElementById('pressureTitle'),
+      pressureDetail: document.getElementById('pressureDetail'),
+      blueSlider: document.getElementById('blueSlider'),
+      confidenceSlider: document.getElementById('confidenceSlider'),
+      scaleSlider: document.getElementById('scaleSlider'),
+    };
+
+    let current = { ...presets.clearBlue };
+
+    function applyState(next) {
+      current = { ...current, ...next };
+      const blue = clamp(current.blue, 0, 100);
+      const orange = 100 - blue;
+      const confidence = clamp(current.confidence, 0, 1);
+      const state = stateFromShare(blue, current.state);
+      const labels = labelsFor(state, confidence);
+
+      document.documentElement.style.setProperty('--blue-share', `${blue}%`);
+      document.documentElement.style.setProperty('--orange-share', `${orange}%`);
+      document.documentElement.style.setProperty('--confidence', String(confidence));
+      document.documentElement.style.setProperty('--ring-size', `${296 * Number(els.scaleSlider.value) / 100}px`);
+
+      els.hud.className = `hud ${classFor(state)}`;
+      els.bluePct.textContent = `${Math.round(blue)}%`;
+      els.orangePct.textContent = `${Math.round(orange)}%`;
+      els.miniBlue.style.width = `${blue}%`;
+      els.miniOrange.style.width = `${orange}%`;
+      els.ringState.textContent = labels.state;
+      els.confidenceText.textContent = `Confidence: ${labels.confidence}`;
+      els.momentLabel.textContent = labels.bottom;
+      els.pressureTitle.textContent = labels.state;
+      els.pressureDetail.textContent = labels.detail;
+    }
+
+    function stateFromShare(blue, requested) {
+      if (requested === 'VOLATILE') return 'VOLATILE';
+      if (blue >= 68) return 'BLUE_CONTROL';
+      if (blue >= 56) return 'BLUE_PRESSURE';
+      if (blue <= 32) return 'ORANGE_CONTROL';
+      if (blue <= 44) return 'ORANGE_PRESSURE';
+      return 'NEUTRAL';
+    }
+
+    function labelsFor(state, confidence) {
+      const conf = confidence >= 0.78 ? 'High' : confidence >= 0.48 ? 'Medium' : 'Low';
+      if (state === 'BLUE_CONTROL') return { state: 'Blue Control', bottom: 'Blue Control', confidence: conf, detail: 'Front line pushed orange | blue owns the arc' };
+      if (state === 'BLUE_PRESSURE') return { state: 'Blue Pressure', bottom: 'Blue Advantage', confidence: conf, detail: 'Blue event pressure rising | front line leaning blue' };
+      if (state === 'ORANGE_CONTROL') return { state: 'Orange Control', bottom: 'Orange Control', confidence: conf, detail: 'Front line pushed blue | orange owns the arc' };
+      if (state === 'ORANGE_PRESSURE') return { state: 'Orange Pressure', bottom: 'Orange Advantage', confidence: conf, detail: 'Orange event pressure rising | front line leaning orange' };
+      if (state === 'VOLATILE') return { state: 'Volatile', bottom: 'Contested Front Line', confidence: conf, detail: 'Rapid swing state | do not call stable control' };
+      return { state: 'Neutral', bottom: 'Neutral', confidence: conf, detail: 'Balanced arc | low ownership signal' };
+    }
+
+    function classFor(state) {
+      if (state.includes('BLUE')) return 'is-blue';
+      if (state.includes('ORANGE')) return 'is-orange';
+      if (state === 'VOLATILE') return 'is-volatile';
+      return 'is-neutral';
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, Number(value) || 0));
+    }
+
+    document.querySelectorAll('[data-preset]').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-preset]').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        const preset = presets[button.dataset.preset];
+        els.blueSlider.value = preset.blue;
+        els.confidenceSlider.value = Math.round(preset.confidence * 100);
+        applyState(preset);
+      });
+    });
+
+    els.blueSlider.addEventListener('input', () => applyState({ blue: Number(els.blueSlider.value) }));
+    els.confidenceSlider.addEventListener('input', () => applyState({ confidence: Number(els.confidenceSlider.value) / 100 }));
+    els.scaleSlider.addEventListener('input', () => applyState({}));
+
+    applyState(current);
+  </script>
+</body>
+</html>
