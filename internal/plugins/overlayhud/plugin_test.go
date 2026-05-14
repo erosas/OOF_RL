@@ -162,7 +162,9 @@ func TestOverlayPerfFrontendReportIncludesVisibilityFields(t *testing.T) {
 		"f9WindowVisibilityKnown": true,
 		"perfRole": "f9-hud-window",
 		"perfStatus": "render-active",
-		"visibilitySource": "f9-window-binding",
+		"visibilitySource": "native-hud-query",
+		"nativeHud": true,
+		"assetVersion": "20260514041035.009302500",
 		"visual": "wheel",
 		"variant": "full",
 		"barHidden": true,
@@ -173,7 +175,7 @@ func TestOverlayPerfFrontendReportIncludesVisibilityFields(t *testing.T) {
 		"wheelNodes": 777,
 		"currentSecond": {"wheel.update": 1},
 		"totals": {"wheel.update": 1},
-		"url": "http://localhost:8080/?overlay=1&view=overlay&hud=1"
+		"url": "http://localhost:8080/?overlay=1&view=overlay&hud=1&nativeHud=1&assetVersion=20260514041035.009302500"
 	}`)
 	rr := httptest.NewRecorder()
 	p.handlePerfFrontend(rr, httptest.NewRequest(http.MethodPost, "/api/overlay/perf/frontend", bytes.NewReader(body)))
@@ -207,8 +209,113 @@ func TestOverlayPerfFrontendReportIncludesVisibilityFields(t *testing.T) {
 	if !report.F9WindowVisible || !report.F9VisibilityKnown {
 		t.Fatalf("expected F9 window visibility fields, got %+v", report)
 	}
-	if report.PerfRole != "f9-hud-window" || report.PerfStatus != "render-active" || report.VisibilitySource != "f9-window-binding" {
+	if report.PerfRole != "f9-hud-window" || report.PerfStatus != "render-active" || report.VisibilitySource != "native-hud-query" {
 		t.Fatalf("unexpected frontend perf status fields: %+v", report)
+	}
+	if !report.NativeHUD || report.AssetVersion != "20260514041035.009302500" || report.ClientClass != "native-f9-hud" {
+		t.Fatalf("expected native F9 HUD classification fields, got %+v", report)
+	}
+}
+
+func TestOverlayPerfFrontendUnregisterRemovesClient(t *testing.T) {
+	p := New()
+	p.handlePerf(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/overlay/perf?enable=1", nil))
+
+	body := []byte(`{
+		"clientId": "hud-test",
+		"perfSchemaVersion": 2,
+		"isHud": true,
+		"nativeHud": true,
+		"assetVersion": "20260514041035.009302500",
+		"currentSecond": {"wheel.update": 1},
+		"totals": {"wheel.update": 1}
+	}`)
+	rr := httptest.NewRecorder()
+	p.handlePerfFrontend(rr, httptest.NewRequest(http.MethodPost, "/api/overlay/perf/frontend", bytes.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("frontend perf report status = %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+
+	rr = httptest.NewRecorder()
+	p.handlePerfFrontend(rr, httptest.NewRequest(http.MethodPost, "/api/overlay/perf/frontend", bytes.NewReader([]byte(`{
+		"clientId": "hud-test",
+		"unregister": true
+	}`))))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("frontend perf unregister status = %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+
+	rr = httptest.NewRecorder()
+	p.handlePerf(rr, httptest.NewRequest(http.MethodGet, "/api/overlay/perf", nil))
+
+	var snapshot overlayPerfSnapshot
+	if err := json.Unmarshal(rr.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode perf snapshot: %v", err)
+	}
+	if _, ok := snapshot.Frontend["hud-test"]; ok {
+		t.Fatalf("expected hud-test to be unregistered, got %+v", snapshot.Frontend)
+	}
+}
+
+func TestOverlayPerfPrunesExpiredFrontendReports(t *testing.T) {
+	p := New()
+	now := time.Now().UnixMilli()
+
+	p.mu.Lock()
+	p.perfResetLocked(now, true)
+	p.perf.Frontend["old"] = overlayPerfFrontendReport{
+		ClientID:      "old",
+		SchemaVersion: 0,
+		IsHUD:         true,
+		At:            now - overlayPerfFrontendReportTTLMS - 1,
+	}
+	p.perf.Frontend["fresh"] = overlayPerfFrontendReport{
+		ClientID:      "fresh",
+		SchemaVersion: 2,
+		IsHUD:         true,
+		NativeHUD:     true,
+		AssetVersion:  "20260514041035.009302500",
+		At:            now,
+	}
+	snapshot := p.perfSnapshotLocked(now)
+	_, oldStored := p.perf.Frontend["old"]
+	p.mu.Unlock()
+
+	if oldStored {
+		t.Fatal("expected expired frontend report to be pruned from backend storage")
+	}
+	if _, ok := snapshot.Frontend["old"]; ok {
+		t.Fatalf("expected expired frontend report to be absent from snapshot, got %+v", snapshot.Frontend)
+	}
+	if fresh, ok := snapshot.Frontend["fresh"]; !ok || fresh.ClientClass != "native-f9-hud" {
+		t.Fatalf("expected fresh native F9 report to remain classified, got %+v", snapshot.Frontend)
+	}
+}
+
+func TestOverlayPerfClassifiesLegacyAndManualHudClients(t *testing.T) {
+	legacy := sanitizeFrontendPerfReport(overlayPerfFrontendReport{
+		ClientID: "legacy",
+		IsHUD:    true,
+	})
+	if legacy.ClientClass != "legacy-hud-client" {
+		t.Fatalf("legacy client class = %q, want legacy-hud-client", legacy.ClientClass)
+	}
+
+	manual := sanitizeFrontendPerfReport(overlayPerfFrontendReport{
+		ClientID:      "manual",
+		SchemaVersion: 2,
+		IsHUD:         true,
+	})
+	if manual.ClientClass != "manual-hud-url" {
+		t.Fatalf("manual client class = %q, want manual-hud-url", manual.ClientClass)
+	}
+
+	lab := sanitizeFrontendPerfReport(overlayPerfFrontendReport{
+		ClientID: "lab",
+		IsHUD:    false,
+	})
+	if lab.ClientClass != "overlay-lab-preview" {
+		t.Fatalf("lab client class = %q, want overlay-lab-preview", lab.ClientClass)
 	}
 }
 

@@ -20,6 +20,8 @@ import (
 //go:embed view.html view.js momentum-flow-bar.css momentum-control-wheel.css casey-bar-down111.png
 var viewFS embed.FS
 
+const overlayPerfFrontendReportTTLMS = int64(15000)
+
 // Plugin is a read-only overlay design lab. It renders HUD components and
 // exposes deterministic event-pressure state without mutating core match data.
 type Plugin struct {
@@ -303,33 +305,52 @@ func (p *Plugin) handlePerf(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) handlePerfFrontend(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var report overlayPerfFrontendReport
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
-	if err := decoder.Decode(&report); err != nil {
-		http.Error(w, "invalid overlay perf report", http.StatusBadRequest)
-		return
+	if r.Method == http.MethodDelete {
+		report.ClientID = r.URL.Query().Get("clientId")
+		report.Unregister = true
+		if report.ClientID == "" && r.Body != nil {
+			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4*1024))
+			_ = decoder.Decode(&report)
+			report.Unregister = true
+		}
+	} else {
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
+		if err := decoder.Decode(&report); err != nil {
+			http.Error(w, "invalid overlay perf report", http.StatusBadRequest)
+			return
+		}
 	}
 	if report.ClientID == "" {
+		if report.Unregister {
+			http.Error(w, "missing overlay perf client id", http.StatusBadRequest)
+			return
+		}
 		report.ClientID = "unknown"
 	}
 	report.At = time.Now().UnixMilli()
 
 	p.mu.Lock()
 	if p.perf.Enabled {
+		p.pruneFrontendPerfReportsLocked(report.At)
 		if p.perf.Frontend == nil {
 			p.perf.Frontend = make(map[string]overlayPerfFrontendReport)
 		}
-		p.perf.Frontend[report.ClientID] = sanitizeFrontendPerfReport(report)
+		if report.Unregister {
+			delete(p.perf.Frontend, report.ClientID)
+		} else {
+			p.perf.Frontend[report.ClientID] = sanitizeFrontendPerfReport(report)
+		}
 	}
 	enabled := p.perf.Enabled
 	p.mu.Unlock()
 
-	httputil.WriteJSON(w, map[string]any{"enabled": enabled})
+	httputil.WriteJSON(w, map[string]any{"enabled": enabled, "unregistered": report.Unregister})
 }
 
 type momentumResponse struct {
@@ -399,6 +420,9 @@ type overlayPerfFrontendReport struct {
 	PerfRole          string         `json:"perfRole,omitempty"`
 	PerfStatus        string         `json:"perfStatus,omitempty"`
 	VisibilitySource  string         `json:"visibilitySource,omitempty"`
+	NativeHUD         bool           `json:"nativeHud,omitempty"`
+	AssetVersion      string         `json:"assetVersion,omitempty"`
+	ClientClass       string         `json:"clientClass,omitempty"`
 	Visual            string         `json:"visual,omitempty"`
 	Variant           string         `json:"variant,omitempty"`
 	Performance       bool           `json:"performanceMode,omitempty"`
@@ -415,6 +439,7 @@ type overlayPerfFrontendReport struct {
 	LastSignalKey     string         `json:"lastSignalKey,omitempty"`
 	NodeCount         int            `json:"nodeCount,omitempty"`
 	URL               string         `json:"url,omitempty"`
+	Unregister        bool           `json:"unregister,omitempty"`
 }
 
 func copyOverlayPrefs(in overlayPrefs) overlayPrefs {
@@ -478,6 +503,7 @@ func (p *Plugin) perfRotateLocked(now int64) {
 func (p *Plugin) perfSnapshotLocked(now int64) overlayPerfSnapshot {
 	if p.perf.Enabled {
 		p.perfRotateLocked(now)
+		p.pruneFrontendPerfReportsLocked(now)
 	}
 	return overlayPerfSnapshot{
 		Enabled:            p.perf.Enabled,
@@ -492,10 +518,23 @@ func (p *Plugin) perfSnapshotLocked(now int64) overlayPerfSnapshot {
 	}
 }
 
+func (p *Plugin) pruneFrontendPerfReportsLocked(now int64) {
+	for key, report := range p.perf.Frontend {
+		if frontendPerfReportExpired(report, now) {
+			delete(p.perf.Frontend, key)
+		}
+	}
+}
+
+func frontendPerfReportExpired(report overlayPerfFrontendReport, now int64) bool {
+	return report.At > 0 && now-report.At > overlayPerfFrontendReportTTLMS
+}
+
 func sanitizeFrontendPerfReport(in overlayPerfFrontendReport) overlayPerfFrontendReport {
 	in.CurrentSecond = copyIntMapLimited(in.CurrentSecond, 64)
 	in.PreviousSecond = copyIntMapLimited(in.PreviousSecond, 64)
 	in.Totals = copyIntMapLimited(in.Totals, 128)
+	in.ClientClass = classifyFrontendPerfReport(in)
 	if len(in.URL) > 240 {
 		in.URL = in.URL[:240]
 	}
@@ -514,6 +553,12 @@ func sanitizeFrontendPerfReport(in overlayPerfFrontendReport) overlayPerfFronten
 	if len(in.VisibilitySource) > 80 {
 		in.VisibilitySource = in.VisibilitySource[:80]
 	}
+	if len(in.AssetVersion) > 80 {
+		in.AssetVersion = in.AssetVersion[:80]
+	}
+	if len(in.ClientClass) > 80 {
+		in.ClientClass = in.ClientClass[:80]
+	}
 	if len(in.BarDisplay) > 80 {
 		in.BarDisplay = in.BarDisplay[:80]
 	}
@@ -523,13 +568,29 @@ func sanitizeFrontendPerfReport(in overlayPerfFrontendReport) overlayPerfFronten
 	return in
 }
 
+func classifyFrontendPerfReport(report overlayPerfFrontendReport) string {
+	if report.IsHUD {
+		if report.NativeHUD && report.SchemaVersion >= 2 && report.AssetVersion != "" {
+			return "native-f9-hud"
+		}
+		if report.SchemaVersion == 0 {
+			return "legacy-hud-client"
+		}
+		return "manual-hud-url"
+	}
+	if report.PerfRole == "overlay-lab-preview" || !report.IsHUD {
+		return "overlay-lab-preview"
+	}
+	return "unknown-client"
+}
+
 func copyFrontendPerfReports(in map[string]overlayPerfFrontendReport, now int64) map[string]overlayPerfFrontendReport {
 	if len(in) == 0 {
 		return nil
 	}
 	out := make(map[string]overlayPerfFrontendReport, len(in))
 	for key, report := range in {
-		if report.At > 0 && now-report.At > 15000 {
+		if frontendPerfReportExpired(report, now) {
 			continue
 		}
 		out[key] = sanitizeFrontendPerfReport(report)

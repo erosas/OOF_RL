@@ -141,7 +141,7 @@ func Start(url string, cfg *config.Config) webview2.WebView {
 }
 
 func overlayHUDURL(baseURL string) string {
-	return baseURL + "?overlay=1&view=overlay&hud=1&assetVersion=" + time.Now().Format("20060102150405.000000000")
+	return baseURL + "?overlay=1&view=overlay&hud=1&nativeHud=1&assetVersion=" + time.Now().Format("20060102150405.000000000")
 }
 
 func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {

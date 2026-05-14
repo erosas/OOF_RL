@@ -2413,15 +2413,29 @@ function createOverlayPerfState() {
   };
 }
 
-function overlayPerfClientId() {
-  const role = (() => {
-    try {
-      const params = new URLSearchParams(window.location?.search || '');
-      return params.get('hud') === '1' || params.get('overlay') === '1' ? 'hud' : 'lab';
-    } catch {
-      return 'view';
+function overlayPerfPageMeta() {
+  try {
+    const params = new URLSearchParams(window.location?.search || '');
+    const isHud = params.get('hud') === '1' || params.get('overlay') === '1';
+    const nativeHud = isHud && params.get('nativeHud') === '1';
+    const assetVersion = params.get('assetVersion') || '';
+    let clientClass = 'overlay-lab-preview';
+    if (isHud && nativeHud && assetVersion) {
+      clientClass = 'native-f9-hud';
+    } else if (isHud && OVERLAY_PERF_SCHEMA_VERSION < 2) {
+      clientClass = 'legacy-hud-client';
+    } else if (isHud) {
+      clientClass = 'manual-hud-url';
     }
-  })();
+    return { isHud, nativeHud, assetVersion, clientClass };
+  } catch {
+    return { isHud: false, nativeHud: false, assetVersion: '', clientClass: 'unknown-client' };
+  }
+}
+
+function overlayPerfClientId() {
+  const meta = overlayPerfPageMeta();
+  const role = meta.isHud ? 'hud' : 'lab';
   try {
     return `${role}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
   } catch {
@@ -2480,7 +2494,8 @@ function overlayPerfAttrWillChange(el, attrName, value) {
 }
 
 function overlayPerfVisibilityState() {
-  const isHud = isOverlayHudWindow();
+  const meta = overlayPerfPageMeta();
+  const isHud = meta.isHud || isOverlayHudWindow();
   const documentHidden = Boolean(document.hidden);
   const visibilityState = String(document.visibilityState || 'unknown');
   const windowFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : false;
@@ -2489,7 +2504,7 @@ function overlayPerfVisibilityState() {
   const renderActive = isHud ? !documentHidden : !previewPaused;
   const hudVisibleGuess = isHud && !documentHidden;
 
-  let perfRole = isHud ? 'f9-hud-window' : 'overlay-lab-preview';
+  let perfRole = isHud ? (meta.nativeHud ? 'f9-hud-window' : 'legacy-or-manual-hud') : 'overlay-lab-preview';
   let perfStatus = renderActive ? 'render-active' : 'render-paused';
   if (isHud && documentHidden) {
     perfStatus = 'hud-document-hidden';
@@ -2510,7 +2525,12 @@ function overlayPerfVisibilityState() {
     hudVisibleGuess,
     perfRole,
     perfStatus,
-    visibilitySource: isHud ? 'document-heuristic' : 'document-and-active-view',
+    visibilitySource: isHud
+      ? (meta.nativeHud ? 'native-hud-query' : 'hud-query-missing-native-marker')
+      : 'document-and-active-view',
+    nativeHud: Boolean(meta.nativeHud),
+    assetVersion: meta.assetVersion,
+    clientClass: meta.clientClass,
   };
 }
 
@@ -2600,6 +2620,53 @@ function pushOverlayPerfIfDue(force = false) {
     // Perf reporting is optional and must never interrupt overlay rendering.
   });
 }
+
+function unregisterOverlayPerfClient() {
+  if (!_overlayPerf.clientId) return;
+  const meta = overlayPerfPageMeta();
+  const payload = {
+    clientId: _overlayPerf.clientId,
+    unregister: true,
+    perfSchemaVersion: OVERLAY_PERF_SCHEMA_VERSION,
+    at: Date.now(),
+    isHud: meta.isHud,
+    nativeHud: meta.nativeHud,
+    assetVersion: meta.assetVersion,
+    clientClass: meta.clientClass,
+    url: String(window.location?.href || ''),
+  };
+  const body = JSON.stringify(payload);
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && typeof Blob === 'function') {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/api/overlay/perf/frontend', blob);
+      return;
+    }
+  } catch {
+    // Fall through to fetch keepalive below.
+  }
+  try {
+    if (typeof fetch === 'function') {
+      fetch('/api/overlay/perf/frontend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    }
+  } catch {
+    // Perf unregister is best-effort only.
+  }
+}
+
+function wireOverlayPerfUnloadUnregister() {
+  if (_overlayPerf.unloadWired || typeof window.addEventListener !== 'function') return;
+  _overlayPerf.unloadWired = true;
+  window.addEventListener('pagehide', unregisterOverlayPerfClient);
+  window.addEventListener('beforeunload', unregisterOverlayPerfClient);
+}
+
+wireOverlayPerfUnloadUnregister();
 
 window.OOFOverlayPerf = {
   enable() {
@@ -2698,6 +2765,7 @@ function formatOverlayPerfSnapshot(snapshot) {
     const totalDuplicates = overlayPerfCounter(totals, 'wheel.duplicateSignal');
     const role = report.perfRole || (report.isHud ? 'f9-hud-window' : 'overlay-lab-preview');
     const status = report.perfStatus || (report.previewPaused ? 'render-paused' : 'render-active');
+    const clientClass = report.clientClass || (report.isHud ? 'legacy-hud-client' : 'overlay-lab-preview');
     const visibility = report.visibilityState || 'unknown';
     const focus = report.windowFocused ? 'focused' : 'not-focused';
     const renderState = report.renderActive ? 'rendering' : 'not-rendering';
@@ -2708,7 +2776,7 @@ function formatOverlayPerfSnapshot(snapshot) {
       : '';
     lines.push(
       '',
-      `${report.isHud ? 'F9 HUD' : 'Lab/Preview'} ${report.clientId || 'unknown'} | ${schema} | ${role} / ${status} | ${report.visual || 'unknown'} / ${report.variant || 'unknown'} | nodes: ${report.nodeCount || 0}`,
+      `${report.isHud ? 'F9 HUD' : 'Lab/Preview'} ${report.clientId || 'unknown'} | ${schema} | ${clientClass} | ${role} / ${status} | ${report.visual || 'unknown'} / ${report.variant || 'unknown'} | nodes: ${report.nodeCount || 0}`,
       `visibility: ${visibility} (${hiddenState}) | ${focus} | ${renderState} | viewActive: ${report.viewActive ? 'yes' : 'no'} | previewPaused: ${report.previewPaused ? 'yes' : 'no'}${hudGuess}`,
       `visual DOM: bar hidden=${report.barHidden ? 'yes' : 'no'} display=${report.barDisplay || 'unknown'} nodes=${report.barNodes || 0} | wheel hidden=${report.wheelHidden ? 'yes' : 'no'} display=${report.wheelDisplay || 'unknown'} nodes=${report.wheelNodes || 0}`,
       `previous second: ${overlayPerfCounterLine(previous, ['lab.previewPaused', 'fetch.prefs', 'wheel.update', 'wheel.duplicateSignal', 'wheel.timerOnlyUpdate', 'wheel.skippedDuplicate', 'dom.attrMutation', 'dom.displayMutation', 'wheel.segmentLoop', 'wheel.tickLoop'])}`,
