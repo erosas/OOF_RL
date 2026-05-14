@@ -61,12 +61,12 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(config.momentumControlWheel.visual.sparks.opacity, 0);
   assert.equal(config.momentumControlWheel.visual.outerSparks.intensity, 0);
   assert.equal(config.momentumControlWheel.visual.outerSparks.opacity, 0);
-  assert.equal(config.momentumControlWheel.visual.aura.intensity, 0.28);
+  assert.equal(config.momentumControlWheel.visual.aura.intensity, 0.12);
   assert.equal(config.momentumControlWheel.visual.aura.pulse, 0);
-  assert.equal(config.momentumControlWheel.visual.centerWash.intensity, 0.42);
+  assert.equal(config.momentumControlWheel.visual.centerWash.intensity, 0.25);
   assert.equal(config.momentumControlWheel.response.eventReactiveness, 0);
-  assert.equal(config.momentumControlWheel.response.timing.afterglowDuration, 1.5);
-  assert.equal(config.momentumControlWheel.response.timing.eventBurstDuration, 0.85);
+  assert.equal(config.momentumControlWheel.response.timing.afterglowDuration, 0.5);
+  assert.equal(config.momentumControlWheel.response.timing.eventBurstDuration, 0.35);
 }
 
 {
@@ -295,16 +295,17 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
     eventReactions: { goalFullRingPulseStrength: 2, epicSaveAfterglow: 2 },
     centerWash: { intensity: 1 },
   }, { performanceMode: true });
-  assert.equal(visual.segments.glow, 0.42);
-  assert.equal(visual.blueSegments.glow, 0.42);
-  assert.equal(visual.orangeSegments.glow, 0.42);
-  assert.equal(visual.seam.flare, 0.35);
-  assert.equal(visual.seam.flicker, 0.2);
-  assert.equal(visual.frontLine.glowSize, 1);
-  assert.equal(visual.frontLine.trailStrength, 0.25);
-  assert.equal(visual.frontLine.trailDuration, 0.8);
-  assert.equal(visual.aura.intensity, 0.28);
+  assert.equal(visual.segments.glow, 0.12);
+  assert.equal(visual.blueSegments.glow, 0.12);
+  assert.equal(visual.orangeSegments.glow, 0.12);
+  assert.equal(visual.seam.flare, 0.18);
+  assert.equal(visual.seam.flicker, 0);
+  assert.equal(visual.frontLine.glowSize, 0.7);
+  assert.equal(visual.frontLine.trailStrength, 0.08);
+  assert.equal(visual.frontLine.trailDuration, 0.35);
+  assert.equal(visual.aura.intensity, 0.12);
   assert.equal(visual.aura.pulse, 0);
+  assert.equal(visual.aura.reactiveness, 0);
   assert.equal(visual.sparks.intensity, 0);
   assert.equal(visual.sparks.opacity, 0);
   assert.equal(visual.sparks.reactiveness, 0);
@@ -312,9 +313,9 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(visual.seamSparks.opacity, 0);
   assert.equal(visual.outerSparks.intensity, 0);
   assert.equal(visual.outerSparks.opacity, 0);
-  assert.equal(visual.eventReactions.goalFullRingPulseStrength, 0.35);
-  assert.equal(visual.eventReactions.epicSaveAfterglow, 0.35);
-  assert.equal(visual.centerWash.intensity, 0.42);
+  assert.equal(visual.eventReactions.goalFullRingPulseStrength, 0.2);
+  assert.equal(visual.eventReactions.epicSaveAfterglow, 0.15);
+  assert.equal(visual.centerWash.intensity, 0.25);
 }
 
 {
@@ -891,6 +892,21 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(svg.style.props['--mcw-blue-aura-base'], '0.34', 'dominant blue should use heavy blue aura base');
   assert.equal(svg.style.props['--mcw-blue-aura-peak'], '0.58', 'dominant blue should use heavy blue aura peak');
 
+  wheel.setConfig({ performanceMode: true });
+  assert.equal(findById(root, 'bg-radial-shadow').attrs.filter, undefined, 'performance mode should remove background blur filter attributes');
+  assert.equal(findById(root, 'outer-aura-blue').attrs.filter, undefined, 'performance mode should remove aura blur filter attributes');
+  assert.equal(findByClass(root, 'mcw-segment-cap').attrs.filter, undefined, 'performance mode should remove seam cap glow filter attributes');
+  assert.equal(findById(root, 'contest-top-core').attrs.filter, undefined, 'performance mode should remove front-line core glow filter attributes');
+  assert.ok(findById(root, 'text-time'), 'performance mode keeps timer text');
+  assert.ok(findById(root, 'text-state'), 'performance mode keeps state text');
+  assert.ok(findByClass(root, 'mcw-segment-blue'), 'performance mode keeps ownership segments');
+  assert.ok(findByClass(root, 'mcw-segment-cap'), 'performance mode keeps seam cue');
+
+  wheel.setConfig({ performanceMode: false });
+  assert.equal(findById(root, 'bg-radial-shadow').attrs.filter, 'url(#mcw-soft-blur)', 'normal mode should restore background blur filter attributes');
+  assert.equal(findById(root, 'outer-aura-blue').attrs.filter, 'url(#mcw-soft-blur)', 'normal mode should restore aura blur filter attributes');
+  assert.equal(findByClass(root, 'mcw-segment-cap').attrs.filter, 'url(#mcw-hot-glow)', 'normal mode should restore seam cap glow filter attributes');
+
   wheel.setConfig({
     showConfidence: false,
     showOOFBadge: false,
@@ -903,6 +919,20 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
 
   wheel.destroy();
   assert.equal(root.children.length, 0);
+
+  const hiddenRoot = new FakeElement('div');
+  const hiddenWheel = new window.MomentumControlWheelWidget(hiddenRoot, { visual: 'bar' });
+  hiddenWheel.update({
+    time: '2:22',
+    bluePercent: 68,
+    orangePercent: 32,
+    state: 'blue-control',
+    confidence: 'high',
+  });
+  assert.equal(findById(hiddenRoot, 'outer-sparks-blue').attrs.transform, undefined, 'hidden wheel should skip effect mutations');
+  hiddenWheel.setConfig({ visual: 'wheel' });
+  assert.match(findById(hiddenRoot, 'outer-sparks-blue').attrs.transform, /rotate\(/, 'wheel should render latest signal when made visible');
+  hiddenWheel.destroy();
 
   global.document = previousDocument;
 }
@@ -996,6 +1026,12 @@ function FakeElement(tagName) {
       syncClassSet(this, value);
     }
   };
+  this.getAttribute = function getAttribute(name) {
+    return this.attrs[name] ?? null;
+  };
+  this.removeAttribute = function removeAttribute(name) {
+    delete this.attrs[name];
+  };
   this.appendChild = function appendChild(child) {
     this.children.push(child);
     return child;
@@ -1018,6 +1054,14 @@ FakeElement.prototype.setAttribute = function setAttribute(name, value) {
     this.className = String(value);
     syncClassSet(this, value);
   }
+};
+
+FakeElement.prototype.getAttribute = function getAttribute(name) {
+  return this.attrs[name] ?? null;
+};
+
+FakeElement.prototype.removeAttribute = function removeAttribute(name) {
+  delete this.attrs[name];
 };
 
 FakeElement.prototype.appendChild = function appendChild(child) {

@@ -865,6 +865,7 @@
 .is-performance-mode #bg-vignette,
 .is-performance-mode #bg-radial-shadow,
 .is-performance-mode #bg-subtle-noise,
+.is-performance-mode #center-reactive-layer,
 .is-performance-mode .mcw-sparks,
 .is-performance-mode .mcw-streaks,
 .is-performance-mode #outer-sparks,
@@ -882,6 +883,7 @@
 .is-performance-mode #contest-top-purple-glow,
 .is-performance-mode #contest-top-vertical-beam {
   animation: none !important;
+  transition: none !important;
 }
 
 .is-performance-mode [filter],
@@ -915,7 +917,7 @@
 }
 
 .is-performance-mode #center-reactive-layer {
-  opacity: 0.06;
+  opacity: 0;
   transition: none !important;
 }
 
@@ -931,7 +933,7 @@
 .is-performance-mode .mcw-segment-blue,
 .is-performance-mode .mcw-segment-orange,
 .is-performance-mode .mcw-segment-cap {
-  transition-duration: 80ms !important;
+  transition: none !important;
 }
 
 .is-performance-mode .mcw-segment-blue,
@@ -972,7 +974,7 @@
 }
 
 .is-performance-mode #contest-top-purple-glow {
-  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-seam-intensity) * 0.12);
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-seam-intensity) * 0.06);
 }
 
 .is-performance-mode #contest-top-vertical-beam {

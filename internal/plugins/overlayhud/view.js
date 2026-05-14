@@ -415,6 +415,10 @@ class MomentumFlowBarWidget {
     if (!this.config.enabled || !this.root) return;
     const output = adaptMomentumFlowOutput(rawOutput);
     this.lastOutput = output;
+    if (this.config.visual === 'wheel') {
+      overlayPerfCount('bar.hiddenSkip');
+      return;
+    }
     this.applyConfig();
 
     this.root.className = [
@@ -512,6 +516,7 @@ class MomentumControlWheel {
     this.lastSignal = null;
     this.lastVisualKey = '';
     this.lastTimerKey = '';
+    this.lastPerformanceFilterMode = null;
     this.renderShell();
   }
 
@@ -560,14 +565,19 @@ class MomentumControlWheel {
 
   update(rawOutput) {
     if (!this.config.enabled || !this.root) return;
-    overlayPerfCount('wheel.update');
     const signal = adaptMomentumControlWheelSignal(rawOutput);
     const visualKey = momentumWheelPerfSignalKey(signal);
     const timerKey = String(signal.time || '');
+    this.lastSignal = signal;
+    _overlayPerf.lastSignalKey = visualKey;
+    if (this.config.visual !== 'wheel') {
+      this.lastTimerKey = timerKey;
+      overlayPerfCount('wheel.hiddenSkip');
+      return;
+    }
+    overlayPerfCount('wheel.update');
     if (this.lastVisualKey === visualKey) {
       overlayPerfCount('wheel.duplicateSignal');
-      this.lastSignal = signal;
-      _overlayPerf.lastSignalKey = visualKey;
       if (this.lastTimerKey !== timerKey) {
         this.lastTimerKey = timerKey;
         overlayPerfCount('wheel.timerOnlyUpdate');
@@ -579,8 +589,6 @@ class MomentumControlWheel {
     }
     this.lastVisualKey = visualKey;
     this.lastTimerKey = timerKey;
-    _overlayPerf.lastSignalKey = visualKey;
-    this.lastSignal = signal;
     this.applyConfigToRoot();
     this.applyVariantVisibility();
     const response = this.config.momentumControlWheel.response;
@@ -593,6 +601,7 @@ class MomentumControlWheel {
     const stateConfig = momentumWheelStateConfig(visualSignal);
     const reduced = Boolean(signal.reducedMotion || this.config.reducedMotion);
     const performance = Boolean(signal.performanceMode || this.config.performanceMode);
+    this.applyPerformanceRenderingMode(performance || reduced);
     const recentEnergy = momentumWheelClamp(visualSignal.recentEventEnergy, 0, 1);
     const recentTeam = signal.recentEventTeam || '';
 
@@ -845,8 +854,35 @@ class MomentumControlWheel {
     if (this.refs.confidenceValue) this.refs.confidenceValue.hidden = !this.config.showConfidence;
     if (this.refs.state) this.refs.state.hidden = !this.config.showStateLabel;
     if (this.refs['oof-badge']) this.refs['oof-badge'].style.display = this.config.showOOFBadge ? '' : 'none';
-    if (this.refs.waveform) this.refs.waveform.style.display = this.config.showTelemetryWaveform && this.config.variant !== 'minimal' ? '' : 'none';
+    const hideWaveform = this.config.performanceMode || this.config.reducedMotion || this.config.variant === 'minimal';
+    if (this.refs.waveform) this.refs.waveform.style.display = this.config.showTelemetryWaveform && !hideWaveform ? '' : 'none';
     if (this.refs['debug-overlays']) this.refs['debug-overlays'].style.display = this.config.variant === 'debug' && this.config.debug.enabled ? '' : 'none';
+  }
+
+  applyPerformanceRenderingMode(disableFilters) {
+    if (this.lastPerformanceFilterMode === disableFilters) return;
+    this.lastPerformanceFilterMode = disableFilters;
+    const setFilter = (el, value) => {
+      if (!el) return;
+      if (disableFilters) {
+        if (typeof el.removeAttribute === 'function') {
+          el.removeAttribute('filter');
+        } else if (el.attrs) {
+          delete el.attrs.filter;
+        }
+      } else if (value) {
+        el.setAttribute('filter', value);
+      }
+    };
+    setFilter(this.refs.bgRadialShadow, 'url(#mcw-soft-blur)');
+    setFilter(this.refs.auraBlue, 'url(#mcw-soft-blur)');
+    setFilter(this.refs.auraOrange, 'url(#mcw-soft-blur)');
+    setFilter(this.refs.auraContest, 'url(#mcw-soft-blur)');
+    setFilter(this.refs.contestCore, 'url(#mcw-hot-glow)');
+    setFilter(this.refs.contestGlow, 'url(#mcw-soft-blur)');
+    for (const ref of this.segmentRefs || []) {
+      setFilter(ref.cap, 'url(#mcw-hot-glow)');
+    }
   }
 
   buildDefs(svg) {
@@ -957,7 +993,7 @@ class MomentumControlWheel {
       fill: 'url(#mcw-bg-vignette-gradient)',
       opacity: '0.5',
     }));
-    this.refs.background.appendChild(svgEl('circle', {
+    this.refs.bgRadialShadow = svgEl('circle', {
       id: 'bg-radial-shadow',
       cx: '512',
       cy: '540',
@@ -965,7 +1001,8 @@ class MomentumControlWheel {
       fill: '#050A12',
       opacity: '0.18',
       filter: 'url(#mcw-soft-blur)',
-    }));
+    });
+    this.refs.background.appendChild(this.refs.bgRadialShadow);
     this.refs.background.appendChild(svgEl('g', { id: 'bg-subtle-noise', opacity: '0.04' }, [
       svgEl('circle', { cx: '302', cy: '266', r: '2', fill: '#F5F7FB' }),
       svgEl('circle', { cx: '706', cy: '338', r: '1.5', fill: '#F5F7FB' }),
@@ -1527,8 +1564,8 @@ class MomentumControlWheel {
     const beamEnd = polar(512, 512, 408, seam);
     const origin = polar(512, 512, 386, 180);
     if (performance || reduced) {
-      this.refs.contestCore?.removeAttribute('filter');
-      this.refs.contestGlow?.removeAttribute('filter');
+      removeSvgAttr(this.refs.contestCore, 'filter');
+      removeSvgAttr(this.refs.contestGlow, 'filter');
     } else {
       this.refs.contestCore?.setAttribute('filter', 'url(#mcw-hot-glow)');
       this.refs.contestGlow?.setAttribute('filter', 'url(#mcw-soft-blur)');
@@ -1685,25 +1722,25 @@ window.pluginInit_overlay = () => {
           performanceMode: true,
           reducedMotion: false,
           showTelemetryWaveform: false,
-          glowIntensity: 0.32,
+          glowIntensity: 0.18,
           seamIntensity: 0.78,
-          staticAuraIntensity: 0.22,
+          staticAuraIntensity: 0.12,
           volatileEffects: 0,
           dominantPulse: 0,
           momentumControlWheel: {
             visual: {
-              segments: { brightness: 0.84, saturation: 0.9, glow: 0.22 },
-              blueSegments: { brightness: 0.92, saturation: 0.92, glow: 0.18, opacity: 0.88 },
-              orangeSegments: { brightness: 0.92, saturation: 0.92, glow: 0.18, opacity: 0.88 },
+              segments: { brightness: 0.84, saturation: 0.88, glow: 0.08 },
+              blueSegments: { brightness: 0.9, saturation: 0.88, glow: 0.08, opacity: 0.86 },
+              orangeSegments: { brightness: 0.9, saturation: 0.88, glow: 0.08, opacity: 0.86 },
               inactiveSegments: { opacity: 0.22, brightness: 0.72 },
-              seam: { intensity: 0.78, flare: 0.22, flicker: 0 },
-              frontLine: { intensity: 0.78, coreSize: 0.9, glowSize: 0.72, opacity: 0.9, trailStrength: 0.12, trailDuration: 0.5 },
-              aura: { intensity: 0.18, pulse: 0, pulseSpeed: 1, reactiveness: 0 },
-              volatileAura: { intensity: 0.12, saturation: 0.9 },
+              seam: { intensity: 0.78, flare: 0.16, flicker: 0 },
+              frontLine: { intensity: 0.78, coreSize: 0.9, glowSize: 0.62, opacity: 0.9, trailStrength: 0.06, trailDuration: 0.35 },
+              aura: { intensity: 0.1, pulse: 0, pulseSpeed: 1, reactiveness: 0 },
+              volatileAura: { intensity: 0.06, saturation: 0.85 },
               sparks: { intensity: 0, opacity: 0, reactiveness: 0 },
               seamSparks: { intensity: 0, opacity: 0 },
               outerSparks: { intensity: 0, opacity: 0 },
-              centerWash: { intensity: 0.28, saturation: 0.85 },
+              centerWash: { intensity: 0.22, saturation: 0.85 },
               innerTicks: { opacity: 0.22, brightness: 0.9, saturation: 0.85 },
               frame: { brightness: 0.78, saturation: 0.85, opacity: 0.92 },
             },
@@ -1718,8 +1755,8 @@ window.pluginInit_overlay = () => {
                 reactionSpeed: 1,
                 holdDuration: 0.75,
                 decaySpeed: 1.25,
-                pulseDuration: 0.4,
-                afterglowDuration: 0.4,
+                pulseDuration: 0.35,
+                afterglowDuration: 0.35,
                 eventBurstDuration: 0.35,
               },
             },
@@ -3499,6 +3536,15 @@ function setAttrs(el, attrs = {}) {
   }
 }
 
+function removeSvgAttr(el, attrName) {
+  if (!el) return;
+  if (typeof el.removeAttribute === 'function') {
+    el.removeAttribute(attrName);
+  } else if (el.attrs) {
+    delete el.attrs[attrName];
+  }
+}
+
 function linearGradient(id, stops) {
   const gradient = svgEl('linearGradient', { id, x1: '0%', y1: '0%', x2: '0%', y2: '100%' });
   for (const [offset, color] of stops) {
@@ -3901,9 +3947,9 @@ function sanitizeWheelResponseConfig(input = {}, options = {}) {
     response.volatilitySensitivity = Math.min(response.volatilitySensitivity, 0.45);
     response.eventReactiveness = 0;
     response.transitionSharpness = Math.min(response.transitionSharpness, 0.55);
-    response.timing.pulseDuration = Math.min(response.timing.pulseDuration, 1.2);
-    response.timing.afterglowDuration = Math.min(response.timing.afterglowDuration, 1.5);
-    response.timing.eventBurstDuration = Math.min(response.timing.eventBurstDuration, 0.85);
+    response.timing.pulseDuration = Math.min(response.timing.pulseDuration, 0.35);
+    response.timing.afterglowDuration = Math.min(response.timing.afterglowDuration, 0.5);
+    response.timing.eventBurstDuration = Math.min(response.timing.eventBurstDuration, 0.35);
   }
   return response;
 }
@@ -4047,17 +4093,18 @@ function sanitizeWheelVisualConfig(input = {}, options = {}) {
     visual.volatileAura.intensity = Math.min(visual.volatileAura.intensity, 0.24);
   }
   if (performanceMode) {
-    visual.blueSegments.glow = Math.min(visual.blueSegments.glow, 0.42);
-    visual.orangeSegments.glow = Math.min(visual.orangeSegments.glow, 0.42);
-    visual.segments.glow = Math.min(visual.segments.glow, 0.42);
-    visual.seam.flare = Math.min(visual.seam.flare, 0.35);
-    visual.seam.flicker = Math.min(visual.seam.flicker, 0.2);
-    visual.frontLine.glowSize = Math.min(visual.frontLine.glowSize, 1);
-    visual.frontLine.trailStrength = Math.min(visual.frontLine.trailStrength, 0.25);
-    visual.frontLine.trailDuration = Math.min(visual.frontLine.trailDuration, 0.8);
-    visual.aura.intensity = Math.min(visual.aura.intensity, 0.28);
+    visual.blueSegments.glow = Math.min(visual.blueSegments.glow, 0.12);
+    visual.orangeSegments.glow = Math.min(visual.orangeSegments.glow, 0.12);
+    visual.segments.glow = Math.min(visual.segments.glow, 0.12);
+    visual.seam.flare = Math.min(visual.seam.flare, 0.18);
+    visual.seam.flicker = 0;
+    visual.frontLine.glowSize = Math.min(visual.frontLine.glowSize, 0.7);
+    visual.frontLine.trailStrength = Math.min(visual.frontLine.trailStrength, 0.08);
+    visual.frontLine.trailDuration = Math.min(visual.frontLine.trailDuration, 0.35);
+    visual.aura.intensity = Math.min(visual.aura.intensity, 0.12);
     visual.aura.pulse = 0;
-    visual.volatileAura.intensity = Math.min(visual.volatileAura.intensity, 0.20);
+    visual.aura.reactiveness = 0;
+    visual.volatileAura.intensity = Math.min(visual.volatileAura.intensity, 0.08);
     visual.sparks.intensity = 0;
     visual.sparks.reactiveness = 0;
     visual.sparks.opacity = 0;
@@ -4065,9 +4112,12 @@ function sanitizeWheelVisualConfig(input = {}, options = {}) {
     visual.seamSparks.opacity = 0;
     visual.outerSparks.intensity = 0;
     visual.outerSparks.opacity = 0;
-    visual.eventReactions.goalFullRingPulseStrength = Math.min(visual.eventReactions.goalFullRingPulseStrength, 0.35);
-    visual.eventReactions.epicSaveAfterglow = Math.min(visual.eventReactions.epicSaveAfterglow, 0.35);
-    visual.centerWash.intensity = Math.min(visual.centerWash.intensity, 0.42);
+    visual.eventReactions.shotPulseStrength = Math.min(visual.eventReactions.shotPulseStrength, 0.2);
+    visual.eventReactions.saveFlashStrength = Math.min(visual.eventReactions.saveFlashStrength, 0.2);
+    visual.eventReactions.goalFullRingPulseStrength = Math.min(visual.eventReactions.goalFullRingPulseStrength, 0.2);
+    visual.eventReactions.epicSaveAfterglow = Math.min(visual.eventReactions.epicSaveAfterglow, 0.15);
+    visual.eventReactions.demoJaggedSparkStrength = 0;
+    visual.centerWash.intensity = Math.min(visual.centerWash.intensity, 0.25);
   }
   return visual;
 }
