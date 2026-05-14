@@ -148,26 +148,34 @@ func (t *Translator) onUpdateState(env events.Envelope) {
 	players := make([]oofevents.PlayerSnapshot, len(d.Players))
 	for i, p := range d.Players {
 		players[i] = oofevents.PlayerSnapshot{
-			Name:      p.Name,
-			PrimaryID: p.PrimaryId,
-			TeamNum:   p.TeamNum,
-			Score:     p.Score,
-			Goals:     p.Goals,
-			Shots:     p.Shots,
-			Assists:   p.Assists,
-			Saves:     p.Saves,
-			Demos:     p.Demos,
-			Speed:     p.Speed,
-			Boost:     p.Boost,
+			Name:           p.Name,
+			PrimaryID:      p.PrimaryId,
+			TeamNum:        p.TeamNum,
+			Score:          p.Score,
+			Goals:          p.Goals,
+			Shots:          p.Shots,
+			Assists:        p.Assists,
+			Saves:          p.Saves,
+			Touches:        p.Touches,
+			Demos:          p.Demos,
+			Speed:          p.Speed,
+			Boost:          p.Boost,
+			IsBoosting:     p.BBoosting,
+			IsOnWall:       p.BOnWall,
+			IsPowersliding: p.BPowersliding,
+			IsDemolished:   p.BDemolished,
+			IsSupersonic:   p.BSupersonic,
 		}
 	}
 
 	teams := make([]oofevents.TeamSnapshot, len(d.Game.Teams))
 	for i, tm := range d.Game.Teams {
 		teams[i] = oofevents.TeamSnapshot{
-			Name:    tm.Name,
-			TeamNum: tm.TeamNum,
-			Score:   tm.Score,
+			Name:           tm.Name,
+			TeamNum:        tm.TeamNum,
+			Score:          tm.Score,
+			ColorPrimary:   tm.ColorPrimary,
+			ColorSecondary: tm.ColorSecondary,
 		}
 	}
 
@@ -175,7 +183,8 @@ func (t *Translator) onUpdateState(env events.Envelope) {
 		Teams:       teams,
 		TimeSeconds: d.Game.TimeSeconds,
 		IsOvertime:  d.Game.BOvertime,
-		BallSpeed:   d.Game.Ball.Speed,
+		IsReplay:    d.Game.BReplay,
+		Ball:        oofevents.BallSnapshot{Speed: d.Game.Ball.Speed},
 		Arena:       d.Game.Arena,
 		Playlist:    d.Game.Playlist,
 		HasWinner:   d.Game.BHasWinner,
