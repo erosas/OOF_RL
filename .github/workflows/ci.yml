@@ -59,6 +59,13 @@ jobs:
           $hash = (Get-FileHash oof_rl.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  oof_rl.exe" | Out-File -Encoding utf8 oof_rl.exe.sha256
 
+      - name: VirusTotal scan
+        uses: crazy-max/ghaction-virustotal@v4
+        id: virustotal
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: oof_rl.exe
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -66,3 +73,5 @@ jobs:
             oof_rl.exe
             oof_rl.exe.sha256
           generate_release_notes: true
+          body: |
+            **VirusTotal scan:** ${{ steps.virustotal.outputs.analysis }}
