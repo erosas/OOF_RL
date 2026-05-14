@@ -87,6 +87,16 @@ const DEFAULT_WHEEL_RESPONSE_CONFIG = {
   },
 };
 
+const DEFAULT_WHEEL_RENDER_COST_PROBE = {
+  disableAnimations: false,
+  disableFilters: false,
+  disableSegmentFilters: false,
+  disableSparks: false,
+  disableAura: false,
+  disableCenterReactive: false,
+  flatStatic: false,
+};
+
 const DEFAULT_MFB_CONFIG = {
   enabled: true,
   visual: 'bar',
@@ -132,6 +142,7 @@ const DEFAULT_MFB_CONFIG = {
   momentumControlWheel: {
     visual: DEFAULT_WHEEL_VISUAL_CONFIG,
     response: DEFAULT_WHEEL_RESPONSE_CONFIG,
+    debugRenderCost: DEFAULT_WHEEL_RENDER_COST_PROBE,
   },
 };
 
@@ -181,6 +192,7 @@ const DEFAULT_MOMENTUM_WHEEL_CONFIG = {
   momentumControlWheel: {
     visual: DEFAULT_WHEEL_VISUAL_CONFIG,
     response: DEFAULT_WHEEL_RESPONSE_CONFIG,
+    debugRenderCost: DEFAULT_WHEEL_RENDER_COST_PROBE,
   },
 };
 
@@ -397,6 +409,16 @@ const WHEEL_RESPONSE_RANGE_CONTROLS = [
   ['mcw-event-burst-duration', ['timing', 'eventBurstDuration']],
 ];
 
+const WHEEL_RENDER_COST_CHECK_CONTROLS = [
+  ['mcw-cost-disable-animations', 'disableAnimations'],
+  ['mcw-cost-disable-filters', 'disableFilters'],
+  ['mcw-cost-disable-segment-filters', 'disableSegmentFilters'],
+  ['mcw-cost-disable-sparks', 'disableSparks'],
+  ['mcw-cost-disable-aura', 'disableAura'],
+  ['mcw-cost-disable-center-reactive', 'disableCenterReactive'],
+  ['mcw-cost-flat-static', 'flatStatic'],
+];
+
 class MomentumFlowBarWidget {
   constructor(root, config = {}) {
     this.root = root;
@@ -539,6 +561,7 @@ class MomentumControlWheel {
         ...nextWheel,
         visual: mergeWheelVisualConfig(previousWheel.visual, nextWheel.visual),
         response: mergeWheelResponseConfig(previousWheel.response, nextWheel.response),
+        debugRenderCost: mergeWheelRenderCostProbeConfig(previousWheel.debugRenderCost, nextWheel.debugRenderCost),
       },
     });
     this.applyConfigToRoot();
@@ -614,6 +637,7 @@ class MomentumControlWheel {
       recentTeam === 'orange' ? 'is-recent-orange' : '',
       reduced ? 'is-reduced-motion' : '',
       performance ? 'is-performance-mode' : '',
+      ...wheelRenderCostProbeClasses(this.config.momentumControlWheel.debugRenderCost),
       state === 'dominant-blue' || state === 'dominant-orange' ? 'is-dominant' : '',
     ].filter(Boolean).join(' ');
 
@@ -623,6 +647,7 @@ class MomentumControlWheel {
     this.refs.svg?.setAttribute('data-theme', this.config.theme);
     this.refs.svg?.setAttribute('data-reduced-motion', String(reduced));
     this.refs.svg?.setAttribute('data-performance-mode', String(performance));
+    this.applyRenderCostProbeAttributes();
     this.refs.svg?.setAttribute('data-recent-event', recentEnergy > 0.05 ? signal.recentEventType || 'event' : 'none');
     this.refs.svg?.style.setProperty('--mcw-blue-pressure', String(visualSignal.bluePressure));
     this.refs.svg?.style.setProperty('--mcw-orange-pressure', String(visualSignal.orangePressure));
@@ -843,6 +868,22 @@ class MomentumControlWheel {
     this.refs.svg?.setAttribute('data-theme', this.config.theme);
     this.refs.svg?.setAttribute('data-reduced-motion', String(this.config.reducedMotion));
     this.refs.svg?.setAttribute('data-performance-mode', String(this.config.performanceMode));
+    this.applyRenderCostProbeAttributes();
+  }
+
+  applyRenderCostProbeAttributes() {
+    const probe = this.config.momentumControlWheel?.debugRenderCost || DEFAULT_WHEEL_RENDER_COST_PROBE;
+    const setAttr = (name, value) => {
+      this.root?.setAttribute(`data-mcw-cost-${name}`, String(Boolean(value)));
+      this.refs.svg?.setAttribute(`data-mcw-cost-${name}`, String(Boolean(value)));
+    };
+    setAttr('disable-animations', probe.disableAnimations);
+    setAttr('disable-filters', probe.disableFilters);
+    setAttr('disable-segment-filters', probe.disableSegmentFilters);
+    setAttr('disable-sparks', probe.disableSparks);
+    setAttr('disable-aura', probe.disableAura);
+    setAttr('disable-center-reactive', probe.disableCenterReactive);
+    setAttr('flat-static', probe.flatStatic);
   }
 
   applyVariantVisibility() {
@@ -1651,6 +1692,7 @@ window.MomentumControlWheelMath = {
   sanitizeWheelConfig,
   sanitizeWheelVisualConfig,
   sanitizeWheelResponseConfig,
+  sanitizeWheelRenderCostProbeConfig,
   sanitizeMomentumWidgetConfig,
   sanitizeMomentumHostConfig,
   buildMomentumWheelPresetExport,
@@ -1803,6 +1845,7 @@ window.pluginInit_overlay = () => {
   wireColor('mfb-color-text', value => updateMomentumFlowPrefs({ widget: { colorOverrides: { text: value } } }));
   wireWheelVisualRangeControls();
   wireWheelResponseRangeControls();
+  wireWheelRenderCostProbeControls();
   wireAdvancedVisualSections();
 
   document.querySelectorAll('[data-mfb-demo]').forEach(button => {
@@ -1919,6 +1962,7 @@ function mergeMomentumWidgetConfig(base = {}, patch = {}) {
       ...patchWheel,
       visual: mergeWheelVisualConfig(baseWheel.visual, patchWheel.visual),
       response: mergeWheelResponseConfig(baseWheel.response, patchWheel.response),
+      debugRenderCost: mergeWheelRenderCostProbeConfig(baseWheel.debugRenderCost, patchWheel.debugRenderCost),
     },
   };
 }
@@ -1960,6 +2004,13 @@ function sanitizeMomentumWidgetConfig(input = {}) {
     colorOverrides: wheel.colorOverrides,
     debugWheel: sanitizeDebugConfig(merged.debugWheel || merged.debug),
     momentumControlWheel: wheel.momentumControlWheel,
+  };
+}
+
+function mergeWheelRenderCostProbeConfig(base = {}, patch = {}) {
+  return {
+    ...(base || {}),
+    ...(patch || {}),
   };
 }
 
@@ -2240,6 +2291,7 @@ function syncMomentumFlowControls(widgetConfig, hostConfig) {
   setControlValue('mfb-glow-intensity', widgetConfig.glowIntensity);
   const visual = sanitizeWheelVisualConfig(widgetConfig.momentumControlWheel?.visual);
   const response = sanitizeWheelResponseConfig(widgetConfig.momentumControlWheel?.response);
+  const renderCostProbe = sanitizeWheelRenderCostProbeConfig(widgetConfig.momentumControlWheel?.debugRenderCost);
   setControlValue('mfb-reactiveness', visual.aura.reactiveness);
   setControlValue('mfb-spark-intensity', visual.sparks.intensity);
   setControlValue('mfb-seam-intensity', widgetConfig.seamIntensity);
@@ -2254,6 +2306,9 @@ function syncMomentumFlowControls(widgetConfig, hostConfig) {
   }
   for (const [id, path] of WHEEL_RESPONSE_RANGE_CONTROLS) {
     setControlValue(id, wheelResponseValue(response, path));
+  }
+  for (const [id, key] of WHEEL_RENDER_COST_CHECK_CONTROLS) {
+    setControlChecked(id, renderCostProbe[key]);
   }
 }
 
@@ -2341,6 +2396,20 @@ function wireWheelResponseRangeControls() {
       widget: {
         momentumControlWheel: {
           response: wheelResponsePatch(path, Number(value)),
+        },
+      },
+    }));
+  }
+}
+
+function wireWheelRenderCostProbeControls() {
+  for (const [id, key] of WHEEL_RENDER_COST_CHECK_CONTROLS) {
+    wireCheck(id, checked => updateMomentumFlowPrefs({
+      widget: {
+        momentumControlWheel: {
+          debugRenderCost: {
+            [key]: checked,
+          },
         },
       },
     }));
@@ -3948,6 +4017,9 @@ function sanitizeWheelConfig(input = {}) {
     input.momentumControlWheel?.response || input.wheelResponse || defaults.momentumControlWheel.response,
     { reducedMotion, performanceMode },
   );
+  const debugRenderCost = sanitizeWheelRenderCostProbeConfig(
+    input.momentumControlWheel?.debugRenderCost || input.debugRenderCost || defaults.momentumControlWheel.debugRenderCost,
+  );
   return {
     enabled: input.enabled !== false,
     visual: input.visual === 'wheel' ? 'wheel' : input.visual === 'bar' ? 'bar' : 'bar',
@@ -3977,8 +4049,35 @@ function sanitizeWheelConfig(input = {}) {
     momentumControlWheel: {
       visual: wheelVisual,
       response: wheelResponse,
+      debugRenderCost,
     },
   };
+}
+
+function sanitizeWheelRenderCostProbeConfig(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    disableAnimations: Boolean(source.disableAnimations),
+    disableFilters: Boolean(source.disableFilters),
+    disableSegmentFilters: Boolean(source.disableSegmentFilters),
+    disableSparks: Boolean(source.disableSparks),
+    disableAura: Boolean(source.disableAura),
+    disableCenterReactive: Boolean(source.disableCenterReactive),
+    flatStatic: Boolean(source.flatStatic),
+  };
+}
+
+function wheelRenderCostProbeClasses(input = {}) {
+  const probe = sanitizeWheelRenderCostProbeConfig(input);
+  return [
+    probe.disableAnimations ? 'mcw-cost-disable-animations' : '',
+    probe.disableFilters ? 'mcw-cost-disable-filters' : '',
+    probe.disableSegmentFilters ? 'mcw-cost-disable-segment-filters' : '',
+    probe.disableSparks ? 'mcw-cost-disable-sparks' : '',
+    probe.disableAura ? 'mcw-cost-disable-aura' : '',
+    probe.disableCenterReactive ? 'mcw-cost-disable-center-reactive' : '',
+    probe.flatStatic ? 'mcw-cost-flat-static' : '',
+  ].filter(Boolean);
 }
 
 function sanitizeWheelResponseConfig(input = {}, options = {}) {

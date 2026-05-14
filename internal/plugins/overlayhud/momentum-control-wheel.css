@@ -1014,6 +1014,115 @@
   transition-duration: 100ms;
 }
 
+.mcw-cost-disable-animations *,
+.mcw-cost-flat-static * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.mcw-cost-disable-filters [filter],
+.mcw-cost-disable-filters #outer-mechanical-frame,
+.mcw-cost-disable-filters #outer-frame-panels-top,
+.mcw-cost-disable-filters #outer-frame-panels-bottom,
+.mcw-cost-disable-filters #outer-frame-panels-left,
+.mcw-cost-disable-filters #outer-frame-panels-right,
+.mcw-cost-disable-filters #outer-frame-top-notch,
+.mcw-cost-disable-filters #outer-frame-bottom-notch,
+.mcw-cost-disable-filters #center-disc-base,
+.mcw-cost-disable-filters #center-color-washes,
+.mcw-cost-disable-filters #center-reactive-seam,
+.mcw-cost-disable-filters #center-telemetry-waveform,
+.mcw-cost-disable-filters #inner-tick-ring-muted line,
+.mcw-cost-disable-filters .mcw-segment,
+.mcw-cost-disable-filters .mcw-segment-inactive,
+.mcw-cost-disable-filters .mcw-segment-blue,
+.mcw-cost-disable-filters .mcw-segment-orange,
+.mcw-cost-disable-filters .mcw-segment-cap,
+.mcw-cost-disable-filters .mcw-aura-contest,
+.mcw-cost-disable-filters .mcw-streaks line,
+.mcw-cost-disable-filters .mcw-spark,
+.mcw-cost-disable-filters .mcw-spark--white,
+.mcw-cost-disable-filters .mcw-text,
+.mcw-cost-disable-filters .mcw-time,
+.mcw-cost-disable-filters .mcw-confidence-label,
+.mcw-cost-disable-filters .mcw-confidence-value,
+.mcw-cost-disable-filters #oof-badge-shell,
+.mcw-cost-flat-static [filter],
+.mcw-cost-flat-static #outer-mechanical-frame,
+.mcw-cost-flat-static #outer-frame-panels-top,
+.mcw-cost-flat-static #outer-frame-panels-bottom,
+.mcw-cost-flat-static #outer-frame-panels-left,
+.mcw-cost-flat-static #outer-frame-panels-right,
+.mcw-cost-flat-static #outer-frame-top-notch,
+.mcw-cost-flat-static #outer-frame-bottom-notch,
+.mcw-cost-flat-static #center-disc-base,
+.mcw-cost-flat-static #center-color-washes,
+.mcw-cost-flat-static #center-reactive-seam,
+.mcw-cost-flat-static #center-telemetry-waveform,
+.mcw-cost-flat-static #inner-tick-ring-muted line,
+.mcw-cost-flat-static .mcw-segment,
+.mcw-cost-flat-static .mcw-segment-inactive,
+.mcw-cost-flat-static .mcw-segment-blue,
+.mcw-cost-flat-static .mcw-segment-orange,
+.mcw-cost-flat-static .mcw-segment-cap,
+.mcw-cost-flat-static .mcw-aura-contest,
+.mcw-cost-flat-static .mcw-streaks line,
+.mcw-cost-flat-static .mcw-spark,
+.mcw-cost-flat-static .mcw-spark--white,
+.mcw-cost-flat-static .mcw-text,
+.mcw-cost-flat-static .mcw-time,
+.mcw-cost-flat-static .mcw-confidence-label,
+.mcw-cost-flat-static .mcw-confidence-value,
+.mcw-cost-flat-static #oof-badge-shell {
+  filter: none !important;
+}
+
+.mcw-cost-disable-segment-filters .mcw-segment,
+.mcw-cost-disable-segment-filters .mcw-segment-inactive,
+.mcw-cost-disable-segment-filters .mcw-segment-blue,
+.mcw-cost-disable-segment-filters .mcw-segment-orange,
+.mcw-cost-disable-segment-filters .mcw-segment-cap {
+  filter: none !important;
+}
+
+.mcw-cost-disable-sparks #outer-sparks,
+.mcw-cost-disable-sparks #outer-energy-streaks,
+.mcw-cost-disable-sparks .mcw-sparks,
+.mcw-cost-disable-sparks .mcw-streaks,
+.mcw-cost-flat-static #outer-sparks,
+.mcw-cost-flat-static #outer-energy-streaks,
+.mcw-cost-flat-static .mcw-sparks,
+.mcw-cost-flat-static .mcw-streaks {
+  display: none !important;
+}
+
+.mcw-cost-disable-aura #outer-aura,
+.mcw-cost-disable-aura .mcw-aura,
+.mcw-cost-disable-aura .mcw-aura-blue,
+.mcw-cost-disable-aura .mcw-aura-orange,
+.mcw-cost-disable-aura .mcw-aura-contest,
+.mcw-cost-flat-static #outer-aura,
+.mcw-cost-flat-static .mcw-aura,
+.mcw-cost-flat-static .mcw-aura-blue,
+.mcw-cost-flat-static .mcw-aura-orange,
+.mcw-cost-flat-static .mcw-aura-contest {
+  display: none !important;
+}
+
+.mcw-cost-disable-center-reactive #center-reactive-layer,
+.mcw-cost-disable-center-reactive .mcw-center-reactive-layer,
+.mcw-cost-flat-static #center-reactive-layer,
+.mcw-cost-flat-static .mcw-center-reactive-layer {
+  display: none !important;
+}
+
+.mcw-cost-flat-static #bg-vignette,
+.mcw-cost-flat-static #bg-radial-shadow,
+.mcw-cost-flat-static #bg-subtle-noise,
+.mcw-cost-flat-static #center-telemetry-waveform {
+  display: none !important;
+}
+
 .mcw-debug-text {
   fill: var(--mcw-purple-hot);
   font-size: 22px;

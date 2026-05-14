@@ -910,6 +910,19 @@
       <button id="overlay-perf-copy" class="momentum-btn" type="button">Copy Snapshot JSON</button>
       <button id="overlay-perf-disable" class="momentum-btn" type="button">Disable Counters</button>
     </div>
+    <details class="overlaylab-dev-probe">
+      <summary><span>Render Cost Probe</span><small>dev-only layer isolation</small></summary>
+      <div class="overlaylab-section-help">Temporary display-only toggles for measuring WebView2 compositor cost. These do not change Momentum Engine output, event mapping, presets, or match data.</div>
+      <div class="overlaylab-advanced-grid">
+        <label class="overlaylab-check" title="Stops wheel CSS/SVG animations while leaving static layers visible."><input id="mcw-cost-disable-animations" type="checkbox"> Disable all wheel animations</label>
+        <label class="overlaylab-check" title="Removes CSS/SVG filters and drop-shadows across the wheel."><input id="mcw-cost-disable-filters" type="checkbox"> Disable all filters/drop-shadows</label>
+        <label class="overlaylab-check" title="Removes filters only from the 96 segment ring and seam caps."><input id="mcw-cost-disable-segment-filters" type="checkbox"> Disable segment filters only</label>
+        <label class="overlaylab-check" title="Hides deterministic sparks and outer energy streaks."><input id="mcw-cost-disable-sparks" type="checkbox"> Disable sparks/streaks</label>
+        <label class="overlaylab-check" title="Hides broad outer aura layers."><input id="mcw-cost-disable-aura" type="checkbox"> Disable aura layers</label>
+        <label class="overlaylab-check" title="Hides the center reactive conflict-gradient layer behind the timer."><input id="mcw-cost-disable-center-reactive" type="checkbox"> Disable center reactive layer</label>
+        <label class="overlaylab-check" title="Combines the low-cost switches into a static/flat diagnostic wheel."><input id="mcw-cost-flat-static" type="checkbox"> Flat/static wheel mode</label>
+      </div>
+    </details>
     <div id="overlay-perf-status" class="overlaylab-status" aria-live="polite"></div>
     <pre id="overlay-perf-debug" class="momentum-debug momentum-debug--perf">Counters are off. Click Enable Counters, run a scenario for 30-60 seconds, then Refresh Snapshot.</pre>
   </section>

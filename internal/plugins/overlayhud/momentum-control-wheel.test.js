@@ -33,6 +33,8 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(config.momentumControlWheel.response.timing.reactionSpeed, 1);
   assert.equal(config.momentumControlWheel.response.timing.afterglowDuration, 1.6);
   assert.equal(config.momentumControlWheel.response.timing.eventBurstDuration, 1);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableAnimations, false);
+  assert.equal(config.momentumControlWheel.debugRenderCost.flatStatic, false);
 }
 
 {
@@ -94,6 +96,29 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(config.volatileEffects, 0);
   assert.equal(config.dominantPulse, 1);
   assert.equal(config.theme, 'oof-default');
+}
+
+{
+  const config = math.sanitizeWheelConfig({
+    momentumControlWheel: {
+      debugRenderCost: {
+        disableAnimations: 1,
+        disableFilters: true,
+        disableSegmentFilters: 'yes',
+        disableSparks: true,
+        disableAura: true,
+        disableCenterReactive: true,
+        flatStatic: true,
+      },
+    },
+  });
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableAnimations, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableFilters, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableSegmentFilters, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableSparks, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableAura, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.disableCenterReactive, true);
+  assert.equal(config.momentumControlWheel.debugRenderCost.flatStatic, true);
 }
 
 {
@@ -865,6 +890,41 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(root.style.props['--mcw-event-burst-duration'], '1.25');
   assert.equal(root.style.props['--mcw-afterglow-duration-ms'], '2750ms');
   assert.equal(root.style.props['--mcw-volatile-spark-duration-ms'], '775ms');
+
+  wheel.setConfig({
+    momentumControlWheel: {
+      debugRenderCost: {
+        disableAnimations: true,
+        disableFilters: true,
+        disableSegmentFilters: true,
+        disableSparks: true,
+        disableAura: true,
+        disableCenterReactive: true,
+        flatStatic: true,
+      },
+    },
+  });
+  assert.match(root.className, /mcw-cost-disable-animations/, 'render cost probe should add animation-disable class');
+  assert.match(root.className, /mcw-cost-disable-filters/, 'render cost probe should add filter-disable class');
+  assert.match(root.className, /mcw-cost-disable-segment-filters/, 'render cost probe should add segment-filter-disable class');
+  assert.match(root.className, /mcw-cost-disable-sparks/, 'render cost probe should add spark-disable class');
+  assert.match(root.className, /mcw-cost-disable-aura/, 'render cost probe should add aura-disable class');
+  assert.match(root.className, /mcw-cost-disable-center-reactive/, 'render cost probe should add center-reactive-disable class');
+  assert.match(root.className, /mcw-cost-flat-static/, 'render cost probe should add flat-static class');
+  assert.equal(root.attrs['data-mcw-cost-disable-animations'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-animations'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-disable-filters'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-filters'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-disable-segment-filters'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-segment-filters'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-disable-sparks'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-sparks'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-disable-aura'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-aura'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-disable-center-reactive'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-disable-center-reactive'], 'true');
+  assert.equal(root.attrs['data-mcw-cost-flat-static'], 'true');
+  assert.equal(svg.attrs['data-mcw-cost-flat-static'], 'true');
 
   wheel.update({
     time: '1:11',
