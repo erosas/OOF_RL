@@ -1,0 +1,140 @@
+{
+  "states": [
+    {
+      "id": "neutral",
+      "time": "2:45",
+      "bluePercent": 50,
+      "orangePercent": 50,
+      "confidence": "medium",
+      "centerMode": "split-gradient",
+      "contestGlow": "medium",
+      "volatility": 0.2,
+      "stateText": "NEUTRAL",
+      "visualNotes": [
+        "Blue owns the left half and orange owns the right half.",
+        "Purple-white flare sits at the top seam.",
+        "Center has subtle split color.",
+        "State text is cyan/white."
+      ]
+    },
+    {
+      "id": "blue-pressure",
+      "time": "2:45",
+      "bluePercent": 62,
+      "orangePercent": 38,
+      "confidence": "medium",
+      "centerMode": "blue-wash",
+      "contestGlow": "medium-high",
+      "volatility": 0.3,
+      "stateText": "BLUE PRESSURE",
+      "visualNotes": [
+        "Blue outer aura is stronger.",
+        "Blue segments are brighter.",
+        "Center has blue ambient glow.",
+        "Orange remains present and readable."
+      ]
+    },
+    {
+      "id": "orange-pressure",
+      "time": "2:45",
+      "bluePercent": 38,
+      "orangePercent": 62,
+      "confidence": "medium",
+      "centerMode": "orange-wash",
+      "contestGlow": "medium-high",
+      "volatility": 0.3,
+      "stateText": "ORANGE PRESSURE",
+      "visualNotes": [
+        "Orange outer aura is stronger.",
+        "Orange segments are brighter.",
+        "Center has orange ambient glow.",
+        "Blue remains present and readable."
+      ]
+    },
+    {
+      "id": "blue-control",
+      "time": "2:45",
+      "bluePercent": 72,
+      "orangePercent": 28,
+      "confidence": "high",
+      "centerMode": "strong-blue-wash",
+      "contestGlow": "high",
+      "volatility": 0.25,
+      "stateText": "BLUE CONTROL",
+      "visualNotes": [
+        "Blue dominates the ring.",
+        "Orange shrinks but remains readable.",
+        "Blue streaks extend outside the ring.",
+        "Center color becomes confidently blue."
+      ]
+    },
+    {
+      "id": "orange-control",
+      "time": "2:45",
+      "bluePercent": 28,
+      "orangePercent": 72,
+      "confidence": "high",
+      "centerMode": "strong-orange-wash",
+      "contestGlow": "high",
+      "volatility": 0.25,
+      "stateText": "ORANGE CONTROL",
+      "visualNotes": [
+        "Orange dominates the ring.",
+        "Blue shrinks but remains readable.",
+        "Orange streaks extend outside the ring.",
+        "Center color becomes confidently orange."
+      ]
+    },
+    {
+      "id": "volatile",
+      "time": "2:45",
+      "bluePercent": 55,
+      "orangePercent": 45,
+      "confidence": "low",
+      "centerMode": "purple-pulse",
+      "contestGlow": "max",
+      "volatility": 0.9,
+      "stateText": "VOLATILE",
+      "visualNotes": [
+        "Purple flicker appears around the contested seam.",
+        "Center has subtle purple pulse.",
+        "Both blue and orange remain visible.",
+        "Blue/orange sparks appear more frequently."
+      ]
+    },
+    {
+      "id": "dominant-blue",
+      "time": "2:45",
+      "bluePercent": 90,
+      "orangePercent": 10,
+      "confidence": "max",
+      "centerMode": "blue-bloom",
+      "contestGlow": "high",
+      "volatility": 0.15,
+      "stateText": "BLUE CONTROL",
+      "visualNotes": [
+        "Almost full blue ring.",
+        "Small orange contested sliver remains.",
+        "Strong blue center glow.",
+        "Confidence reads MAX."
+      ]
+    },
+    {
+      "id": "dominant-orange",
+      "time": "2:45",
+      "bluePercent": 10,
+      "orangePercent": 90,
+      "confidence": "max",
+      "centerMode": "orange-bloom",
+      "contestGlow": "high",
+      "volatility": 0.15,
+      "stateText": "ORANGE CONTROL",
+      "visualNotes": [
+        "Almost full orange ring.",
+        "Small blue contested sliver remains.",
+        "Strong orange center glow.",
+        "Confidence reads MAX."
+      ]
+    }
+  ]
+}

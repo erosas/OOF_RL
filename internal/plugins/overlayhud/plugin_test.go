@@ -1,11 +1,16 @@
 package overlayhud
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/momentum"
+	"OOF_RL/internal/oofevents"
 )
 
 func TestReplayStateClearsOnLiveBallHit(t *testing.T) {
@@ -44,6 +49,166 @@ func TestReplayStateClearsOnLiveBallHit(t *testing.T) {
 	p.mu.Unlock()
 	if active {
 		t.Fatal("live ball hit should clear stale replay state")
+	}
+}
+
+func TestOOFEventBusFeedsMomentumWithBallHitTeamCache(t *testing.T) {
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer bus.Stop()
+
+	p := New()
+	if err := p.Init(bus.ForPlugin(p.ID()), nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer p.Shutdown()
+
+	guid := "guid-oof"
+	bus.PublishAuthoritative(oofevents.NewStateUpdated(guid, []oofevents.PlayerSnapshot{{
+		Name:      "Blue One",
+		PrimaryID: "pid-blue",
+		Shortcut:  7,
+		TeamNum:   0,
+	}}, oofevents.GameSnapshot{TimeSeconds: 245}))
+
+	waitFor(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		return p.playerCacheGUID == guid
+	})
+
+	bus.PublishAuthoritative(oofevents.NewBallHit(guid, "Blue One", "pid-blue", 7, 900, 1100, 0, 0, 0))
+
+	waitFor(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		out := p.engine.Output()
+		return out.Debug != nil && out.Debug.EventCounts[momentum.EventBallHit] == 1
+	})
+}
+
+func TestOOFStatFeedMapsToMomentumPressureEvent(t *testing.T) {
+	p := New()
+	guid := "guid-statfeed"
+	p.HandleOOFEvent(oofevents.NewStateUpdated(guid, []oofevents.PlayerSnapshot{{
+		Name:      "Orange One",
+		PrimaryID: "pid-orange",
+		Shortcut:  8,
+		TeamNum:   1,
+	}}, oofevents.GameSnapshot{TimeSeconds: 244}))
+
+	p.HandleOOFEvent(oofevents.NewStatFeed(guid, "Shot", "Orange One", 8, 1, "", 0))
+
+	p.mu.Lock()
+	out := p.engine.Output()
+	p.mu.Unlock()
+	if out.Debug == nil || out.Debug.EventCounts[momentum.EventShot] != 1 {
+		t.Fatalf("oof stat.feed shot should become one momentum shot, got %+v", out.Debug)
+	}
+}
+
+func TestOverlayPerfCountsOOFAndNormalizedEventsWhenEnabled(t *testing.T) {
+	p := New()
+	p.handlePerf(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/overlay/perf?enable=1", nil))
+
+	guid := "guid-perf"
+	p.HandleOOFEvent(oofevents.NewStateUpdated(guid, []oofevents.PlayerSnapshot{{
+		Name:      "Blue One",
+		PrimaryID: "pid-blue",
+		Shortcut:  7,
+		TeamNum:   0,
+	}}, oofevents.GameSnapshot{TimeSeconds: 244}))
+	p.HandleOOFEvent(oofevents.NewStatFeed(guid, "Shot", "Blue One", 7, 0, "", 0))
+
+	rr := httptest.NewRecorder()
+	p.handlePerf(rr, httptest.NewRequest(http.MethodGet, "/api/overlay/perf", nil))
+
+	var snapshot overlayPerfSnapshot
+	if err := json.Unmarshal(rr.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode perf snapshot: %v", err)
+	}
+	if !snapshot.Enabled {
+		t.Fatal("expected perf counters to stay enabled")
+	}
+	if snapshot.Totals["oofevents.state.updated"] != 1 {
+		t.Fatalf("state.updated count = %d, want 1", snapshot.Totals["oofevents.state.updated"])
+	}
+	if snapshot.Totals["oofevents.stat.feed"] != 1 {
+		t.Fatalf("stat.feed count = %d, want 1", snapshot.Totals["oofevents.stat.feed"])
+	}
+	if snapshot.Totals["normalized.shot"] != 1 {
+		t.Fatalf("normalized shot count = %d, want 1", snapshot.Totals["normalized.shot"])
+	}
+}
+
+func TestOverlayPerfFrontendReportIncludesVisibilityFields(t *testing.T) {
+	p := New()
+	p.handlePerf(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/overlay/perf?enable=1", nil))
+
+	body := []byte(`{
+		"clientId": "hud-test",
+		"perfSchemaVersion": 2,
+		"isHud": true,
+		"previewPaused": false,
+		"documentHidden": false,
+		"visibilityState": "visible",
+		"windowFocused": true,
+		"viewActive": true,
+		"renderActive": true,
+		"hudVisibleGuess": true,
+		"f9WindowVisible": true,
+		"f9WindowVisibilityKnown": true,
+		"perfRole": "f9-hud-window",
+		"perfStatus": "render-active",
+		"visibilitySource": "f9-window-binding",
+		"visual": "wheel",
+		"variant": "full",
+		"barHidden": true,
+		"wheelHidden": false,
+		"barDisplay": "none",
+		"wheelDisplay": "grid",
+		"barNodes": 12,
+		"wheelNodes": 777,
+		"currentSecond": {"wheel.update": 1},
+		"totals": {"wheel.update": 1},
+		"url": "http://localhost:8080/?overlay=1&view=overlay&hud=1"
+	}`)
+	rr := httptest.NewRecorder()
+	p.handlePerfFrontend(rr, httptest.NewRequest(http.MethodPost, "/api/overlay/perf/frontend", bytes.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("frontend perf report status = %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+
+	rr = httptest.NewRecorder()
+	p.handlePerf(rr, httptest.NewRequest(http.MethodGet, "/api/overlay/perf", nil))
+
+	var snapshot overlayPerfSnapshot
+	if err := json.Unmarshal(rr.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode perf snapshot: %v", err)
+	}
+	report, ok := snapshot.Frontend["hud-test"]
+	if !ok {
+		t.Fatalf("expected frontend report for hud-test, got %+v", snapshot.Frontend)
+	}
+	if !report.IsHUD || report.DocumentHidden || report.VisibilityState != "visible" {
+		t.Fatalf("unexpected visibility fields: %+v", report)
+	}
+	if report.SchemaVersion != 2 {
+		t.Fatalf("perf schema version = %d, want 2", report.SchemaVersion)
+	}
+	if !report.WindowFocused || !report.ViewActive || !report.RenderActive || !report.HUDVisibleGuess {
+		t.Fatalf("expected active HUD visibility fields, got %+v", report)
+	}
+	if !report.BarHidden || report.WheelHidden || report.BarDisplay != "none" || report.WheelDisplay != "grid" {
+		t.Fatalf("unexpected frontend visual DOM fields: %+v", report)
+	}
+	if !report.F9WindowVisible || !report.F9VisibilityKnown {
+		t.Fatalf("expected F9 window visibility fields, got %+v", report)
+	}
+	if report.PerfRole != "f9-hud-window" || report.PerfStatus != "render-active" || report.VisibilitySource != "f9-window-binding" {
+		t.Fatalf("unexpected frontend perf status fields: %+v", report)
 	}
 }
 
@@ -235,4 +400,18 @@ func envelope(t *testing.T, event string, data any) events.Envelope {
 		t.Fatalf("marshal %s: %v", event, err)
 	}
 	return events.Envelope{Event: event, Data: b}
+}
+
+func waitFor(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !condition() {
+		t.Fatal("condition was not met before timeout")
+	}
 }

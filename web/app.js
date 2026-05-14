@@ -769,6 +769,13 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+const APP_ASSET_VERSION = new URLSearchParams(window.location.search || '').get('assetVersion') || Date.now().toString(36);
+
+function versionedAssetURL(src) {
+  const sep = src.includes('?') ? '&' : '?';
+  return `${src}${sep}v=${encodeURIComponent(APP_ASSET_VERSION)}`;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleString();
@@ -793,7 +800,7 @@ function formatBytes(n) {
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = src;
+    s.src = versionedAssetURL(src);
     s.onload  = resolve;
     s.onerror = reject;
     document.head.appendChild(s);
@@ -818,7 +825,7 @@ async function injectPluginViews(allSchema) {
   const container = document.getElementById('plugin-views');
   const ids = allSchema.filter(b => b.nav_tab_id).map(b => b.nav_tab_id);
   const htmls = await Promise.all(ids.map(id =>
-    fetch(`/api/plugins/${id}/view`)
+    fetch(versionedAssetURL(`/api/plugins/${id}/view`), { cache: 'no-store' })
       .then(r => r.ok ? r.text() : '')
       .catch(() => '')
   ));

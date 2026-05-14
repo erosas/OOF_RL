@@ -1,0 +1,67 @@
+{
+  "viewBox": "0 0 1024 1024",
+  "colors": {
+    "blue": "#38B2F6",
+    "blueDeep": "#0B63FF",
+    "blueGlow": "#00C8FF",
+    "orange": "#F97316",
+    "orangeDeep": "#FF4E00",
+    "orangeGlow": "#FFB000",
+    "purple": "#B45CFF",
+    "purpleHot": "#F0B8FF",
+    "white": "#F5F7FB",
+    "textMuted": "#9CA3AF",
+    "panelDark": "#050A12",
+    "panelGlass": "#08111F",
+    "metalDark": "#111827",
+    "metalMid": "#2B3340"
+  },
+  "opacity": {
+    "centerWashNeutral": 0.12,
+    "centerWashPressure": 0.18,
+    "centerWashControl": 0.28,
+    "centerWashDominant": 0.4,
+    "outerAuraBase": 0.28,
+    "outerAuraDominant": 0.5,
+    "inactiveSegment": 0.22,
+    "honeycombTexture": 0.07
+  },
+  "radii": {
+    "outerFrame": 410,
+    "segmentRing": 365,
+    "innerTickRing": 292,
+    "centerDisc": 230,
+    "innerRim": 238
+  },
+  "segments": {
+    "count": 96,
+    "width": 10,
+    "height": 46,
+    "cornerRadius": 999
+  },
+  "typography": {
+    "fontFamily": "\"Inter\", \"Sora\", \"Space Grotesk\", sans-serif",
+    "time": {
+      "fontSize": 108,
+      "fontWeight": 900,
+      "letterSpacing": 2
+    },
+    "state": {
+      "fontSize": 38,
+      "fontWeight": 900,
+      "letterSpacing": 4,
+      "textTransform": "uppercase"
+    },
+    "confidence": {
+      "fontSize": 22,
+      "fontWeight": 800,
+      "letterSpacing": 3,
+      "textTransform": "uppercase"
+    },
+    "badge": {
+      "fontSize": 34,
+      "fontWeight": 900,
+      "letterSpacing": 2
+    }
+  }
+}

@@ -117,10 +117,18 @@ func (s *Server) Register(mux *http.ServeMux) {
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
 			prefix := "/plugins/" + p.NavTab().ID + "/"
-			mux.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(assets))))
+			mux.Handle(prefix, noStoreAssets(http.StripPrefix(prefix, http.FileServer(http.FS(assets)))))
 		}
 	}
-	mux.Handle("/", s.fs)
+	mux.Handle("/", noStoreAssets(s.fs))
+}
+
+func noStoreAssets(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // -- WebSocket --

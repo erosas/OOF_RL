@@ -133,11 +133,15 @@ func Start(url string, cfg *config.Config) webview2.WebView {
 
 	bindFunctions(ov, hwnd, cfg)
 
-	ov.Navigate(url + "?overlay=1&view=overlay&hud=1")
+	ov.Navigate(overlayHUDURL(url))
 	configureWindow(hwnd, cfg)
 	SetWindowIcon(uintptr(hwnd))
 	go listenHotkey(hwnd, cfg)
 	return ov
+}
+
+func overlayHUDURL(baseURL string) string {
+	return baseURL + "?overlay=1&view=overlay&hud=1&assetVersion=" + time.Now().Format("20060102150405.000000000")
 }
 
 func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
@@ -219,6 +223,9 @@ func configureWindow(hwnd windows.HWND, cfg *config.Config) {
 func listenHotkey(hwnd windows.HWND, cfg *config.Config) {
 	var prev bool
 	visible := false
+	// Keep F9 as a native window show/hide toggle only. Do not use this signal
+	// to pause the HUD webview renderer; the overlay must keep its live state
+	// simple and recoverable even when the native window is hidden.
 	for range time.Tick(50 * time.Millisecond) {
 		key := cfg.OverlayHotkey
 		vk, ok := vkMap[key]

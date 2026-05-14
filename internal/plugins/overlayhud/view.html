@@ -1,4 +1,5 @@
 <link rel="stylesheet" href="/plugins/overlay/momentum-flow-bar.css">
+<link rel="stylesheet" href="/plugins/overlay/momentum-control-wheel.css">
 
 <style>
 .overlaylab-shell {
@@ -9,6 +10,7 @@
   margin: 0 auto;
 }
 .overlaylab-toolbar,
+.overlaylab-advanced,
 .overlaylab-stage,
 .momentum-panel {
   background: var(--surface);
@@ -41,6 +43,24 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+.overlaylab-control-pack {
+  align-items: center;
+  background: rgba(5, 10, 20, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+}
+.overlaylab-control-pack-title {
+  color: var(--text);
+  flex-basis: 100%;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .overlaylab-control-group {
   align-items: center;
@@ -88,6 +108,101 @@
 .overlaylab-control:hover,
 .momentum-btn:hover {
   border-color: var(--rl-blue);
+}
+.overlaylab-advanced {
+  padding: 10px 14px;
+}
+.overlaylab-advanced summary {
+  align-items: center;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.82rem;
+  font-weight: 900;
+  gap: 10px;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.overlaylab-advanced summary small {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.overlaylab-advanced details details {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.overlaylab-advanced details details summary {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.overlaylab-advanced-grid {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.overlaylab-advanced-intro {
+  background: rgba(15, 23, 42, 0.32);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+.overlaylab-section-help {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin-top: 8px;
+}
+.overlaylab-status {
+  color: var(--muted);
+  flex-basis: 100%;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  min-height: 1em;
+}
+.overlaylab-status--ok {
+  color: #93c5fd;
+}
+.overlaylab-status--warn {
+  color: #fed7aa;
+}
+.overlaylab-warning {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.24);
+  border-radius: 6px;
+  color: #fed7aa;
+  padding: 8px 10px;
+}
+.overlaylab-color {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.56);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  gap: 7px;
+  letter-spacing: 0.07em;
+  padding: 6px 9px;
+  text-transform: uppercase;
+}
+.overlaylab-color input[type="color"] {
+  background: transparent;
+  border: 0;
+  height: 24px;
+  padding: 0;
+  width: 34px;
 }
 .overlaylab-stage {
   aspect-ratio: 16 / 9;
@@ -146,6 +261,15 @@
   transform-origin: left center;
   width: 42%;
 }
+#view-overlay[data-preview-paused="true"] .momentum-control-wheel *,
+#view-overlay[data-preview-paused="true"] .momentum-flow-bar * {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+#view-overlay[data-preview-paused="true"] #momentum-control-wheel #outer-sparks,
+#view-overlay[data-preview-paused="true"] #momentum-control-wheel #outer-energy-streaks {
+  display: none;
+}
 .overlay-hud-mode #view-overlay {
   background: rgb(1, 2, 3);
 }
@@ -158,6 +282,7 @@
   width: 100vw;
 }
 .overlay-hud-mode #view-overlay .overlaylab-toolbar,
+.overlay-hud-mode #view-overlay .overlaylab-advanced,
 .overlay-hud-mode #view-overlay .momentum-panel {
   display: none;
 }
@@ -395,6 +520,9 @@
   overflow: auto;
   white-space: pre-wrap;
 }
+.momentum-debug--perf {
+  max-height: 320px;
+}
 .momentum-actions {
   display: flex;
   flex-wrap: wrap;
@@ -422,40 +550,316 @@
       </div>
     </div>
     <div class="overlaylab-controls">
-      <select id="mfb-variant" class="overlaylab-control" aria-label="Momentum Flow Bar variant">
-        <option value="full">Full</option>
-        <option value="compact">Compact</option>
-        <option value="minimal">Minimal</option>
-      </select>
-      <select id="mfb-position" class="overlaylab-control" aria-label="Momentum Flow Bar position">
-        <option value="top-center">Top Center</option>
-        <option value="top-left">Top Left</option>
-        <option value="top-right">Top Right</option>
-        <option value="lower-center">Lower Center</option>
-        <option value="side-left">Side Left</option>
-      </select>
-      <label class="overlaylab-control-group">
-        <span>Opacity</span>
-        <input id="mfb-opacity" class="overlaylab-range" type="range" min="0.35" max="1" step="0.05" value="1">
-      </label>
-      <label class="overlaylab-control-group">
-        <span>Scale</span>
-        <input id="mfb-scale" class="overlaylab-range" type="range" min="0.75" max="1.25" step="0.05" value="1">
-      </label>
-      <label class="overlaylab-check"><input id="mfb-show-confidence" type="checkbox" checked> Confidence</label>
-      <label class="overlaylab-check"><input id="mfb-show-labels" type="checkbox" checked> Labels</label>
-      <label class="overlaylab-check"><input id="mfb-show-percentages" type="checkbox" checked> Percentages</label>
-      <label class="overlaylab-check"><input id="mfb-pulse-enabled" type="checkbox" checked> Pulses</label>
-      <button class="overlaylab-control" type="button" data-mfb-demo="blue">Blue Demo</button>
-      <button class="overlaylab-control" type="button" data-mfb-demo="orange">Orange Demo</button>
-      <button class="overlaylab-control" type="button" data-mfb-demo="volatile">Volatile Demo</button>
-      <button class="overlaylab-control" type="button" data-mfb-demo="neutral">Neutral Demo</button>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Display</div>
+        <select id="mfb-variant" class="overlaylab-control" aria-label="Momentum Flow Bar variant">
+          <option value="full">Full</option>
+          <option value="compact">Compact</option>
+          <option value="minimal">Minimal</option>
+        </select>
+        <select id="mfb-visual" class="overlaylab-control" aria-label="Momentum visual style">
+          <option value="bar">Flow Bar</option>
+          <option value="wheel">Control Wheel</option>
+        </select>
+        <select id="mfb-theme" class="overlaylab-control" aria-label="Momentum wheel theme">
+          <option value="oof-default">OOF Default</option>
+          <option value="high-contrast">High Contrast</option>
+          <option value="classic-blue-orange">Classic Blue/Orange</option>
+          <option value="reduced-glow">Reduced Glow</option>
+          <option value="performance-safe">Performance Safe</option>
+        </select>
+        <select id="mfb-position" class="overlaylab-control" aria-label="Momentum Flow Bar position">
+          <option value="top-center">Top Center</option>
+          <option value="top-left">Top Left</option>
+          <option value="top-right">Top Right</option>
+          <option value="lower-center">Lower Center</option>
+          <option value="side-left">Side Left</option>
+        </select>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Layout</div>
+        <label class="overlaylab-control-group" title="Overall overlay transparency in both the Lab preview and F9 overlay.">
+          <span>Opacity</span>
+          <input id="mfb-opacity" class="overlaylab-range" type="range" min="0.35" max="1" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="Overall widget size in both the Lab preview and F9 overlay.">
+          <span>Scale</span>
+          <input id="mfb-scale" class="overlaylab-range" type="range" min="0.75" max="1.25" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-check" title="Show the center momentum share readout when the selected visual supports it."><input id="mfb-show-confidence" type="checkbox" checked> Center Share</label>
+        <label class="overlaylab-check" title="Show state labels where supported."><input id="mfb-show-labels" type="checkbox" checked> Labels</label>
+        <label class="overlaylab-check" title="Show percentages on the Flow Bar visual."><input id="mfb-show-percentages" type="checkbox" checked> Percentages</label>
+        <label class="overlaylab-check" title="Show the small OOF badge on the wheel."><input id="mfb-show-oof-badge" type="checkbox" checked> OOF Badge</label>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Motion Safety</div>
+        <label class="overlaylab-check" title="Disables animation-heavy effects without erasing saved tuning values."><input id="mfb-reduced-motion" type="checkbox"> Reduced Motion</label>
+        <label class="overlaylab-check" title="Disables sparks, shockwaves, and heavy glow first while preserving core readability."><input id="mfb-performance-mode" type="checkbox"> Performance Mode</label>
+        <label class="overlaylab-check" title="Enables meaningful event pulses for the Flow Bar visual."><input id="mfb-pulse-enabled" type="checkbox" checked> Pulses</label>
+        <button id="mfb-performance-safe-preset" class="overlaylab-control" type="button" title="Apply a low-cost wheel preset that keeps core readability while disabling expensive decoration.">Apply Performance Safe</button>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Global Visuals</div>
+        <label class="overlaylab-control-group" title="Overall glow intensity. Detailed per-element glow lives in Advanced Visual Tuning.">
+          <span>Glow</span>
+          <input id="mfb-glow-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.72">
+        </label>
+        <label class="overlaylab-control-group" title="Overall visual response speed/intensity for aura and spark behavior.">
+          <span>Reactive</span>
+          <input id="mfb-reactiveness" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5">
+        </label>
+        <label class="overlaylab-control-group" title="Global spark activity for the wheel. Detailed spark tuning lives in Advanced Visual Tuning.">
+          <span>Sparks</span>
+          <input id="mfb-spark-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55">
+        </label>
+        <label class="overlaylab-control-group" title="Global seam/front-line visibility for the wheel.">
+          <span>Seam</span>
+          <input id="mfb-seam-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.82">
+        </label>
+        <label class="overlaylab-control-group" title="Global contested-state energy.">
+          <span>Contested FX</span>
+          <input id="mfb-volatile-effects" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55">
+        </label>
+        <button id="mfb-reset-style" class="overlaylab-control" type="button" title="Reset visual style, advanced wheel tuning, theme, and placement to defaults.">Reset Visual Defaults</button>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Signal Response</div>
+        <div class="overlaylab-section-help">Display response only. These controls change how the wheel reacts visually to Momentum Engine output. They do not change match data, stats, engine scoring, or saved history.</div>
+        <label class="overlaylab-control-group" title="How strongly pressure/control states boost glow, aura, and segment intensity.">
+          <span>Pressure Sensitivity</span>
+          <input id="mcw-response-pressure-sensitivity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="How strongly contested states amplify seam, flicker, and spark visuals.">
+          <span>Contest Sensitivity</span>
+          <input id="mcw-response-volatility-sensitivity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="How much internal confidence affects visual solidity and dimming. The center share text stays driven by momentum percentages.">
+          <span>Confidence Influence</span>
+          <input id="mcw-response-confidence-influence" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="Runtime-only visual easing for glow, aura, and effects. Does not delay seam or segment ownership.">
+          <span>Smoothing</span>
+          <input id="mcw-response-smoothing" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5">
+        </label>
+        <label class="overlaylab-control-group" title="How snappy visual transitions feel. Higher values feel sharper.">
+          <span>Transition Sharpness</span>
+          <input id="mcw-response-transition-sharpness" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.75">
+        </label>
+        <label class="overlaylab-control-group" title="How strongly shots, saves, demos, and goals trigger afterglow and pulse effects.">
+          <span>Event Reactiveness</span>
+          <input id="mcw-response-event-reactiveness" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1">
+        </label>
+        <div class="overlaylab-section-help">Reactive Timing changes visual timing only. It never changes event timestamps, ownership, seam placement, match data, or engine scoring.</div>
+        <label class="overlaylab-control-group" title="How quickly glow, aura, and segment visuals react after a signal update.">
+          <span>Reaction Speed</span>
+          <input id="mcw-response-reaction-speed" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="How long recent-event visual energy is visually held before fading.">
+          <span>Hold Duration</span>
+          <input id="mcw-response-hold-duration" class="overlaylab-range" type="range" min="0.25" max="3" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="How quickly event energy and glow fade out visually.">
+          <span>Decay Speed</span>
+          <input id="mcw-response-decay-speed" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="Duration multiplier for aura pulse cycles. Reduced Motion minimizes this.">
+          <span>Pulse Duration</span>
+          <input id="mcw-response-pulse-duration" class="overlaylab-range" type="range" min="0.25" max="3" step="0.05" value="1">
+        </label>
+        <label class="overlaylab-control-group" title="Seconds for recent-event afterglow. Reduced Motion disables this.">
+          <span>Afterglow Duration</span>
+          <input id="mcw-response-afterglow-duration" class="overlaylab-range" type="range" min="0" max="5" step="0.05" value="1.6">
+        </label>
+        <label class="overlaylab-control-group" title="Duration multiplier for short spark, flicker, and burst visuals.">
+          <span>Event Burst Duration</span>
+          <input id="mcw-response-event-burst-duration" class="overlaylab-range" type="range" min="0.25" max="3" step="0.05" value="1">
+        </label>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Preview States</div>
+        <button class="overlaylab-control" type="button" data-mfb-demo="blue">Blue Demo</button>
+        <button class="overlaylab-control" type="button" data-mfb-demo="orange">Orange Demo</button>
+        <button class="overlaylab-control" type="button" data-mfb-demo="volatile">Contested Demo</button>
+        <button class="overlaylab-control" type="button" data-mfb-demo="neutral">Neutral Demo</button>
+      </div>
+      <div class="overlaylab-control-pack">
+        <div class="overlaylab-control-pack-title">Preset JSON</div>
+        <button id="mcw-copy-config-json" class="overlaylab-control" type="button" title="Copy sanitized display-only MomentumControlWheel config JSON.">Copy Config JSON</button>
+        <button id="mcw-export-config-json" class="overlaylab-control" type="button" title="Download sanitized display-only MomentumControlWheel config JSON.">Export JSON</button>
+        <button id="mcw-import-config-json" class="overlaylab-control" type="button" title="Paste sanitized display-only MomentumControlWheel config JSON.">Import JSON</button>
+        <div id="mcw-config-json-status" class="overlaylab-status" aria-live="polite"></div>
+      </div>
     </div>
+  </section>
+
+  <section class="overlaylab-advanced">
+    <details>
+      <summary><span>Advanced Visual Tuning</span><small>Wheel element controls</small></summary>
+      <div class="overlaylab-advanced-intro">
+        Fine tuning is display-only and shared by the Lab preview and F9 overlay through the same sanitized prefs. Reduced Motion and Performance Mode override heavy effects at render time without erasing your saved slider values.
+      </div>
+      <details data-mcw-advanced-section>
+        <summary><span>Segments</span><small>main ring tiles</small></summary>
+        <div class="overlaylab-section-help">Adjust the illuminated blue/orange segment bodies and the quiet inactive bed underneath them.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Brightness of blue-owned active segments."><span>Blue Brightness</span><input id="mcw-blue-segment-brightness" class="overlaylab-range" type="range" min="0.5" max="1.5" step="0.05" value="0.88"></label>
+          <label class="overlaylab-control-group" title="Color saturation of blue-owned active segments."><span>Blue Saturation</span><input id="mcw-blue-segment-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Glow cast by blue-owned active segments."><span>Blue Glow</span><input id="mcw-blue-segment-glow" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.72"></label>
+          <label class="overlaylab-control-group" title="Visibility of blue-owned active segments."><span>Blue Opacity</span><input id="mcw-blue-segment-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.94"></label>
+          <label class="overlaylab-control-group" title="Brightness of orange-owned active segments."><span>Orange Brightness</span><input id="mcw-orange-segment-brightness" class="overlaylab-range" type="range" min="0.5" max="1.5" step="0.05" value="0.88"></label>
+          <label class="overlaylab-control-group" title="Color saturation of orange-owned active segments."><span>Orange Saturation</span><input id="mcw-orange-segment-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Glow cast by orange-owned active segments."><span>Orange Glow</span><input id="mcw-orange-segment-glow" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.72"></label>
+          <label class="overlaylab-control-group" title="Visibility of orange-owned active segments."><span>Orange Opacity</span><input id="mcw-orange-segment-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.94"></label>
+          <label class="overlaylab-control-group" title="Visibility of inactive segment beds behind active ownership."><span>Inactive Opacity</span><input id="mcw-inactive-segment-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.28"></label>
+          <label class="overlaylab-control-group" title="Brightness of inactive segment beds."><span>Inactive Brightness</span><input id="mcw-inactive-segment-brightness" class="overlaylab-range" type="range" min="0.5" max="1.5" step="0.05" value="0.78"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Aura / Glow</span><small>outer energy</small></summary>
+        <div class="overlaylab-section-help">Controls the broad outer breathing glow. Performance Mode reduces this first before touching core segment readability.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Base strength of the outer aura."><span>Outer Aura</span><input id="mcw-aura-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.45"></label>
+          <label class="overlaylab-control-group" title="Amount of breathing/pulsing on active states."><span>Aura Pulse</span><input id="mcw-aura-pulse" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Speed multiplier for aura pulse cycles."><span>Aura Pulse Speed</span><input id="mcw-aura-pulse-speed" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="How quickly the aura reacts to state changes."><span>Aura Reactiveness</span><input id="mcw-aura-reactiveness" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Multiplier for blue-side aura energy."><span>Blue Aura</span><input id="mcw-blue-aura-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Multiplier for orange-side aura energy."><span>Orange Aura</span><input id="mcw-orange-aura-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Multiplier for purple seam-adjacent contested aura."><span>Purple Aura</span><input id="mcw-volatile-purple-aura-strength" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Seam / Contested</span><small>front-line energy</small></summary>
+        <div class="overlaylab-section-help">The seam marks the blue/orange front line. Contested controls only affect chaotic contest visuals, not ownership math.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Base visibility of the contested seam/front line."><span>Seam Intensity</span><input id="mcw-seam-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.82"></label>
+          <label class="overlaylab-control-group" title="Brightness of the seam flare where the teams meet."><span>Seam Flare</span><input id="mcw-seam-flare" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Contested-state flicker strength. Disabled by Reduced Motion."><span>Seam Flicker</span><input id="mcw-seam-flicker" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Purple-white aura around contested moments."><span>Contested Aura</span><input id="mcw-volatile-aura-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+          <label class="overlaylab-control-group" title="Color saturation of contested aura effects."><span>Contest Saturation</span><input id="mcw-volatile-aura-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Front-Line Flare</span><small>seam collision point</small></summary>
+        <div class="overlaylab-section-help">Tunes the white-hot seam flare and trail only. This never changes seam angle or ownership.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Overall front-line flare visibility."><span>Flare Intensity</span><input id="mcw-front-line-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.82"></label>
+          <label class="overlaylab-control-group" title="Size of the white-hot seam core."><span>Core Size</span><input id="mcw-front-line-core-size" class="overlaylab-range" type="range" min="0.45" max="1.8" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Size of the soft glow around the seam core."><span>Glow Size</span><input id="mcw-front-line-glow-size" class="overlaylab-range" type="range" min="0.35" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Opacity of the front-line flare layer."><span>Flare Opacity</span><input id="mcw-front-line-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Strength of the radial seam trail/beam."><span>Trail Strength</span><input id="mcw-front-line-trail-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Duration multiplier for seam trail fades."><span>Trail Duration</span><input id="mcw-front-line-trail-duration" class="overlaylab-range" type="range" min="0.25" max="3" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Seam Sparks</span><small>front-line particles</small></summary>
+        <div class="overlaylab-section-help">Controls spark behavior near the contested front line. Reduced Motion and Performance Mode disable these first.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Amount of seam-adjacent spark activity."><span>Seam Spark Intensity</span><input id="mcw-seam-spark-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+          <label class="overlaylab-control-group" title="Opacity of seam-adjacent sparks."><span>Seam Spark Opacity</span><input id="mcw-seam-spark-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.92"></label>
+          <label class="overlaylab-control-group" title="How far seam sparks travel outward."><span>Travel Distance</span><input id="mcw-seam-spark-travel-distance" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Duration multiplier for seam spark loops."><span>Spark Duration</span><input id="mcw-seam-spark-duration" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Visual density multiplier for seam spark visibility."><span>Spark Density</span><input id="mcw-seam-spark-density" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Extra seam spark multiplier during contested states."><span>Contested Spark Mult</span><input id="mcw-volatile-seam-spark-multiplier" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1.25"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Sparks</span><small>optional particles</small></summary>
+        <div class="overlaylab-section-help">Sparks are decoration only. Reduced Motion and Performance Mode hide them without changing saved slider values.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Overall spark amount."><span>Spark Intensity</span><input id="mcw-spark-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+          <label class="overlaylab-control-group" title="Color saturation for spark particles."><span>Spark Saturation</span><input id="mcw-spark-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Spark particle visibility before safety overrides."><span>Spark Opacity</span><input id="mcw-spark-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.92"></label>
+          <label class="overlaylab-control-group" title="Spark animation energy/speed. Disabled by Reduced Motion."><span>Spark Reactiveness</span><input id="mcw-spark-reactiveness" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Outer Energy Sparks</span><small>arc edge particles</small></summary>
+        <div class="overlaylab-section-help">Tunes the secondary edge sparks that live along the dominant team arc, separate from seam sparks.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Amount of outer arc spark activity."><span>Arc Spark Intensity</span><input id="mcw-outer-arc-spark-intensity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+          <label class="overlaylab-control-group" title="Opacity of outer arc sparks."><span>Arc Spark Opacity</span><input id="mcw-outer-arc-spark-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.82"></label>
+          <label class="overlaylab-control-group" title="Speed/travel multiplier for outer arc sparks."><span>Arc Spark Speed</span><input id="mcw-outer-arc-spark-speed" class="overlaylab-range" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Outer arc spark multiplier during pressure states."><span>Pressure Arc Mult</span><input id="mcw-pressure-arc-spark-multiplier" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Outer edge spark multiplier during control states."><span>Control Edge Mult</span><input id="mcw-control-edge-spark-multiplier" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Slow edge energy multiplier during dominant states."><span>Dominant Edge Mult</span><input id="mcw-dominant-edge-spark-multiplier" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="0.85"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Event Reactions</span><small>shot/save/goal/demo visuals</small></summary>
+        <div class="overlaylab-section-help">Event reactions are visual-only pulses from already-computed Momentum Engine events. They do not alter event timestamps or stats.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Visual pulse strength for shot events."><span>Shot Pulse</span><input id="mcw-shot-pulse-strength" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Visual flash strength for save-forced/save events."><span>Save Flash</span><input id="mcw-save-flash-strength" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Extra lingering afterglow for high-value save moments."><span>Epic Save Glow</span><input id="mcw-epic-save-afterglow" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Full-ring pulse strength for goal moments."><span>Goal Ring Pulse</span><input id="mcw-goal-full-ring-pulse-strength" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Jagged spark strength for demo pressure visuals."><span>Demo Sparks</span><input id="mcw-demo-jagged-spark-strength" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Same value as Reactive Timing Event Burst Duration."><span>Event Burst Duration</span><input id="mcw-event-burst-duration" class="overlaylab-range" type="range" min="0.25" max="3" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Same value as Reactive Timing Afterglow Duration."><span>Event Afterglow</span><input id="mcw-event-afterglow-duration" class="overlaylab-range" type="range" min="0" max="5" step="0.05" value="1.6"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>State Response Multipliers</span><small>animation language</small></summary>
+        <div class="overlaylab-section-help">Per-state visual multipliers change intensity language only. They do not change state classification.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Base intensity multiplier for neutral state."><span>Neutral Intensity</span><input id="mcw-state-neutral-intensity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="0.35"></label>
+          <label class="overlaylab-control-group" title="Base intensity multiplier for pressure states."><span>Pressure Intensity</span><input id="mcw-state-pressure-intensity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Base intensity multiplier for control states."><span>Control Intensity</span><input id="mcw-state-control-intensity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1.12"></label>
+          <label class="overlaylab-control-group" title="Base intensity multiplier for contested states."><span>Contested Intensity</span><input id="mcw-state-volatile-intensity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1.25"></label>
+          <label class="overlaylab-control-group" title="Base intensity multiplier for dominant states."><span>Dominant Intensity</span><input id="mcw-state-dominant-intensity" class="overlaylab-range" type="range" min="0" max="2" step="0.05" value="1.18"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Center</span><small>clock disc wash</small></summary>
+        <div class="overlaylab-section-help">Center wash lives behind the timer. Extreme values are sanitized so the clock remains readable.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Overall intensity of the center color wash."><span>Wash Intensity</span><input id="mcw-center-wash-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Color saturation of the center wash."><span>Wash Saturation</span><input id="mcw-center-wash-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Multiplier for blue center wash."><span>Blue Wash</span><input id="mcw-center-wash-blue-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Multiplier for orange center wash."><span>Orange Wash</span><input id="mcw-center-wash-orange-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Multiplier for contested purple center wash."><span>Purple Wash</span><input id="mcw-center-wash-purple-strength" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Text / Badge</span><small>readability layer</small></summary>
+        <div class="overlaylab-section-help">Text controls are intentionally narrow. The timer should stay clear in every state.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Brightness for core center text."><span>Center Text</span><input id="mcw-center-text-brightness" class="overlaylab-range" type="range" min="0.72" max="1.35" step="0.03" value="1"></label>
+          <label class="overlaylab-control-group" title="Brightness for the center momentum share text."><span>Share Text</span><input id="mcw-confidence-text-brightness" class="overlaylab-range" type="range" min="0.72" max="1.35" step="0.03" value="1"></label>
+          <label class="overlaylab-control-group" title="Opacity of the optional OOF badge."><span>OOF Badge</span><input id="mcw-badge-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Frame / Inner Ticks</span><small>structure layer</small></summary>
+        <div class="overlaylab-section-help">Frame and tick controls tune the mechanical shell and telemetry ring without changing wheel geometry.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-control-group" title="Brightness of the graphite mechanical frame."><span>Frame Brightness</span><input id="mcw-frame-brightness" class="overlaylab-range" type="range" min="0.5" max="1.5" step="0.05" value="0.5"></label>
+          <label class="overlaylab-control-group" title="Opacity of the mechanical frame."><span>Frame Opacity</span><input id="mcw-frame-opacity" class="overlaylab-range" type="range" min="0" max="1" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Visibility of the 120 inner tick marks."><span>Tick Opacity</span><input id="mcw-inner-tick-opacity" class="overlaylab-range" type="range" min="0.08" max="0.62" step="0.02" value="0.28"></label>
+          <label class="overlaylab-control-group" title="Brightness of the inner tick marks."><span>Tick Brightness</span><input id="mcw-inner-tick-brightness" class="overlaylab-range" type="range" min="0.5" max="1.5" step="0.05" value="1"></label>
+          <label class="overlaylab-control-group" title="Color saturation of the inner tick marks."><span>Tick Saturation</span><input id="mcw-inner-tick-saturation" class="overlaylab-range" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+        </div>
+      </details>
+      <details data-mcw-advanced-section>
+        <summary><span>Manual Colors</span><small>advanced theme override</small></summary>
+        <div class="overlaylab-section-help overlaylab-warning">Manual colors override theme tokens only. They are sanitized, display-only, and can still make the wheel ugly; use Reset Visual Defaults if the palette goes sideways.</div>
+        <div class="overlaylab-advanced-grid">
+          <label class="overlaylab-check" title="Enable sanitized manual theme color overrides."><input id="mfb-color-overrides-enabled" type="checkbox"> Enable Manual Colors</label>
+          <label class="overlaylab-color" title="Manual blue token override.">Blue <input id="mfb-color-blue" type="color" value="#1ea7ff"></label>
+          <label class="overlaylab-color" title="Manual orange token override.">Orange <input id="mfb-color-orange" type="color" value="#ff7a1a"></label>
+          <label class="overlaylab-color" title="Manual mechanical frame token override.">Frame <input id="mfb-color-frame" type="color" value="#202834"></label>
+          <label class="overlaylab-color" title="Manual primary text token override.">Text <input id="mfb-color-text" type="color" value="#f4fbff"></label>
+        </div>
+      </details>
+      <div class="overlaylab-sub">
+        Reset Visual Defaults restores global controls, advanced wheel tuning, theme, position, and safety toggles. Raw geometry controls remain developer/debug-only and are not exposed here.
+      </div>
+    </details>
   </section>
 
   <section class="overlaylab-stage" aria-label="Momentum Flow Bar preview">
     <div id="overlay-widget-host" class="overlay-widget-host overlay-widget-host--top-center">
       <div id="momentum-flow-bar-widget"></div>
+      <div id="momentum-control-wheel-widget" hidden></div>
     </div>
   </section>
 
@@ -492,6 +896,22 @@
     <div class="momentum-actions">
       <button id="momentum-timeline-clear" class="momentum-btn" type="button">Clear Local Timeline</button>
     </div>
+  </section>
+
+  <section class="momentum-panel">
+    <div class="overlaylab-title">Overlay Perf Capture</div>
+    <div class="overlaylab-sub">
+      Opt-in diagnostic counters for event-bus traffic and MomentumControlWheel rendering. Use this to capture Idle, F9 Performance Mode, F9 high-energy, and Lab + F9 scenarios before optimizing.
+    </div>
+    <div class="momentum-actions">
+      <button id="overlay-perf-enable" class="momentum-btn" type="button">Enable Counters</button>
+      <button id="overlay-perf-reset" class="momentum-btn" type="button">Reset Window</button>
+      <button id="overlay-perf-snapshot" class="momentum-btn" type="button">Refresh Snapshot</button>
+      <button id="overlay-perf-copy" class="momentum-btn" type="button">Copy Snapshot JSON</button>
+      <button id="overlay-perf-disable" class="momentum-btn" type="button">Disable Counters</button>
+    </div>
+    <div id="overlay-perf-status" class="overlaylab-status" aria-live="polite"></div>
+    <pre id="overlay-perf-debug" class="momentum-debug momentum-debug--perf">Counters are off. Click Enable Counters, run a scenario for 30-60 seconds, then Refresh Snapshot.</pre>
   </section>
 
   <section class="momentum-panel">

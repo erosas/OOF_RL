@@ -179,6 +179,14 @@
 
 </main>
 
-<script src="/app.js"></script>
+<script>
+(() => {
+  const params = new URLSearchParams(window.location.search || '');
+  const version = params.get('assetVersion') || Date.now().toString(36);
+  const script = document.createElement('script');
+  script.src = `/app.js?v=${encodeURIComponent(version)}`;
+  document.body.appendChild(script);
+})();
+</script>
 </body>
 </html>
