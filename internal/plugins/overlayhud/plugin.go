@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -103,16 +104,51 @@ func (p *Plugin) HandleEvent(env events.Envelope) {
 
 func (p *Plugin) HandleOOFEvent(e oofevents.OOFEvent) {
 	now := time.Now()
-	nowMs := now.UnixMilli()
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.handleOOFEventLocked(e, now)
+}
+
+func (p *Plugin) handleOOFEventLocked(e oofevents.OOFEvent, now time.Time) {
+	nowMs := now.UnixMilli()
 	p.perfCountLocked(nowMs, "oofevents."+e.Type(), 1)
-	env, ok := p.envelopeFromOOFEventLocked(e)
-	if !ok {
+	switch ev := oofevents.Unwrap(e).(type) {
+	case oofevents.MatchStartedEvent:
+		p.handleTypedMatchCreatedLocked(ev.MatchGUID(), now)
+	case oofevents.MatchRestartedEvent:
+		p.handleTypedMatchCreatedLocked(ev.MatchGUID(), now)
+	case oofevents.MatchEndedEvent:
+		p.handleTypedLifecycleLocked("MatchEnded", now)
+	case oofevents.MatchDestroyedEvent:
+		p.playerCacheGUID = ""
+		p.playerRefs = make(map[string]events.PlayerRef)
+		p.handleTypedLifecycleLocked("MatchDestroyed", now)
+	case oofevents.ClockUpdatedEvent:
+		p.perfCountLocked(nowMs, "envelope.ClockUpdatedSeconds", 1)
+		p.applyGoalFallback(nowMs)
+	case oofevents.StateUpdatedEvent:
+		// Phase 1 keeps state snapshots on the legacy UpdateState path so replay
+		// state and stat-delta baselines remain byte-for-byte behavior compatible.
+		env, ok := p.envelopeFromOOFEventLocked(e)
+		if !ok {
+			p.perfCountLocked(nowMs, "adapter.drop."+e.Type(), 1)
+			return
+		}
+		p.handleEnvelopeLocked(env, now)
+	case oofevents.BallHitEvent:
+		normalized, ok := p.normalizedBallHitFromOOFLocked(ev, now)
+		if !ok {
+			p.perfCountLocked(nowMs, "adapter.drop."+e.Type(), 1)
+			return
+		}
+		p.handleTypedExplicitEventsLocked("BallHit", normalized, now)
+	case oofevents.GoalScoredEvent:
+		p.handleTypedExplicitEventsLocked("GoalScored", p.normalizedGoalScoredFromOOFLocked(ev, now), now)
+	case oofevents.StatFeedEvent:
+		p.handleTypedExplicitEventsLocked("StatfeedEvent", p.normalizedStatFeedFromOOFLocked(ev, now), now)
+	default:
 		p.perfCountLocked(nowMs, "adapter.drop."+e.Type(), 1)
-		return
 	}
-	p.handleEnvelopeLocked(env, now)
 }
 
 func (p *Plugin) handleEnvelopeLocked(env events.Envelope, now time.Time) {
@@ -132,7 +168,46 @@ func (p *Plugin) handleEnvelopeLocked(env events.Envelope, now time.Time) {
 	if len(allEvents) == 0 {
 		return
 	}
-	for _, ev := range allEvents {
+	p.processMomentumEventsLocked(allEvents, nowMs)
+}
+
+func (p *Plugin) handleTypedMatchCreatedLocked(matchGUID string, now time.Time) {
+	nowMs := now.UnixMilli()
+	p.perfCountLocked(nowMs, "envelope.MatchCreated", 1)
+	if matchGUID != "" && matchGUID != p.playerCacheGUID {
+		p.playerCacheGUID = matchGUID
+		p.playerRefs = make(map[string]events.PlayerRef)
+		p.perfCountLocked(nowMs, "cache.rebuild.match", 1)
+	}
+	p.updateReplayStateFromParts("MatchCreated", nil, nil, nowMs)
+	p.applyGoalFallback(nowMs)
+}
+
+func (p *Plugin) handleTypedLifecycleLocked(eventName string, now time.Time) {
+	nowMs := now.UnixMilli()
+	p.perfCountLocked(nowMs, "envelope."+eventName, 1)
+	p.updateReplayStateFromParts(eventName, nil, nil, nowMs)
+	p.applyGoalFallback(nowMs)
+}
+
+func (p *Plugin) handleTypedExplicitEventsLocked(eventName string, normalized []momentum.NormalizedGameEvent, now time.Time) {
+	nowMs := now.UnixMilli()
+	p.perfCountLocked(nowMs, "envelope."+eventName, 1)
+	normalized = p.filterDuplicateExplicitEvents(normalized, nowMs)
+	p.updateReplayStateFromParts(eventName, nil, normalized, nowMs)
+	p.applyGoalFallback(nowMs)
+	for _, ev := range normalized {
+		p.updateDeltas.MarkExplicit(ev)
+	}
+	p.noteGoalEvents(normalized, nowMs)
+	if len(normalized) == 0 {
+		return
+	}
+	p.processMomentumEventsLocked(normalized, nowMs)
+}
+
+func (p *Plugin) processMomentumEventsLocked(events []momentum.NormalizedGameEvent, nowMs int64) {
+	for _, ev := range events {
 		p.perfCountLocked(nowMs, "normalized."+string(ev.Type), 1)
 		if ev.SourceEvent != "" {
 			p.perfCountLocked(nowMs, "normalizedSource."+ev.SourceEvent, 1)
@@ -208,6 +283,118 @@ func (p *Plugin) envelopeFromOOFEventLocked(e oofevents.OOFEvent) (events.Envelo
 		})
 	default:
 		return events.Envelope{}, false
+	}
+}
+
+func (p *Plugin) normalizedBallHitFromOOFLocked(ev oofevents.BallHitEvent, now time.Time) ([]momentum.NormalizedGameEvent, bool) {
+	ref, ok := p.playerRefFromOOFBallHitLocked(ev)
+	if !ok {
+		return nil, false
+	}
+	p.rememberPlayerRefLocked(ev.MatchGUID(), ref)
+	team, ok := momentum.TeamFromNum(ref.TeamNum)
+	if !ok {
+		return nil, false
+	}
+	return []momentum.NormalizedGameEvent{{
+		Type:        momentum.EventBallHit,
+		Team:        team,
+		PlayerID:    ref.PrimaryId,
+		PlayerName:  ref.Name,
+		Time:        now.UnixMilli(),
+		MatchGUID:   ev.MatchGUID(),
+		SourceEvent: "BallHit",
+	}}, true
+}
+
+func (p *Plugin) normalizedGoalScoredFromOOFLocked(ev oofevents.GoalScoredEvent, now time.Time) []momentum.NormalizedGameEvent {
+	scorer := p.playerRefFromShortcutLocked(ev.MatchGUID(), ev.ScorerShortcut, ev.Scorer, ev.TeamNum)
+	assister := p.optionalPlayerRefFromShortcutLocked(ev.MatchGUID(), ev.AssisterShortcut, ev.Assister, ev.TeamNum)
+	lastTouch := p.playerRefFromShortcutLocked(ev.MatchGUID(), ev.LastTouchShortcut, "", ev.TeamNum)
+	p.rememberPlayerRefLocked(ev.MatchGUID(), scorer)
+	if assister != nil {
+		p.rememberPlayerRefLocked(ev.MatchGUID(), *assister)
+	}
+	p.rememberPlayerRefLocked(ev.MatchGUID(), lastTouch)
+
+	if scorer.Name == "" && scorer.PrimaryId == "" && scorer.Shortcut == 0 {
+		return nil
+	}
+	team, ok := momentum.TeamFromNum(scorer.TeamNum)
+	if !ok {
+		return nil
+	}
+	matchClock := int(ev.GoalTime)
+	out := []momentum.NormalizedGameEvent{{
+		Type:        momentum.EventGoal,
+		Team:        team,
+		PlayerID:    scorer.PrimaryId,
+		PlayerName:  scorer.Name,
+		Time:        now.UnixMilli(),
+		MatchClock:  &matchClock,
+		MatchGUID:   ev.MatchGUID(),
+		SourceEvent: "GoalScored",
+	}}
+	if assister != nil {
+		out[0].AssisterID = assister.PrimaryId
+		out = append(out, momentum.NormalizedGameEvent{
+			Type:        momentum.EventAssist,
+			Team:        team,
+			PlayerID:    assister.PrimaryId,
+			PlayerName:  assister.Name,
+			Time:        now.UnixMilli(),
+			MatchClock:  &matchClock,
+			MatchGUID:   ev.MatchGUID(),
+			SourceEvent: "GoalScored",
+		})
+	}
+	return out
+}
+
+func (p *Plugin) normalizedStatFeedFromOOFLocked(ev oofevents.StatFeedEvent, now time.Time) []momentum.NormalizedGameEvent {
+	main := p.playerRefFromShortcutLocked(ev.MatchGUID(), ev.MainTargetShortcut, ev.MainTarget, ev.MainTargetTeamNum)
+	secondary := p.optionalPlayerRefFromShortcutLocked(ev.MatchGUID(), ev.SecondaryTargetShortcut, ev.SecondaryTarget, -1)
+	p.rememberPlayerRefLocked(ev.MatchGUID(), main)
+	if secondary != nil {
+		p.rememberPlayerRefLocked(ev.MatchGUID(), *secondary)
+	}
+	eventType, ok := statFeedMomentumType(ev.EventName)
+	if !ok {
+		return nil
+	}
+	team, ok := momentum.TeamFromNum(main.TeamNum)
+	if !ok {
+		return nil
+	}
+	out := momentum.NormalizedGameEvent{
+		Type:        eventType,
+		Team:        team,
+		PlayerID:    main.PrimaryId,
+		PlayerName:  main.Name,
+		Time:        now.UnixMilli(),
+		MatchGUID:   ev.MatchGUID(),
+		SourceEvent: "StatfeedEvent",
+	}
+	if secondary != nil {
+		out.VictimID = secondary.PrimaryId
+	}
+	return []momentum.NormalizedGameEvent{out}
+}
+
+func statFeedMomentumType(name string) (momentum.EventType, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "shot":
+		return momentum.EventShot, true
+	case "save", "epicsave":
+		return momentum.EventSave, true
+	case "assist":
+		return momentum.EventAssist, true
+	case "demolish":
+		return momentum.EventDemo, true
+	case "goal", "owngoal":
+		return momentum.EventGoal, true
+	default:
+		return "", false
 	}
 }
 
@@ -846,7 +1033,20 @@ func isKnownTeamNum(teamNum int) bool {
 const explicitEventDedupeWindowMs int64 = 1500
 
 func (p *Plugin) updateReplayState(env events.Envelope, normalized []momentum.NormalizedGameEvent, now int64) {
-	if p.replayActive && env.Event != "UpdateState" && containsLiveBallHit(normalized) {
+	if env.Event != "UpdateState" {
+		p.updateReplayStateFromParts(env.Event, nil, normalized, now)
+		return
+	}
+	var d events.UpdateStateData
+	if err := json.Unmarshal(env.Data, &d); err != nil {
+		return
+	}
+	replayActive := d.Game.BReplay
+	p.updateReplayStateFromParts(env.Event, &replayActive, normalized, now)
+}
+
+func (p *Plugin) updateReplayStateFromParts(eventName string, replayActive *bool, normalized []momentum.NormalizedGameEvent, now int64) {
+	if p.replayActive && eventName != "UpdateState" && containsLiveBallHit(normalized) {
 		if p.replayFileMode {
 			return
 		}
@@ -856,7 +1056,7 @@ func (p *Plugin) updateReplayState(env events.Envelope, normalized []momentum.No
 		p.resetMomentumForKickoff(now)
 		return
 	}
-	if env.Event == "RoundStarted" {
+	if eventName == "RoundStarted" {
 		if p.replayActive {
 			p.replayChanged = now
 		}
@@ -865,7 +1065,7 @@ func (p *Plugin) updateReplayState(env events.Envelope, normalized []momentum.No
 		p.resetMomentumForKickoff(now)
 		return
 	}
-	if env.Event == "MatchEnded" || env.Event == "MatchDestroyed" || env.Event == "MatchCreated" || env.Event == "MatchInitialized" {
+	if eventName == "MatchEnded" || eventName == "MatchDestroyed" || eventName == "MatchCreated" || eventName == "MatchInitialized" {
 		if p.replayActive {
 			p.replayActive = false
 			p.replayChanged = now
@@ -874,17 +1074,13 @@ func (p *Plugin) updateReplayState(env events.Envelope, normalized []momentum.No
 		p.resetMomentumForKickoff(now)
 		return
 	}
-	if env.Event != "UpdateState" {
+	if eventName != "UpdateState" || replayActive == nil {
 		return
 	}
-	var d events.UpdateStateData
-	if err := json.Unmarshal(env.Data, &d); err != nil {
-		return
-	}
-	if d.Game.BReplay != p.replayActive {
-		p.replayActive = d.Game.BReplay
+	if *replayActive != p.replayActive {
+		p.replayActive = *replayActive
 		p.replayChanged = now
-		if d.Game.BReplay {
+		if *replayActive {
 			p.goalReplaySeen = true
 			p.replayFileMode = p.goalResetDue == 0
 		} else {

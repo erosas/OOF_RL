@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -106,6 +107,188 @@ func TestOOFStatFeedMapsToMomentumPressureEvent(t *testing.T) {
 	p.mu.Unlock()
 	if out.Debug == nil || out.Debug.EventCounts[momentum.EventShot] != 1 {
 		t.Fatalf("oof stat.feed shot should become one momentum shot, got %+v", out.Debug)
+	}
+}
+
+func TestTypedGoalScoredMatchesLegacyGoalBehavior(t *testing.T) {
+	now := time.UnixMilli(12345)
+	legacy := New()
+	typed := New()
+
+	handleLegacyEnvelopeAt(t, legacy, envelope(t, "GoalScored", events.GoalScoredData{
+		MatchGuid: "guid-goal",
+		GoalTime:  42,
+		Scorer: events.PlayerRef{
+			Name:     "Blue One",
+			Shortcut: 7,
+			TeamNum:  0,
+		},
+	}), now)
+	handleTypedOOFAt(t, typed, oofevents.NewGoalScored("guid-goal", "Blue One", 7, "", 0, 0, 99, 42, 0, 0, 0, 0), now)
+
+	assertMomentumDebugParity(t, legacy, typed)
+}
+
+func TestTypedGoalScoredMatchesLegacyAssistBehavior(t *testing.T) {
+	now := time.UnixMilli(12345)
+	legacy := New()
+	typed := New()
+
+	handleLegacyEnvelopeAt(t, legacy, envelope(t, "GoalScored", events.GoalScoredData{
+		MatchGuid: "guid-goal",
+		GoalTime:  42,
+		Scorer: events.PlayerRef{
+			Name:     "Blue One",
+			Shortcut: 7,
+			TeamNum:  0,
+		},
+		Assister: &events.PlayerRef{
+			Name:     "Blue Two",
+			Shortcut: 8,
+			TeamNum:  0,
+		},
+	}), now)
+	handleTypedOOFAt(t, typed, oofevents.NewGoalScored("guid-goal", "Blue One", 7, "Blue Two", 8, 0, 99, 42, 0, 0, 0, 0), now)
+
+	assertMomentumDebugParity(t, legacy, typed)
+	if got := eventCount(t, typed, momentum.EventAssist); got != 1 {
+		t.Fatalf("typed assisted goal should emit one assist, got %d", got)
+	}
+}
+
+func TestTypedStatFeedMappingsMatchLegacy(t *testing.T) {
+	cases := []struct {
+		name      string
+		eventName string
+		want      momentum.EventType
+	}{
+		{"shot", "Shot", momentum.EventShot},
+		{"save", "Save", momentum.EventSave},
+		{"epic-save", "EpicSave", momentum.EventSave},
+		{"assist", "Assist", momentum.EventAssist},
+		{"demo", "Demolish", momentum.EventDemo},
+		{"goal", "Goal", momentum.EventGoal},
+		{"own-goal", "OwnGoal", momentum.EventGoal},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.UnixMilli(12345)
+			legacy := New()
+			typed := New()
+
+			handleLegacyEnvelopeAt(t, legacy, envelope(t, "StatfeedEvent", events.StatfeedEventData{
+				MatchGuid: "guid-statfeed",
+				EventName: tc.eventName,
+				MainTarget: events.PlayerRef{
+					Name:     "Orange One",
+					Shortcut: 8,
+					TeamNum:  1,
+				},
+				SecondaryTarget: &events.PlayerRef{
+					Name:     "Blue Victim",
+					Shortcut: 7,
+					TeamNum:  0,
+				},
+			}), now)
+			handleTypedOOFAt(t, typed, oofevents.NewStatFeed("guid-statfeed", tc.eventName, "Orange One", 8, 1, "Blue Victim", 7), now)
+
+			assertMomentumDebugParity(t, legacy, typed)
+			if got := eventCount(t, typed, tc.want); got != 1 {
+				t.Fatalf("typed statfeed %s should emit %s once, got %d", tc.eventName, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestTypedBallHitUsesTeamCacheAndDropsCacheMiss(t *testing.T) {
+	guid := "guid-ballhit"
+	now := time.UnixMilli(12345)
+	p := New()
+	p.mu.Lock()
+	p.perfResetLocked(now.UnixMilli(), true)
+	p.mu.Unlock()
+
+	handleTypedOOFAt(t, p, oofevents.NewBallHit(guid, "Blue One", "pid-blue", 7, 900, 1100, 0, 0, 0), now)
+	if got := eventCount(t, p, momentum.EventBallHit); got != 0 {
+		t.Fatalf("typed ball hit before cache should drop, got %d ball hits", got)
+	}
+
+	handleTypedOOFAt(t, p, oofevents.NewStateUpdated(guid, []oofevents.PlayerSnapshot{{
+		Name:      "Blue One",
+		PrimaryID: "pid-blue",
+		Shortcut:  7,
+		TeamNum:   0,
+	}}, oofevents.GameSnapshot{TimeSeconds: 245}), now)
+	handleTypedOOFAt(t, p, oofevents.NewBallHit(guid, "Blue One", "pid-blue", 7, 900, 1100, 0, 0, 0), now.Add(100*time.Millisecond))
+
+	if got := eventCount(t, p, momentum.EventBallHit); got != 1 {
+		t.Fatalf("typed ball hit after cache should emit once, got %d", got)
+	}
+	p.mu.Lock()
+	cacheMisses := p.perf.Totals["cache.miss.ballHit"]
+	p.mu.Unlock()
+	if cacheMisses != 1 {
+		t.Fatalf("cache miss count = %d, want 1", cacheMisses)
+	}
+}
+
+func TestTypedGoalReplayEndSuppressionMatchesLegacy(t *testing.T) {
+	now := time.UnixMilli(12345)
+	legacy := New()
+	typed := New()
+
+	handleLegacyEnvelopeAt(t, legacy, envelope(t, "GoalScored", events.GoalScoredData{
+		MatchGuid: "guid-replay-end",
+		Scorer: events.PlayerRef{
+			TeamNum: 0,
+		},
+		BallLastTouch: events.LastTouch{
+			Player: events.PlayerRef{
+				Name:    "Real scorer",
+				TeamNum: 1,
+			},
+		},
+	}), now)
+	handleTypedOOFAt(t, typed, oofevents.NewGoalScored("guid-replay-end", "", 0, "", 0, 7, 99, 42, 0, 0, 0, 0), now)
+
+	assertMomentumDebugParity(t, legacy, typed)
+	if got := eventCount(t, typed, momentum.EventGoal); got != 0 {
+		t.Fatalf("typed replay-end goal packet should be suppressed, got %d goals", got)
+	}
+}
+
+func TestTypedDuplicateGoalStatFeedPairCountsOnce(t *testing.T) {
+	p := New()
+	now := time.UnixMilli(12345)
+
+	handleTypedOOFAt(t, p, oofevents.NewStatFeed("guid-goal", "Goal", "Blue One", 7, 0, "", 0), now)
+	handleTypedOOFAt(t, p, oofevents.NewGoalScored("guid-goal", "Blue One", 7, "", 0, 0, 99, 42, 0, 0, 0, 0), now.Add(100*time.Millisecond))
+
+	if got := eventCount(t, p, momentum.EventGoal); got != 1 {
+		t.Fatalf("typed duplicate statfeed/goal scored pair should count once, got %d", got)
+	}
+}
+
+func TestTypedLifecycleResetMatchesLegacy(t *testing.T) {
+	now := time.UnixMilli(12345)
+	legacy := New()
+	typed := New()
+
+	handleLegacyEnvelopeAt(t, legacy, envelope(t, "GoalScored", events.GoalScoredData{
+		MatchGuid: "guid-goal",
+		Scorer: events.PlayerRef{
+			Name:    "Blue One",
+			TeamNum: 0,
+		},
+	}), now)
+	handleTypedOOFAt(t, typed, oofevents.NewGoalScored("guid-goal", "Blue One", 7, "", 0, 0, 99, 42, 0, 0, 0, 0), now)
+	handleLegacyEnvelopeAt(t, legacy, envelope(t, "MatchEnded", events.MatchEndedData{MatchGuid: "guid-goal", WinnerTeamNum: 0}), now.Add(time.Second))
+	handleTypedOOFAt(t, typed, oofevents.NewMatchEnded("guid-goal", 0), now.Add(time.Second))
+
+	assertMomentumDebugParity(t, legacy, typed)
+	if state := outputState(t, typed); state != momentum.StateNeutral {
+		t.Fatalf("typed match ended should reset momentum to neutral, got %s", state)
 	}
 }
 
@@ -497,6 +680,51 @@ func TestDuplicateExplicitGoalPairMatchesNameFallback(t *testing.T) {
 	p.mu.Unlock()
 	if out.Debug == nil || out.Debug.EventCounts[momentum.EventGoal] != 1 {
 		t.Fatalf("duplicate explicit goal pair should match by player name fallback, got %+v", out.Debug)
+	}
+}
+
+func handleLegacyEnvelopeAt(t *testing.T, p *Plugin, env events.Envelope, now time.Time) {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.handleEnvelopeLocked(env, now)
+}
+
+func handleTypedOOFAt(t *testing.T, p *Plugin, ev oofevents.OOFEvent, now time.Time) {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.handleOOFEventLocked(ev, now)
+}
+
+func eventCount(t *testing.T, p *Plugin, typ momentum.EventType) int {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := p.engine.Output()
+	if out.Debug == nil || out.Debug.EventCounts == nil {
+		return 0
+	}
+	return out.Debug.EventCounts[typ]
+}
+
+func outputState(t *testing.T, p *Plugin) momentum.FlowState {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.engine.Output().State
+}
+
+func assertMomentumDebugParity(t *testing.T, legacy, typed *Plugin) {
+	t.Helper()
+	legacy.mu.Lock()
+	legacyOut := legacy.engine.Output()
+	legacy.mu.Unlock()
+	typed.mu.Lock()
+	typedOut := typed.engine.Output()
+	typed.mu.Unlock()
+	if !reflect.DeepEqual(legacyOut, typedOut) {
+		t.Fatalf("typed momentum output diverged from legacy path\nlegacy: %+v\ntyped:  %+v", legacyOut, typedOut)
 	}
 }
 
