@@ -62,7 +62,7 @@ func (p *Plugin) Shutdown() error {
 }
 
 func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
-	ev, ok := e.(oofevents.StateUpdatedEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.StateUpdatedEvent)
 	if !ok {
 		return
 	}

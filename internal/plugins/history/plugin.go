@@ -201,7 +201,7 @@ func (p *Plugin) onMatchStarted(e oofevents.OOFEvent) {
 }
 
 func (p *Plugin) onStateUpdated(e oofevents.OOFEvent) {
-	ev, ok := e.(oofevents.StateUpdatedEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.StateUpdatedEvent)
 	if !ok {
 		return
 	}
@@ -249,7 +249,7 @@ func (p *Plugin) onGoalScored(e oofevents.OOFEvent) {
 	if p.matchID == 0 {
 		return
 	}
-	ev, ok := e.(oofevents.GoalScoredEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.GoalScoredEvent)
 	if !ok {
 		return
 	}
@@ -289,7 +289,7 @@ func (p *Plugin) onBallHit(e oofevents.OOFEvent) {
 	if !p.cfg.Storage.BallHitEvents || p.matchID == 0 {
 		return
 	}
-	ev, ok := e.(oofevents.BallHitEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.BallHitEvent)
 	if !ok {
 		return
 	}
@@ -306,7 +306,7 @@ func (p *Plugin) onClockUpdated(e oofevents.OOFEvent) {
 	if p.matchID == 0 {
 		return
 	}
-	ev, ok := e.(oofevents.ClockUpdatedEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.ClockUpdatedEvent)
 	if !ok {
 		return
 	}
@@ -318,7 +318,7 @@ func (p *Plugin) onClockUpdated(e oofevents.OOFEvent) {
 }
 
 func (p *Plugin) onStatFeed(e oofevents.OOFEvent) {
-	ev, ok := e.(oofevents.StatFeedEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.StatFeedEvent)
 	if !ok || ev.EventName == "" {
 		return
 	}
@@ -342,7 +342,7 @@ func (p *Plugin) onStatFeed(e oofevents.OOFEvent) {
 }
 
 func (p *Plugin) onMatchEnded(e oofevents.OOFEvent) {
-	ev, ok := e.(oofevents.MatchEndedEvent)
+	ev, ok := oofevents.Unwrap(e).(oofevents.MatchEndedEvent)
 	if !ok || p.matchID == 0 {
 		return
 	}
