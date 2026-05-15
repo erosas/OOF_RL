@@ -320,13 +320,17 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins)+1)
 	for _, p := range s.plugins {
 		tab := p.NavTab()
+		settings := p.SettingsSchema()
+		if tab.ID == "" && tab.Label == "" && len(settings) == 0 {
+			continue
+		}
 		blobs = append(blobs, plugin.PluginSettingsBlob{
 			PluginID: p.ID(),
 			NavTabID: tab.ID,
 			Title:    tab.Label,
 			Enabled:  !disabled[p.ID()],
 			Requires: p.Requires(),
-			Settings: p.SettingsSchema(),
+			Settings: settings,
 		})
 	}
 	blobs = append(blobs, plugin.PluginSettingsBlob{
