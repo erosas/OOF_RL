@@ -1,0 +1,287 @@
+{
+  "match": {
+    "id": "preview-match-001",
+    "source": "fixture",
+    "playlist": "2v2",
+    "durationSeconds": 300,
+    "blueName": "Blue",
+    "orangeName": "Orange"
+  },
+  "totals": {
+    "bluePressureSeconds": 92,
+    "blueControlSeconds": 64,
+    "orangePressureSeconds": 84,
+    "orangeControlSeconds": 58,
+    "contestedSeconds": 51,
+    "neutralSeconds": 13
+  },
+  "segments": [
+    {
+      "id": "seg-001",
+      "startSecond": 0,
+      "endSecond": 24,
+      "state": "neutral",
+      "team": "none",
+      "confidence": 0.24,
+      "pressureShareBlue": 0.5,
+      "pressureShareOrange": 0.5,
+      "summary": "Opening neutral pressure while both teams traded early touches.",
+      "involvedPlayers": ["Blue One", "Orange One"]
+    },
+    {
+      "id": "seg-002",
+      "startSecond": 24,
+      "endSecond": 58,
+      "state": "pressure",
+      "team": "blue",
+      "confidence": 0.68,
+      "pressureShareBlue": 0.64,
+      "pressureShareOrange": 0.36,
+      "summary": "Blue team maintained extended pressure influence during this sequence.",
+      "involvedPlayers": ["Blue One", "Blue Two"]
+    },
+    {
+      "id": "seg-003",
+      "startSecond": 58,
+      "endSecond": 91,
+      "state": "contested",
+      "team": "none",
+      "confidence": 0.57,
+      "pressureShareBlue": 0.52,
+      "pressureShareOrange": 0.48,
+      "summary": "Contest involvement increased following the save event.",
+      "involvedPlayers": ["Orange Two", "Blue One"]
+    },
+    {
+      "id": "seg-004",
+      "startSecond": 91,
+      "endSecond": 132,
+      "state": "control",
+      "team": "orange",
+      "confidence": 0.72,
+      "pressureShareBlue": 0.34,
+      "pressureShareOrange": 0.66,
+      "summary": "Orange event-derived pressure/control built into a sustained response.",
+      "involvedPlayers": ["Orange One", "Orange Two"]
+    },
+    {
+      "id": "seg-005",
+      "startSecond": 132,
+      "endSecond": 175,
+      "state": "pressure",
+      "team": "orange",
+      "confidence": 0.63,
+      "pressureShareBlue": 0.4,
+      "pressureShareOrange": 0.6,
+      "summary": "Orange pressure contribution stayed elevated around repeated shots.",
+      "involvedPlayers": ["Orange One"]
+    },
+    {
+      "id": "seg-006",
+      "startSecond": 175,
+      "endSecond": 216,
+      "state": "contested",
+      "team": "none",
+      "confidence": 0.49,
+      "pressureShareBlue": 0.49,
+      "pressureShareOrange": 0.51,
+      "summary": "The match moved through a contested pressure sequence with no clear team emphasis.",
+      "involvedPlayers": []
+    },
+    {
+      "id": "seg-007",
+      "startSecond": 216,
+      "endSecond": 260,
+      "state": "control",
+      "team": "blue",
+      "confidence": 0.76,
+      "pressureShareBlue": 0.69,
+      "pressureShareOrange": 0.31,
+      "summary": "Blue momentum influence rose after a demo and shot cluster.",
+      "involvedPlayers": ["Blue Two", "Blue One"]
+    },
+    {
+      "id": "seg-008",
+      "startSecond": 260,
+      "endSecond": 300,
+      "state": "pressure",
+      "team": "blue",
+      "confidence": 0.61,
+      "pressureShareBlue": 0.62,
+      "pressureShareOrange": 0.38,
+      "summary": "Blue pressure influence closed the match with one late goal event.",
+      "involvedPlayers": ["Blue One"]
+    }
+  ],
+  "events": [
+    {
+      "id": "evt-001",
+      "second": 36,
+      "type": "shot",
+      "team": "blue",
+      "playerId": "player-blue-1",
+      "playerName": "Blue One",
+      "segmentId": "seg-002",
+      "label": "Shot",
+      "summary": "Shot during blue pressure sequence."
+    },
+    {
+      "id": "evt-002",
+      "second": 62,
+      "type": "save",
+      "team": "orange",
+      "playerId": "player-orange-2",
+      "playerName": "Orange Two",
+      "segmentId": "seg-003",
+      "label": "Save",
+      "summary": "Save followed by increased contest involvement."
+    },
+    {
+      "id": "evt-003",
+      "second": 104,
+      "type": "momentum_swing",
+      "team": "orange",
+      "playerId": "",
+      "playerName": "",
+      "segmentId": "seg-004",
+      "label": "Momentum swing",
+      "summary": "Orange momentum influence rose across this window."
+    },
+    {
+      "id": "evt-004",
+      "second": 121,
+      "type": "goal",
+      "team": "orange",
+      "playerId": "player-orange-1",
+      "playerName": "Orange One",
+      "segmentId": "seg-004",
+      "label": "Goal",
+      "summary": "Goal event after orange event-derived pressure/control."
+    },
+    {
+      "id": "evt-005",
+      "second": 121,
+      "type": "assist",
+      "team": "orange",
+      "playerId": "player-orange-2",
+      "playerName": "Orange Two",
+      "segmentId": "seg-004",
+      "label": "Assist",
+      "summary": "Assist linked to the orange goal event."
+    },
+    {
+      "id": "evt-006",
+      "second": 149,
+      "type": "shot",
+      "team": "orange",
+      "playerId": "player-orange-1",
+      "playerName": "Orange One",
+      "segmentId": "seg-005",
+      "label": "Shot",
+      "summary": "Shot during orange pressure contribution window."
+    },
+    {
+      "id": "evt-007",
+      "second": 225,
+      "type": "demo",
+      "team": "blue",
+      "playerId": "player-blue-2",
+      "playerName": "Blue Two",
+      "segmentId": "seg-007",
+      "label": "Demo",
+      "summary": "Demo event before a blue momentum swing."
+    },
+    {
+      "id": "evt-008",
+      "second": 236,
+      "type": "momentum_swing",
+      "team": "blue",
+      "playerId": "",
+      "playerName": "",
+      "segmentId": "seg-007",
+      "label": "Momentum swing",
+      "summary": "Blue momentum influence increased in the final minute."
+    },
+    {
+      "id": "evt-009",
+      "second": 281,
+      "type": "goal",
+      "team": "blue",
+      "playerId": "player-blue-1",
+      "playerName": "Blue One",
+      "segmentId": "seg-008",
+      "label": "Goal",
+      "summary": "Late goal event during blue pressure influence."
+    }
+  ],
+  "playerContributions": [
+    {
+      "playerId": "player-blue-1",
+      "playerName": "Blue One",
+      "team": "blue",
+      "pressureContribution": 0.34,
+      "momentumInfluence": 0.31,
+      "contestInvolvement": 0.18,
+      "events": {
+        "shots": 2,
+        "saves": 0,
+        "assists": 0,
+        "goals": 1,
+        "demos": 0
+      }
+    },
+    {
+      "playerId": "player-blue-2",
+      "playerName": "Blue Two",
+      "team": "blue",
+      "pressureContribution": 0.28,
+      "momentumInfluence": 0.24,
+      "contestInvolvement": 0.21,
+      "events": {
+        "shots": 1,
+        "saves": 1,
+        "assists": 1,
+        "goals": 0,
+        "demos": 1
+      }
+    },
+    {
+      "playerId": "player-orange-1",
+      "playerName": "Orange One",
+      "team": "orange",
+      "pressureContribution": 0.32,
+      "momentumInfluence": 0.29,
+      "contestInvolvement": 0.16,
+      "events": {
+        "shots": 3,
+        "saves": 0,
+        "assists": 0,
+        "goals": 1,
+        "demos": 0
+      }
+    },
+    {
+      "playerId": "player-orange-2",
+      "playerName": "Orange Two",
+      "team": "orange",
+      "pressureContribution": 0.22,
+      "momentumInfluence": 0.21,
+      "contestInvolvement": 0.3,
+      "events": {
+        "shots": 0,
+        "saves": 2,
+        "assists": 1,
+        "goals": 0,
+        "demos": 0
+      }
+    },
+    {
+      "playerId": "player-empty-example",
+      "playerName": "Fixture Missing Event Counts",
+      "team": "blue",
+      "pressureContribution": null,
+      "momentumInfluence": null,
+      "contestInvolvement": null
+    }
+  ]
+}
