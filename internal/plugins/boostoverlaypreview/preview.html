@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fixture Boost Preview</title>
+<link rel="stylesheet" href="/internal/boost-overlay-preview/preview.css">
+</head>
+<body>
+<main class="boost-shell">
+  <header class="boost-header">
+    <div>
+      <p class="eyebrow">Hidden internal preview</p>
+      <h1>Fixture Boost Preview</h1>
+      <p class="lede">Mock data preview for boost state, boost warnings, and team boost panels. Not live match data.</p>
+    </div>
+    <div class="preview-badges" aria-label="Preview boundaries">
+      <span>Mock data</span>
+      <span>Not live match data</span>
+    </div>
+  </header>
+
+  <section class="notice" aria-label="Architecture boundaries">
+    This internal page uses fixture BoostOverlaySignal data only. It does not read or write Live, History, Session, saved matches, replay data, SQLite, Momentum, or Overlay Lab state.
+  </section>
+
+  <section class="overlay-stage" aria-label="Boost overlay fixture preview">
+    <div class="self-card" id="self-boost" aria-label="Self boost gauge"></div>
+    <section class="teammate-panel" aria-label="Teammate boost meters">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Teammates</p>
+          <h2>Boost meters</h2>
+        </div>
+        <span class="chip">Fixture-only</span>
+      </div>
+      <div id="teammate-meters" class="meter-list"></div>
+    </section>
+    <section class="warning-panel" aria-label="Boost warnings">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Warnings</p>
+          <h2>Boost state alerts</h2>
+        </div>
+      </div>
+      <div id="warning-list" class="warning-list"></div>
+    </section>
+  </section>
+
+  <section class="team-grid" id="team-panels" aria-label="Team boost panels"></section>
+
+  <section class="state-lab" aria-label="Fixture boost states">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">State lab</p>
+        <h2>Fixture states</h2>
+      </div>
+      <span class="chip">Threshold preview</span>
+    </div>
+    <div id="state-grid" class="state-grid"></div>
+  </section>
+</main>
+
+<script src="/internal/boost-overlay-preview/preview.js"></script>
+</body>
+</html>

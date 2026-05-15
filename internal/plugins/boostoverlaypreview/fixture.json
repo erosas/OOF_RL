@@ -1,0 +1,196 @@
+{
+  "boostOverlaySignal": {
+    "source": "fixture",
+    "isPreview": true,
+    "freshnessLabel": "Fixture preview",
+    "thresholds": {
+      "empty": 0,
+      "critical": [1, 15],
+      "low": [16, 30],
+      "medium": [31, 60],
+      "high": [61, 99],
+      "full": 100
+    },
+    "freshness": {
+      "fresh": [0, 500],
+      "aging": [501, 1500],
+      "stale": [1501, 3000],
+      "unknown": "3000ms+ or unavailable"
+    },
+    "self": {
+      "id": "blue-1",
+      "name": "Self",
+      "team": "blue",
+      "boostAmount": 72,
+      "state": "high",
+      "freshnessMs": 160,
+      "freshnessState": "fresh",
+      "confidence": "high",
+      "activity": "using_boost",
+      "reason": "Fixture self boost signal."
+    },
+    "teammates": [
+      {
+        "id": "blue-2",
+        "name": "Teammate A",
+        "team": "blue",
+        "boostAmount": 24,
+        "state": "low",
+        "freshnessMs": 420,
+        "freshnessState": "fresh",
+        "confidence": "medium",
+        "activity": "draining",
+        "reason": "Fixture low boost warning."
+      },
+      {
+        "id": "blue-3",
+        "name": "Teammate B",
+        "team": "blue",
+        "boostAmount": null,
+        "state": "unknown",
+        "freshnessMs": 3800,
+        "freshnessState": "unknown",
+        "confidence": "low",
+        "activity": "unavailable",
+        "reason": "Fixture signal unavailable; do not render as zero."
+      }
+    ],
+    "teamPanels": [
+      {
+        "team": "blue",
+        "title": "Blue boost state",
+        "knownPlayers": 2,
+        "expectedPlayers": 3,
+        "completeness": "partial",
+        "averageBoost": 48,
+        "lowestKnownBoost": 24,
+        "lowBoostPlayers": 1,
+        "summary": "Two of three fixture players have known boost values. Unknown players are not counted as zero."
+      },
+      {
+        "team": "orange",
+        "title": "Orange boost state",
+        "knownPlayers": 0,
+        "expectedPlayers": 3,
+        "completeness": "unknown",
+        "averageBoost": null,
+        "lowestKnownBoost": null,
+        "lowBoostPlayers": 0,
+        "summary": "Fixture has no current orange boost values."
+      }
+    ],
+    "warnings": [
+      {
+        "id": "warn-low-blue-2",
+        "label": "Low boost",
+        "team": "blue",
+        "severity": "medium",
+        "summary": "Teammate A is in a low boost state."
+      },
+      {
+        "id": "warn-critical-demo",
+        "label": "Critical boost",
+        "team": "orange",
+        "severity": "high",
+        "summary": "Fixture sample shows a critical boost state."
+      },
+      {
+        "id": "warn-stale-signal",
+        "label": "Stale signal",
+        "team": "blue",
+        "severity": "low",
+        "summary": "Last known value is labeled stale and dimmed."
+      }
+    ],
+    "stateSamples": [
+      {
+        "id": "sample-empty",
+        "label": "Empty",
+        "boostAmount": 0,
+        "state": "empty",
+        "freshnessMs": 80,
+        "freshnessState": "fresh",
+        "confidence": "high",
+        "activity": "idle",
+        "reason": "Explicit fixture boostAmount is 0."
+      },
+      {
+        "id": "sample-critical",
+        "label": "Critical",
+        "boostAmount": 9,
+        "state": "critical",
+        "freshnessMs": 110,
+        "freshnessState": "fresh",
+        "confidence": "high",
+        "activity": "idle",
+        "reason": "Fixture value is inside 1-15 critical range."
+      },
+      {
+        "id": "sample-low",
+        "label": "Low",
+        "boostAmount": 24,
+        "state": "low",
+        "freshnessMs": 420,
+        "freshnessState": "fresh",
+        "confidence": "medium",
+        "activity": "draining",
+        "reason": "Fixture value is inside 16-30 low range."
+      },
+      {
+        "id": "sample-medium",
+        "label": "Medium",
+        "boostAmount": 47,
+        "state": "medium",
+        "freshnessMs": 900,
+        "freshnessState": "aging",
+        "confidence": "medium",
+        "activity": "idle",
+        "reason": "Fixture value is inside 31-60 medium range."
+      },
+      {
+        "id": "sample-high",
+        "label": "High",
+        "boostAmount": 84,
+        "state": "high",
+        "freshnessMs": 180,
+        "freshnessState": "fresh",
+        "confidence": "high",
+        "activity": "pickup",
+        "reason": "Fixture value is inside 61-99 high range after a pickup."
+      },
+      {
+        "id": "sample-full",
+        "label": "Full",
+        "boostAmount": 100,
+        "state": "full",
+        "freshnessMs": 120,
+        "freshnessState": "fresh",
+        "confidence": "high",
+        "activity": "idle",
+        "reason": "Fixture value is exactly 100."
+      },
+      {
+        "id": "sample-stale",
+        "label": "Stale",
+        "boostAmount": 36,
+        "state": "medium",
+        "freshnessMs": 2400,
+        "freshnessState": "stale",
+        "confidence": "low",
+        "activity": "stale",
+        "reason": "Last known value is stale; show with stale label."
+      },
+      {
+        "id": "sample-unknown",
+        "label": "Unknown",
+        "boostAmount": null,
+        "state": "unknown",
+        "freshnessMs": 4200,
+        "freshnessState": "unknown",
+        "confidence": "low",
+        "activity": "unavailable",
+        "reason": "Fixture signal unavailable; display dash, not zero."
+      }
+    ]
+  }
+}
