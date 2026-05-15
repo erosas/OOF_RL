@@ -3,6 +3,7 @@ package core_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
+	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
 )
@@ -207,6 +209,70 @@ func TestGetSettingsSchema(t *testing.T) {
 	}
 }
 
+func TestDisabledPluginSkipsRuntimeButRemainsInSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	database, err := db.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"fake"}
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+
+	fp := &fakePlugin{}
+	srv := core.NewServer(cfgPath, &cfg, database, hub.New(), http.NotFoundHandler(), func() {}, nil, bus)
+	srv.Use(fp)
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	if err := srv.InitPlugins(); err != nil {
+		t.Fatalf("InitPlugins: %v", err)
+	}
+	if fp.initCalls != 0 {
+		t.Fatalf("disabled plugin init calls = %d, want 0", fp.initCalls)
+	}
+
+	if w := get(mux, "/fake-plugin-route"); w.Code != http.StatusNotFound {
+		t.Fatalf("disabled plugin route status = %d, want 404", w.Code)
+	}
+
+	w := get(mux, "/api/nav")
+	if w.Code != http.StatusOK {
+		t.Fatalf("nav status = %d, want 200", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "fake") {
+		t.Fatalf("disabled plugin appeared in nav: %s", w.Body.String())
+	}
+
+	w = get(mux, "/api/settings/schema")
+	if w.Code != http.StatusOK {
+		t.Fatalf("settings schema status = %d, want 200", w.Code)
+	}
+	var blobs []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
+		t.Fatalf("parse settings schema: %v", err)
+	}
+	found := false
+	for _, blob := range blobs {
+		if blob["plugin_id"] == "fake" {
+			found = true
+			if enabled, _ := blob["enabled"].(bool); enabled {
+				t.Fatalf("disabled plugin settings blob enabled = true, want false")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("disabled plugin missing from settings schema: %+v", blobs)
+	}
+}
+
 // --- /api/settings ---
 
 func TestPostSettings(t *testing.T) {
@@ -253,3 +319,28 @@ func TestPostSettingsBadJSON(t *testing.T) {
 		t.Errorf("status: got %d, want 400", w.Code)
 	}
 }
+
+type fakePlugin struct {
+	initCalls int
+}
+
+func (p *fakePlugin) ID() string         { return "fake" }
+func (p *fakePlugin) DBPrefix() string   { return "" }
+func (p *fakePlugin) Requires() []string { return nil }
+func (p *fakePlugin) Init(_ oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.initCalls++
+	return nil
+}
+func (p *fakePlugin) Shutdown() error                              { return nil }
+func (p *fakePlugin) DeclaredEvents() []oofevents.EventDeclaration { return nil }
+func (p *fakePlugin) NavTab() plugin.NavTab {
+	return plugin.NavTab{ID: "fake", Label: "Fake", Order: 1}
+}
+func (p *fakePlugin) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("/fake-plugin-route", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+func (p *fakePlugin) SettingsSchema() []plugin.Setting        { return nil }
+func (p *fakePlugin) ApplySettings(_ map[string]string) error { return nil }
+func (p *fakePlugin) Assets() fs.FS                           { return nil }

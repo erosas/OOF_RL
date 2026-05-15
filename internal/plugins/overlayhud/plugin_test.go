@@ -90,6 +90,28 @@ func TestOOFEventBusFeedsMomentumWithBallHitTeamCache(t *testing.T) {
 	})
 }
 
+func TestOverlayEventEnqueueDoesNotWaitForPluginLock(t *testing.T) {
+	p := New()
+	p.eventQueue = make(chan oofevents.OOFEvent, overlayEventQueueSize)
+	p.eventStop = make(chan struct{})
+	defer close(p.eventStop)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		p.enqueueOOFEvent(oofevents.NewClockUpdated("guid", 245, false))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("enqueueOOFEvent blocked while plugin mutex was held")
+	}
+}
+
 func TestOOFStatFeedMapsToMomentumPressureEvent(t *testing.T) {
 	p := New()
 	guid := "guid-statfeed"

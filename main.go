@@ -85,6 +85,7 @@ func main() {
 
 	webSub, _ := fs.Sub(webFS, "web")
 	mux := http.NewServeMux()
+	overlayHUDEnabled := !pluginDisabled(cfg, "overlayhud")
 
 	var rlReconnect func()
 	srv := core.NewServer(cfgPath, &cfg, database, h, http.FileServer(http.FS(webSub)), func() {
@@ -140,14 +141,25 @@ func main() {
 		w.Dispatch(func() { overlay.SetWindowIcon(hwnd) })
 	}()
 
-	if ov := overlay.Start(url, &cfg); ov != nil {
-		defer ov.Destroy()
+	if overlayHUDEnabled {
+		if ov := overlay.Start(url, &cfg); ov != nil {
+			defer ov.Destroy()
+		}
 	}
 
 	w.Run()
 	srv.ShutdownPlugins()
 	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
+}
+
+func pluginDisabled(cfg config.Config, id string) bool {
+	for _, disabled := range cfg.DisabledPlugins {
+		if disabled == id {
+			return true
+		}
+	}
+	return false
 }
 
 func bindAvailablePort(start int) (net.Listener, int) {

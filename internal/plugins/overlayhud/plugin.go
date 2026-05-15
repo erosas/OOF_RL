@@ -22,6 +22,7 @@ import (
 var viewFS embed.FS
 
 const overlayPerfFrontendReportTTLMS = int64(15000)
+const overlayEventQueueSize = 512
 
 // Plugin is a read-only overlay design lab. It renders HUD components and
 // exposes deterministic event-pressure state without mutating core match data.
@@ -43,6 +44,9 @@ type Plugin struct {
 	prefs           overlayPrefs
 	perf            overlayPerfCounters
 	nativeHUD       nativeHUDState
+	eventQueue      chan oofevents.OOFEvent
+	eventStop       chan struct{}
+	eventDone       chan struct{}
 }
 
 func New() *Plugin {
@@ -75,16 +79,20 @@ func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
 func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.eventQueue = make(chan oofevents.OOFEvent, overlayEventQueueSize)
+	p.eventStop = make(chan struct{})
+	p.eventDone = make(chan struct{})
+	go p.runEventWorker()
 	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeMatchStarted, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeMatchRestarted, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeStateUpdated, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeGoalScored, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeStatFeed, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeClockUpdated, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeBallHit, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeMatchEnded, p.HandleOOFEvent),
-		bus.Subscribe(oofevents.TypeMatchDestroyed, p.HandleOOFEvent),
+		bus.Subscribe(oofevents.TypeMatchStarted, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeMatchRestarted, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeStateUpdated, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeGoalScored, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeStatFeed, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeClockUpdated, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeBallHit, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeMatchEnded, p.enqueueOOFEvent),
+		bus.Subscribe(oofevents.TypeMatchDestroyed, p.enqueueOOFEvent),
 	}
 	return nil
 }
@@ -94,7 +102,40 @@ func (p *Plugin) Shutdown() error {
 		sub.Cancel()
 	}
 	p.subs = nil
+	if p.eventStop != nil {
+		close(p.eventStop)
+		p.eventStop = nil
+	}
+	if p.eventDone != nil {
+		<-p.eventDone
+		p.eventDone = nil
+	}
+	p.eventQueue = nil
 	return nil
+}
+
+func (p *Plugin) enqueueOOFEvent(e oofevents.OOFEvent) {
+	if p.eventQueue == nil || p.eventStop == nil {
+		return
+	}
+	select {
+	case p.eventQueue <- e:
+	case <-p.eventStop:
+	default:
+		// Keep the event-bus dispatch path non-blocking under overload.
+	}
+}
+
+func (p *Plugin) runEventWorker() {
+	defer close(p.eventDone)
+	for {
+		select {
+		case e := <-p.eventQueue:
+			p.HandleOOFEvent(e)
+		case <-p.eventStop:
+			return
+		}
+	}
 }
 
 func (p *Plugin) HandleEvent(env events.Envelope) {
