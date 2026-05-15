@@ -70,8 +70,7 @@ func main() {
 
 	database, err := db.Open(cfg.DBPath())
 	if err != nil {
-		log.Printf("db: %v", err)
-		return
+		log.Fatalf("db: %v", err)
 	}
 	defer database.Close()
 

@@ -141,6 +141,8 @@ func Start(url string, cfg *config.Config) webview2.WebView {
 	ov.Navigate(overlayHUDURL(url))
 	configureWindow(hwnd, cfg)
 	SetWindowIcon(uintptr(hwnd))
+	postHUDNativeVisible(url, false)
+	notifyHUDNativeVisibleSoon(ov, false)
 	go listenHotkey(ov, hwnd, cfg, url)
 	return ov
 }

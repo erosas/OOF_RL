@@ -400,6 +400,30 @@ func TestOverlayPerfFrontendReportIncludesVisibilityFields(t *testing.T) {
 	}
 }
 
+func TestNativeHUDVisibilityCanStartHidden(t *testing.T) {
+	p := New()
+
+	rr := httptest.NewRecorder()
+	p.handleNativeHUDVisibility(rr, httptest.NewRequest(http.MethodPost, "/api/overlay/hud/native-visibility?visible=0", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("POST hidden status = %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+
+	rr = httptest.NewRecorder()
+	p.handleNativeHUDVisibility(rr, httptest.NewRequest(http.MethodGet, "/api/overlay/hud/native-visibility", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET hidden status = %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+
+	var state nativeHUDState
+	if err := json.Unmarshal(rr.Body.Bytes(), &state); err != nil {
+		t.Fatalf("decode native HUD state: %v", err)
+	}
+	if !state.Known || state.Visible {
+		t.Fatalf("native HUD state = %+v, want known hidden", state)
+	}
+}
+
 func TestOverlayPerfFrontendUnregisterRemovesClient(t *testing.T) {
 	p := New()
 	p.handlePerf(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/overlay/perf?enable=1", nil))
