@@ -112,6 +112,27 @@ func TestOverlayEventEnqueueDoesNotWaitForPluginLock(t *testing.T) {
 	}
 }
 
+func TestOverlayEventQueueDropsAreObservable(t *testing.T) {
+	p := New()
+	p.eventQueue = make(chan oofevents.OOFEvent, 1)
+	p.eventStop = make(chan struct{})
+	defer close(p.eventStop)
+	p.eventQueue <- oofevents.NewClockUpdated("guid", 245, false)
+
+	p.enqueueOOFEvent(oofevents.NewClockUpdated("guid", 244, false))
+
+	if got := p.eventQueueDrops.Load(); got != 1 {
+		t.Fatalf("event queue drops = %d, want 1", got)
+	}
+
+	p.mu.Lock()
+	snapshot := p.perfSnapshotLocked(time.Now().UnixMilli())
+	p.mu.Unlock()
+	if snapshot.EventQueueDrops != 1 {
+		t.Fatalf("snapshot event queue drops = %d, want 1", snapshot.EventQueueDrops)
+	}
+}
+
 func TestOOFStatFeedMapsToMomentumPressureEvent(t *testing.T) {
 	p := New()
 	guid := "guid-statfeed"

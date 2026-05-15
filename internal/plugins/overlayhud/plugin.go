@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"OOF_RL/internal/db"
@@ -47,6 +48,7 @@ type Plugin struct {
 	eventQueue      chan oofevents.OOFEvent
 	eventStop       chan struct{}
 	eventDone       chan struct{}
+	eventQueueDrops atomic.Uint64
 }
 
 func New() *Plugin {
@@ -122,6 +124,7 @@ func (p *Plugin) enqueueOOFEvent(e oofevents.OOFEvent) {
 	case p.eventQueue <- e:
 	case <-p.eventStop:
 	default:
+		p.eventQueueDrops.Add(1)
 		// Keep the event-bus dispatch path non-blocking under overload.
 	}
 }
@@ -675,6 +678,7 @@ type overlayPerfSnapshot struct {
 	Frontend           map[string]overlayPerfFrontendReport `json:"frontend,omitempty"`
 	PlayerCacheGUID    string                               `json:"playerCacheGuid,omitempty"`
 	PlayerCacheEntries int                                  `json:"playerCacheEntries"`
+	EventQueueDrops    uint64                               `json:"eventQueueDrops"`
 }
 
 type overlayPerfFrontendReport struct {
@@ -792,6 +796,7 @@ func (p *Plugin) perfSnapshotLocked(now int64) overlayPerfSnapshot {
 		Frontend:           copyFrontendPerfReports(p.perf.Frontend, now),
 		PlayerCacheGUID:    p.playerCacheGUID,
 		PlayerCacheEntries: len(p.playerRefs),
+		EventQueueDrops:    p.eventQueueDrops.Load(),
 	}
 }
 
