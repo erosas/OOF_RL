@@ -25,6 +25,7 @@ import (
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/plugins/ballchasing"
+	"OOF_RL/internal/plugins/boostoverlaypreview"
 	"OOF_RL/internal/plugins/dashboard"
 	"OOF_RL/internal/plugins/debugassistant"
 	"OOF_RL/internal/plugins/history"
@@ -102,6 +103,7 @@ func main() {
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
 	srv.Use(momentumtimeline.New())
+	srv.Use(boostoverlaypreview.New())
 	srv.Use(overlayhud.New())
 	srv.Register(mux)
 
