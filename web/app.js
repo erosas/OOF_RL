@@ -699,7 +699,7 @@ function renderPluginAccordion(blobs, cfg) {
       await fetch('/api/config', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ ...cfg, disabled_plugins: _disabledPlugins }),
+        body: JSON.stringify({ disabled_plugins: _disabledPlugins }),
       });
       showMsg(msgId, enabled ? 'Enabled after restart.' : 'Disabled after restart.', true);
     });

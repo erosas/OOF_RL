@@ -101,6 +101,28 @@ func TestPostConfig(t *testing.T) {
 	}
 }
 
+func TestPostConfigPartialPreservesExistingValues(t *testing.T) {
+	mux, cfg := newTestMux(t)
+	cfg.AppPort = 9999
+	cfg.Storage.RawPackets = true
+
+	w := postJSON(mux, "/api/config", map[string]any{
+		"disabled_plugins": []string{"overlayhud"},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d - body: %s", w.Code, w.Body.String())
+	}
+	if cfg.AppPort != 9999 {
+		t.Fatalf("app_port changed after partial config post: got %d, want 9999", cfg.AppPort)
+	}
+	if !cfg.Storage.RawPackets {
+		t.Fatal("storage.raw_packets changed after partial config post")
+	}
+	if got := strings.Join(cfg.DisabledPlugins, ","); got != "overlayhud" {
+		t.Fatalf("disabled plugins = %q, want overlayhud", got)
+	}
+}
+
 func TestPostConfigBadJSON(t *testing.T) {
 	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewBufferString("not json"))
