@@ -3,6 +3,8 @@
 package overlay
 
 import (
+	"net/http"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -11,6 +13,8 @@ import (
 
 	"OOF_RL/internal/config"
 )
+
+var overlayHTTPClient = &http.Client{Timeout: 2 * time.Second}
 
 var (
 	user32                   = windows.NewLazySystemDLL("user32.dll")
@@ -40,9 +44,10 @@ const (
 	gclpHIconSm = uintptr(0xFFFFFFDE) // GCLP_HICONSM = -34
 
 	// SetWindowPos flags for forcing non-client area repaint without moving/resizing
-	swpNoMove   = uintptr(0x0002)
-	swpNoSize   = uintptr(0x0001)
-	swpNoZOrder = uintptr(0x0004)
+	swpNoMove     = uintptr(0x0002)
+	swpNoSize     = uintptr(0x0001)
+	swpNoZOrder   = uintptr(0x0004)
+	swpNoActivate = uintptr(0x0010)
 
 	gwlStyle        = uintptr(0xFFFFFFF0) // GWL_STYLE   = -16
 	gwlExStyle      = uintptr(0xFFFFFFEC) // GWL_EXSTYLE = -20
@@ -136,12 +141,57 @@ func Start(url string, cfg *config.Config) webview2.WebView {
 	ov.Navigate(overlayHUDURL(url))
 	configureWindow(hwnd, cfg)
 	SetWindowIcon(uintptr(hwnd))
-	go listenHotkey(hwnd, cfg)
+	go listenHotkey(ov, hwnd, cfg, url)
 	return ov
 }
 
 func overlayHUDURL(baseURL string) string {
 	return baseURL + "?overlay=1&view=overlay&hud=1&nativeHud=1&assetVersion=" + time.Now().Format("20060102150405.000000000")
+}
+
+func notifyHUDNativeVisible(ov webview2.WebView, visible bool) {
+	if ov == nil {
+		return
+	}
+	value := "false"
+	if visible {
+		value = "true"
+	}
+	ov.Dispatch(func() {
+		ov.Eval("(function(visible){ window.__OOFNativeVisiblePending = visible; if (window.__OOFOverlaySetNativeVisible) { window.__OOFOverlaySetNativeVisible(visible); } })(" + value + ");")
+	})
+}
+
+func notifyHUDNativeVisibleSoon(ov webview2.WebView, visible bool) {
+	notifyHUDNativeVisible(ov, visible)
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		notifyHUDNativeVisible(ov, visible)
+		time.Sleep(350 * time.Millisecond)
+		notifyHUDNativeVisible(ov, visible)
+	}()
+}
+
+func postHUDNativeVisible(baseURL string, visible bool) {
+	if baseURL == "" {
+		return
+	}
+	value := "0"
+	if visible {
+		value = "1"
+	}
+	endpoint := strings.TrimRight(baseURL, "/") + "/api/overlay/hud/native-visibility?visible=" + value
+	go func() {
+		req, err := http.NewRequest(http.MethodPost, endpoint, nil)
+		if err != nil {
+			return
+		}
+		resp, err := overlayHTTPClient.Do(req)
+		if err != nil {
+			return
+		}
+		_ = resp.Body.Close()
+	}()
 }
 
 func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
@@ -220,12 +270,18 @@ func configureWindow(hwnd windows.HWND, cfg *config.Config) {
 	procShowWindow.Call(uintptr(hwnd), swHide)
 }
 
-func listenHotkey(hwnd windows.HWND, cfg *config.Config) {
+func showOverlayWindow(hwnd windows.HWND) {
+	procShowWindow.Call(uintptr(hwnd), swShowNA)
+	procSetWindowPos.Call(
+		uintptr(hwnd), hwndTopmost,
+		0, 0, 0, 0,
+		swpNoMove|swpNoSize|swpNoActivate|swpFrameChange,
+	)
+}
+
+func listenHotkey(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config, baseURL string) {
 	var prev bool
 	visible := false
-	// Keep F9 as a native window show/hide toggle only. Do not use this signal
-	// to pause the HUD webview renderer; the overlay must keep its live state
-	// simple and recoverable even when the native window is hidden.
 	for range time.Tick(50 * time.Millisecond) {
 		key := cfg.OverlayHotkey
 		vk, ok := vkMap[key]
@@ -237,18 +293,26 @@ func listenHotkey(hwnd windows.HWND, cfg *config.Config) {
 
 		if cfg.OverlayHoldMode {
 			if curr && !visible {
-				procShowWindow.Call(uintptr(hwnd), swShowNA)
+				showOverlayWindow(hwnd)
+				postHUDNativeVisible(baseURL, true)
+				notifyHUDNativeVisibleSoon(ov, true)
 				visible = true
 			} else if !curr && visible {
+				postHUDNativeVisible(baseURL, false)
+				notifyHUDNativeVisible(ov, false)
 				procShowWindow.Call(uintptr(hwnd), swHide)
 				visible = false
 			}
 		} else {
 			if curr && !prev {
 				if visible {
+					postHUDNativeVisible(baseURL, false)
+					notifyHUDNativeVisible(ov, false)
 					procShowWindow.Call(uintptr(hwnd), swHide)
 				} else {
-					procShowWindow.Call(uintptr(hwnd), swShowNA)
+					showOverlayWindow(hwnd)
+					postHUDNativeVisible(baseURL, true)
+					notifyHUDNativeVisibleSoon(ov, true)
 				}
 				visible = !visible
 			}

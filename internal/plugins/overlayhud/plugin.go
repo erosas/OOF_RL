@@ -42,6 +42,7 @@ type Plugin struct {
 	goalReplaySeen  bool
 	prefs           overlayPrefs
 	perf            overlayPerfCounters
+	nativeHUD       nativeHUDState
 }
 
 func New() *Plugin {
@@ -66,6 +67,7 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/overlay/prefs", p.handlePrefs)
 	mux.HandleFunc("/api/overlay/perf", p.handlePerf)
 	mux.HandleFunc("/api/overlay/perf/frontend", p.handlePerfFrontend)
+	mux.HandleFunc("/api/overlay/hud/native-visibility", p.handleNativeHUDVisibility)
 }
 
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
@@ -540,6 +542,44 @@ func (p *Plugin) handlePerfFrontend(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, map[string]any{"enabled": enabled, "unregistered": report.Unregister})
 }
 
+func (p *Plugin) handleNativeHUDVisibility(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().UnixMilli()
+	switch r.Method {
+	case http.MethodGet:
+		p.mu.Lock()
+		state := p.nativeHUD
+		if !state.Known {
+			state.Visible = true
+		}
+		p.mu.Unlock()
+		httputil.WriteJSON(w, state)
+	case http.MethodPost:
+		visible, ok := parseBoolQuery(r.URL.Query().Get("visible"))
+		if !ok {
+			http.Error(w, "missing or invalid visible", http.StatusBadRequest)
+			return
+		}
+		p.mu.Lock()
+		p.nativeHUD = nativeHUDState{Visible: visible, Known: true, UpdatedAt: now}
+		state := p.nativeHUD
+		p.mu.Unlock()
+		httputil.WriteJSON(w, state)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func parseBoolQuery(value string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true, true
+	case "0", "false", "no", "off":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 type momentumResponse struct {
 	momentum.MomentumFlowOutput
 	Display momentumDisplayContext `json:"display"`
@@ -552,6 +592,12 @@ type momentumDisplayContext struct {
 	ReplayFileMode  bool  `json:"replayFileMode,omitempty"`
 	ReplayChanged   int64 `json:"replayChanged,omitempty"`
 	MomentumResetAt int64 `json:"momentumResetAt,omitempty"`
+}
+
+type nativeHUDState struct {
+	Visible   bool  `json:"visible"`
+	Known     bool  `json:"known"`
+	UpdatedAt int64 `json:"updatedAt,omitempty"`
 }
 
 type recentMomentumEvent struct {
@@ -596,6 +642,9 @@ type overlayPerfFrontendReport struct {
 	At                int64          `json:"at,omitempty"`
 	IsHUD             bool           `json:"isHud"`
 	PreviewPaused     bool           `json:"previewPaused"`
+	NativeHUDVisible  bool           `json:"nativeHudVisible"`
+	NativeHUDKnown    bool           `json:"nativeHudVisibilityKnown"`
+	NativeHUDDormant  bool           `json:"nativeHudDormant"`
 	DocumentHidden    bool           `json:"documentHidden"`
 	VisibilityState   string         `json:"visibilityState,omitempty"`
 	WindowFocused     bool           `json:"windowFocused"`

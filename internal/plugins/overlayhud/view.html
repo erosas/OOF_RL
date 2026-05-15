@@ -266,8 +266,15 @@
   animation-play-state: paused !important;
   transition: none !important;
 }
+#view-overlay[data-native-hud-dormant="true"] .momentum-control-wheel *,
+#view-overlay[data-native-hud-dormant="true"] .momentum-flow-bar * {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
 #view-overlay[data-preview-paused="true"] #momentum-control-wheel #outer-sparks,
-#view-overlay[data-preview-paused="true"] #momentum-control-wheel #outer-energy-streaks {
+#view-overlay[data-preview-paused="true"] #momentum-control-wheel #outer-energy-streaks,
+#view-overlay[data-native-hud-dormant="true"] #momentum-control-wheel #outer-sparks,
+#view-overlay[data-native-hud-dormant="true"] #momentum-control-wheel #outer-energy-streaks {
   display: none;
 }
 .overlay-hud-mode #view-overlay {

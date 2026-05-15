@@ -63,12 +63,51 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(config.momentumControlWheel.visual.sparks.opacity, 0);
   assert.equal(config.momentumControlWheel.visual.outerSparks.intensity, 0);
   assert.equal(config.momentumControlWheel.visual.outerSparks.opacity, 0);
-  assert.equal(config.momentumControlWheel.visual.aura.intensity, 0.12);
+  assert.equal(config.momentumControlWheel.visual.aura.intensity, 0.04);
   assert.equal(config.momentumControlWheel.visual.aura.pulse, 0);
-  assert.equal(config.momentumControlWheel.visual.centerWash.intensity, 0.25);
+  assert.equal(config.momentumControlWheel.visual.centerWash.intensity, 0.14);
   assert.equal(config.momentumControlWheel.response.eventReactiveness, 0);
-  assert.equal(config.momentumControlWheel.response.timing.afterglowDuration, 0.5);
-  assert.equal(config.momentumControlWheel.response.timing.eventBurstDuration, 0.35);
+  assert.equal(config.momentumControlWheel.response.timing.afterglowDuration, 0);
+  assert.equal(config.momentumControlWheel.response.timing.eventBurstDuration, 0.3);
+}
+
+{
+  const previousDocument = global.document;
+  const previousLocation = window.location;
+  const root = new FakeElement('div');
+  root.setAttribute('id', 'view-overlay');
+  const host = new FakeElement('div');
+  host.setAttribute('id', 'overlay-widget-host');
+  const document = createFakeDocument();
+  document.body = new FakeElement('body');
+  document.body.classList.toggle('overlay-hud-mode', true);
+  document.hidden = false;
+  document.visibilityState = 'visible';
+  document.hasFocus = () => false;
+  document.getElementById = id => {
+    if (id === 'view-overlay') return root;
+    if (id === 'overlay-widget-host') return host;
+    return null;
+  };
+  document.querySelectorAll = () => [];
+  global.document = document;
+  window.location = { search: '?overlay=1&hud=1&nativeHud=1' };
+
+  window.__OOFOverlaySetNativeVisible(false, { refresh: false });
+  let snapshot = window.OOFOverlayPerf.snapshot();
+  assert.equal(snapshot.nativeHudDormant, true, 'hidden native HUD should enter dormant mode');
+  assert.equal(snapshot.renderActive, false, 'hidden native HUD should not report active rendering');
+  assert.equal(root.dataset.nativeHudDormant, 'true');
+  assert.equal(host.dataset.nativeHudDormant, 'true');
+
+  window.__OOFOverlaySetNativeVisible(true, { refresh: false });
+  snapshot = window.OOFOverlayPerf.snapshot();
+  assert.equal(snapshot.nativeHudDormant, false, 'shown native HUD should leave dormant mode');
+  assert.equal(snapshot.renderActive, true, 'shown native HUD should report active rendering');
+  assert.equal(root.dataset.nativeHudVisible, 'true');
+
+  global.document = previousDocument;
+  window.location = previousLocation;
 }
 
 {
@@ -323,12 +362,12 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(visual.segments.glow, 0.12);
   assert.equal(visual.blueSegments.glow, 0.12);
   assert.equal(visual.orangeSegments.glow, 0.12);
-  assert.equal(visual.seam.flare, 0.18);
+  assert.equal(visual.seam.flare, 0.12);
   assert.equal(visual.seam.flicker, 0);
-  assert.equal(visual.frontLine.glowSize, 0.7);
-  assert.equal(visual.frontLine.trailStrength, 0.08);
-  assert.equal(visual.frontLine.trailDuration, 0.35);
-  assert.equal(visual.aura.intensity, 0.12);
+  assert.equal(visual.frontLine.glowSize, 0.58);
+  assert.equal(visual.frontLine.trailStrength, 0);
+  assert.equal(visual.frontLine.trailDuration, 0.25);
+  assert.equal(visual.aura.intensity, 0.04);
   assert.equal(visual.aura.pulse, 0);
   assert.equal(visual.aura.reactiveness, 0);
   assert.equal(visual.sparks.intensity, 0);
@@ -338,9 +377,9 @@ assert.ok(math, 'MomentumControlWheelMath should be exported');
   assert.equal(visual.seamSparks.opacity, 0);
   assert.equal(visual.outerSparks.intensity, 0);
   assert.equal(visual.outerSparks.opacity, 0);
-  assert.equal(visual.eventReactions.goalFullRingPulseStrength, 0.2);
-  assert.equal(visual.eventReactions.epicSaveAfterglow, 0.15);
-  assert.equal(visual.centerWash.intensity, 0.25);
+  assert.equal(visual.eventReactions.goalFullRingPulseStrength, 0.08);
+  assert.equal(visual.eventReactions.epicSaveAfterglow, 0);
+  assert.equal(visual.centerWash.intensity, 0.14);
 }
 
 {
@@ -1074,6 +1113,7 @@ function FakeElement(tagName) {
   this.attrs = {};
   this.children = [];
   this.style = makeStyle();
+  this.dataset = {};
   this.hidden = false;
   this.className = '';
   this._classSet = new Set();

@@ -26,6 +26,12 @@ let _currentMomentumHostConfig = null;
 let _lastServerPrefsAt = 0;
 let _prefsPushTimer = null;
 let _lastOverlayPerfSnapshot = null;
+let _nativeHudVisible = true;
+let _nativeHudVisibilityKnown = false;
+let _lastNativeDormantPrefsAt = 0;
+let _lastNativeVisibilityPollAt = 0;
+let _lastNativeDormantHeartbeatAt = 0;
+let _nativeVisibilityPollInFlight = null;
 
 const MFB_PREFS_KEY = 'oofrl.overlay.momentumFlowBar.v1';
 const OVERLAY_PERF_KEY = 'oofrl.overlay.perf.enabled';
@@ -1627,9 +1633,11 @@ class MomentumControlWheel {
     });
     setAttrs(this.refs.auraContest, { cx: n(seamAuraPoint.x), cy: n(seamAuraPoint.y) });
     setAttrs(this.refs.originSeam, { cx: n(origin.x), cy: n(origin.y) });
-    this.refs.centerReactive?.setAttribute('transform', `rotate(${n(seam)} 512 512)`);
-    for (const group of this.refs.sparkGroups || []) {
-      group.setAttribute('transform', `rotate(${n(seam)} 512 512)`);
+    if (!reduced && !performance) {
+      this.refs.centerReactive?.setAttribute('transform', `rotate(${n(seam)} 512 512)`);
+      for (const group of this.refs.sparkGroups || []) {
+        group.setAttribute('transform', `rotate(${n(seam)} 512 512)`);
+      }
     }
     if (this.refs.debugSeam) {
       setAttrs(this.refs.debugSeam, { x1: '512', y1: '512', x2: n(seamPoint.x), y2: n(seamPoint.y) });
@@ -1735,6 +1743,7 @@ window.pluginInit_overlay = () => {
     _momentumControlWheel?.setConfig(widgetConfig);
   }
   applyMomentumFlowPrefs(widgetConfig, hostConfig, { persist: false, push: false });
+  applyNativeHudVisibilityState();
   if (!isOverlayHudWindow()) {
     queuePushMomentumFlowPrefs(widgetConfig, hostConfig, 0);
   }
@@ -1764,25 +1773,25 @@ window.pluginInit_overlay = () => {
           performanceMode: true,
           reducedMotion: false,
           showTelemetryWaveform: false,
-          glowIntensity: 0.18,
+          glowIntensity: 0.12,
           seamIntensity: 0.78,
-          staticAuraIntensity: 0.12,
+          staticAuraIntensity: 0.04,
           volatileEffects: 0,
           dominantPulse: 0,
           momentumControlWheel: {
             visual: {
-              segments: { brightness: 0.84, saturation: 0.88, glow: 0.08 },
-              blueSegments: { brightness: 0.9, saturation: 0.88, glow: 0.08, opacity: 0.86 },
-              orangeSegments: { brightness: 0.9, saturation: 0.88, glow: 0.08, opacity: 0.86 },
+              segments: { brightness: 0.84, saturation: 0.88, glow: 0.04 },
+              blueSegments: { brightness: 0.9, saturation: 0.88, glow: 0.04, opacity: 0.86 },
+              orangeSegments: { brightness: 0.9, saturation: 0.88, glow: 0.04, opacity: 0.86 },
               inactiveSegments: { opacity: 0.22, brightness: 0.72 },
-              seam: { intensity: 0.78, flare: 0.16, flicker: 0 },
-              frontLine: { intensity: 0.78, coreSize: 0.9, glowSize: 0.62, opacity: 0.9, trailStrength: 0.06, trailDuration: 0.35 },
-              aura: { intensity: 0.1, pulse: 0, pulseSpeed: 1, reactiveness: 0 },
-              volatileAura: { intensity: 0.06, saturation: 0.85 },
+              seam: { intensity: 0.78, flare: 0.1, flicker: 0 },
+              frontLine: { intensity: 0.78, coreSize: 0.9, glowSize: 0.52, opacity: 0.9, trailStrength: 0, trailDuration: 0.25 },
+              aura: { intensity: 0.04, pulse: 0, pulseSpeed: 1, reactiveness: 0 },
+              volatileAura: { intensity: 0.03, saturation: 0.85 },
               sparks: { intensity: 0, opacity: 0, reactiveness: 0 },
               seamSparks: { intensity: 0, opacity: 0 },
               outerSparks: { intensity: 0, opacity: 0 },
-              centerWash: { intensity: 0.22, saturation: 0.85 },
+              centerWash: { intensity: 0.14, saturation: 0.85 },
               innerTicks: { opacity: 0.22, brightness: 0.9, saturation: 0.85 },
               frame: { brightness: 0.78, saturation: 0.85, opacity: 0.92 },
             },
@@ -1797,9 +1806,9 @@ window.pluginInit_overlay = () => {
                 reactionSpeed: 1,
                 holdDuration: 0.75,
                 decaySpeed: 1.25,
-                pulseDuration: 0.35,
-                afterglowDuration: 0.35,
-                eventBurstDuration: 0.35,
+                pulseDuration: 0.3,
+                afterglowDuration: 0,
+                eventBurstDuration: 0.3,
               },
             },
           },
@@ -2055,6 +2064,78 @@ function isOverlayHudWindow() {
     return false;
   }
 }
+
+function initNativeHudVisibilityState() {
+  if (!isOverlayHudWindow() || _nativeHudVisibilityKnown) return;
+  try {
+    const params = new URLSearchParams(window.location?.search || '');
+    if (params.has('nativeVisible')) {
+      _nativeHudVisible = params.get('nativeVisible') !== '0';
+      _nativeHudVisibilityKnown = true;
+      return;
+    }
+  } catch {
+    // Leave the HUD live if the query cannot be inspected.
+  }
+  _nativeHudVisible = true;
+}
+
+function isNativeHudDormant() {
+  return isOverlayHudWindow() && _nativeHudVisibilityKnown && !_nativeHudVisible;
+}
+
+function applyNativeHudVisibilityState() {
+  const root = document.getElementById('view-overlay');
+  if (root && isOverlayHudWindow()) {
+    root.dataset.nativeHudVisible = _nativeHudVisible ? 'true' : 'false';
+    root.dataset.nativeHudDormant = isNativeHudDormant() ? 'true' : 'false';
+  }
+  const host = document.getElementById('overlay-widget-host');
+  if (host && isOverlayHudWindow()) {
+    host.dataset.nativeHudVisible = _nativeHudVisible ? 'true' : 'false';
+    host.dataset.nativeHudDormant = isNativeHudDormant() ? 'true' : 'false';
+  }
+}
+
+function setNativeHudVisible(visible, options = {}) {
+  const wasDormant = isNativeHudDormant();
+  _nativeHudVisible = Boolean(visible);
+  _nativeHudVisibilityKnown = true;
+  applyNativeHudVisibilityState();
+  overlayPerfCount(_nativeHudVisible ? 'hud.nativeVisible' : 'hud.nativeHidden');
+  if (!_nativeHudVisible) {
+    pushNativeHudDormantHeartbeat(true);
+  }
+  if (_nativeHudVisible && wasDormant && options.refresh !== false) {
+    _lastMomentumOutput = null;
+    refreshOverlayMomentum({ force: true });
+  }
+}
+
+async function refreshNativeHudVisibilityFromServer(options = {}) {
+  if (!isOverlayHudWindow() || typeof fetch !== 'function') return;
+  const force = Boolean(options.force);
+  const now = Date.now();
+  const interval = isNativeHudDormant() ? 500 : 1000;
+  if (!force && now - _lastNativeVisibilityPollAt < interval) return;
+  if (_nativeVisibilityPollInFlight) return _nativeVisibilityPollInFlight;
+  _lastNativeVisibilityPollAt = now;
+  _nativeVisibilityPollInFlight = fetch('/api/overlay/hud/native-visibility')
+    .then(r => (r.ok ? r.json() : null))
+    .then(state => {
+      if (!state || state.known !== true) return;
+      setNativeHudVisible(Boolean(state.visible), { refresh: false });
+    })
+    .catch(() => {
+      // Native visibility polling is a low-cost optimization; keep the HUD live on failure.
+    })
+    .finally(() => {
+      _nativeVisibilityPollInFlight = null;
+    });
+  return _nativeVisibilityPollInFlight;
+}
+
+initNativeHudVisibilityState();
 
 function applyMomentumFlowPrefs(widgetConfig, hostConfig, options = {}) {
   _currentMomentumWidgetConfig = sanitizeMomentumWidgetConfig(mergeMomentumWidgetConfig(DEFAULT_MFB_CONFIG, widgetConfig || {}));
@@ -2570,12 +2651,15 @@ function overlayPerfVisibilityState() {
   const windowFocused = typeof document.hasFocus === 'function' ? document.hasFocus() : false;
   const viewActive = isOverlayLabViewActive();
   const previewPaused = isOverlayLabPreviewPaused();
-  const renderActive = isHud ? !documentHidden : !previewPaused;
-  const hudVisibleGuess = isHud && !documentHidden;
+  const nativeDormant = isNativeHudDormant();
+  const renderActive = isHud ? (!documentHidden && !nativeDormant) : !previewPaused;
+  const hudVisibleGuess = isHud && !documentHidden && !nativeDormant;
 
   let perfRole = isHud ? (meta.nativeHud ? 'f9-hud-window' : 'legacy-or-manual-hud') : 'overlay-lab-preview';
   let perfStatus = renderActive ? 'render-active' : 'render-paused';
-  if (isHud && documentHidden) {
+  if (isHud && nativeDormant) {
+    perfStatus = 'hud-native-hidden';
+  } else if (isHud && documentHidden) {
     perfStatus = 'hud-document-hidden';
   } else if (!isHud && previewPaused) {
     perfStatus = 'lab-preview-paused';
@@ -2586,6 +2670,9 @@ function overlayPerfVisibilityState() {
   return {
     isHud,
     previewPaused,
+    nativeHudVisible: _nativeHudVisible,
+    nativeHudVisibilityKnown: _nativeHudVisibilityKnown,
+    nativeHudDormant: nativeDormant,
     documentHidden,
     visibilityState,
     windowFocused,
@@ -2690,6 +2777,21 @@ function pushOverlayPerfIfDue(force = false) {
   });
 }
 
+function pushNativeHudDormantHeartbeat(force = false) {
+  if (!isNativeHudDormant() || typeof fetch !== 'function') return;
+  const now = Date.now();
+  if (!force && now - _lastNativeDormantHeartbeatAt < 5000) return;
+  _lastNativeDormantHeartbeatAt = now;
+  _overlayPerf.lastPostAt = now;
+  fetch('/api/overlay/perf/frontend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overlayPerfSnapshot()),
+  }).catch(() => {
+    // Dormant heartbeat is diagnostic-only.
+  });
+}
+
 function unregisterOverlayPerfClient() {
   if (!_overlayPerf.clientId) return;
   const meta = overlayPerfPageMeta();
@@ -2759,6 +2861,10 @@ window.OOFOverlayPerf = {
   },
   snapshot: overlayPerfSnapshot,
 };
+window.__OOFOverlaySetNativeVisible = setNativeHudVisible;
+if (typeof window.__OOFNativeVisiblePending === 'boolean') {
+  setNativeHudVisible(window.__OOFNativeVisiblePending);
+}
 
 function setOverlayPerfStatus(message, kind = '') {
   const el = document.getElementById('overlay-perf-status');
@@ -2843,13 +2949,16 @@ function formatOverlayPerfSnapshot(snapshot) {
     const hudGuess = report.isHud
       ? ` | hudVisibleGuess: ${report.hudVisibleGuess ? 'yes' : 'no'}`
       : '';
+    const nativeDormant = report.isHud && report.nativeHudVisibilityKnown
+      ? ` | nativeDormant: ${report.nativeHudDormant ? 'yes' : 'no'}`
+      : '';
     lines.push(
       '',
       `${report.isHud ? 'F9 HUD' : 'Lab/Preview'} ${report.clientId || 'unknown'} | ${schema} | ${clientClass} | ${role} / ${status} | ${report.visual || 'unknown'} / ${report.variant || 'unknown'} | nodes: ${report.nodeCount || 0}`,
-      `visibility: ${visibility} (${hiddenState}) | ${focus} | ${renderState} | viewActive: ${report.viewActive ? 'yes' : 'no'} | previewPaused: ${report.previewPaused ? 'yes' : 'no'}${hudGuess}`,
+      `visibility: ${visibility} (${hiddenState}) | ${focus} | ${renderState} | viewActive: ${report.viewActive ? 'yes' : 'no'} | previewPaused: ${report.previewPaused ? 'yes' : 'no'}${hudGuess}${nativeDormant}`,
       `visual DOM: bar hidden=${report.barHidden ? 'yes' : 'no'} display=${report.barDisplay || 'unknown'} nodes=${report.barNodes || 0} | wheel hidden=${report.wheelHidden ? 'yes' : 'no'} display=${report.wheelDisplay || 'unknown'} nodes=${report.wheelNodes || 0}`,
-      `previous second: ${overlayPerfCounterLine(previous, ['lab.previewPaused', 'fetch.prefs', 'wheel.update', 'wheel.duplicateSignal', 'wheel.timerOnlyUpdate', 'wheel.skippedDuplicate', 'dom.attrMutation', 'dom.displayMutation', 'wheel.segmentLoop', 'wheel.tickLoop'])}`,
-      `totals: ${overlayPerfCounterLine(totals, ['lab.previewPaused', 'fetch.prefs', 'wheel.update', 'wheel.duplicateSignal', 'wheel.timerOnlyUpdate', 'wheel.skippedDuplicate', 'dom.attrMutation', 'dom.displayMutation'])}`,
+      `previous second: ${overlayPerfCounterLine(previous, ['lab.previewPaused', 'hud.nativeDormant', 'hud.nativeDormantHeartbeat', 'hud.nativeDormantAfterFetch', 'fetch.prefs', 'wheel.update', 'wheel.duplicateSignal', 'wheel.timerOnlyUpdate', 'wheel.skippedDuplicate', 'dom.attrMutation', 'dom.displayMutation', 'wheel.segmentLoop', 'wheel.tickLoop'])}`,
+      `totals: ${overlayPerfCounterLine(totals, ['lab.previewPaused', 'hud.nativeDormant', 'hud.nativeDormantHeartbeat', 'hud.nativeDormantAfterFetch', 'hud.nativeVisible', 'hud.nativeHidden', 'fetch.prefs', 'wheel.update', 'wheel.duplicateSignal', 'wheel.timerOnlyUpdate', 'wheel.skippedDuplicate', 'dom.attrMutation', 'dom.displayMutation'])}`,
       `duplicate signal share: ${overlayPerfPercent(totalDuplicates, totalUpdates)}`,
     );
   }
@@ -2957,10 +3066,22 @@ function wireOverlayPerfControls() {
   }
 }
 
-async function refreshOverlayMomentum() {
+async function refreshOverlayMomentum(options = {}) {
   const root = document.getElementById('view-overlay');
   if (!root) return;
-  if (Date.now() < _demoModeUntil) return;
+  const force = Boolean(options.force);
+  await refreshNativeHudVisibilityFromServer({ force });
+  if (!force && Date.now() < _demoModeUntil) return;
+  if (!force && isNativeHudDormant()) {
+    overlayPerfCount('hud.nativeDormant');
+    const now = Date.now();
+    if (now - _lastNativeDormantPrefsAt > 5000) {
+      _lastNativeDormantPrefsAt = now;
+      overlayPerfCount('hud.nativeDormantHeartbeat');
+    }
+    pushNativeHudDormantHeartbeat();
+    return;
+  }
   const previewPaused = isOverlayLabPreviewPaused();
   applyOverlayLabPreviewPaused(previewPaused);
   if (previewPaused) {
@@ -2971,6 +3092,12 @@ async function refreshOverlayMomentum() {
   try {
     overlayPerfCount('fetch.momentum');
     const out = await fetch('/api/overlay/momentum').then(r => r.json());
+    await refreshNativeHudVisibilityFromServer({ force: true });
+    if (!force && isNativeHudDormant()) {
+      overlayPerfCount('hud.nativeDormantAfterFetch');
+      pushOverlayPerfIfDue();
+      return;
+    }
     setOverlayPerfEnabled(Boolean(out.perfEnabled || overlayPerfFlagEnabled()));
     applyServerMomentumPrefs(out.prefs);
     _lastMomentumOutput = out;
@@ -4033,13 +4160,21 @@ function sanitizeWheelConfig(input = {}) {
     showTelemetryWaveform: input.showTelemetryWaveform !== false,
     reducedMotion,
     performanceMode,
-    glowIntensity: reducedMotion ? 0 : clampNumber(input.glowIntensity, 0, 1, defaults.glowIntensity),
+    glowIntensity: reducedMotion
+      ? 0
+      : performanceMode
+        ? Math.min(clampNumber(input.glowIntensity, 0, 1, defaults.glowIntensity), 0.18)
+        : clampNumber(input.glowIntensity, 0, 1, defaults.glowIntensity),
     segmentBrightness: clampNumber(input.segmentBrightness, 0, 1, defaults.segmentBrightness),
     inactiveSegmentVisibility: clampNumber(input.inactiveSegmentVisibility, 0, 1, defaults.inactiveSegmentVisibility),
     seamIntensity: clampNumber(input.seamIntensity, 0, 1, defaults.seamIntensity),
-    staticAuraIntensity: clampNumber(input.staticAuraIntensity, 0, 1, defaults.staticAuraIntensity),
+    staticAuraIntensity: reducedMotion
+      ? 0
+      : performanceMode
+        ? Math.min(clampNumber(input.staticAuraIntensity, 0, 1, defaults.staticAuraIntensity), 0.04)
+        : clampNumber(input.staticAuraIntensity, 0, 1, defaults.staticAuraIntensity),
     volatileEffects: reducedMotion || performanceMode ? 0 : clampNumber(input.volatileEffects, 0, 1, defaults.volatileEffects),
-    dominantPulse: reducedMotion ? 0 : clampNumber(input.dominantPulse, 0, 1, defaults.dominantPulse),
+    dominantPulse: reducedMotion || performanceMode ? 0 : clampNumber(input.dominantPulse, 0, 1, defaults.dominantPulse),
     timerScale: clampNumber(input.timerScale, 0.82, 1.22, defaults.timerScale),
     labelScale: clampNumber(input.labelScale, 0.82, 1.18, defaults.labelScale),
     forceHighContrastText: input.forceHighContrastText !== false,
@@ -4114,9 +4249,9 @@ function sanitizeWheelResponseConfig(input = {}, options = {}) {
     response.volatilitySensitivity = Math.min(response.volatilitySensitivity, 0.45);
     response.eventReactiveness = 0;
     response.transitionSharpness = Math.min(response.transitionSharpness, 0.55);
-    response.timing.pulseDuration = Math.min(response.timing.pulseDuration, 0.35);
-    response.timing.afterglowDuration = Math.min(response.timing.afterglowDuration, 0.5);
-    response.timing.eventBurstDuration = Math.min(response.timing.eventBurstDuration, 0.35);
+    response.timing.pulseDuration = Math.min(response.timing.pulseDuration, 0.3);
+    response.timing.afterglowDuration = 0;
+    response.timing.eventBurstDuration = Math.min(response.timing.eventBurstDuration, 0.3);
   }
   return response;
 }
@@ -4263,15 +4398,15 @@ function sanitizeWheelVisualConfig(input = {}, options = {}) {
     visual.blueSegments.glow = Math.min(visual.blueSegments.glow, 0.12);
     visual.orangeSegments.glow = Math.min(visual.orangeSegments.glow, 0.12);
     visual.segments.glow = Math.min(visual.segments.glow, 0.12);
-    visual.seam.flare = Math.min(visual.seam.flare, 0.18);
+    visual.seam.flare = Math.min(visual.seam.flare, 0.12);
     visual.seam.flicker = 0;
-    visual.frontLine.glowSize = Math.min(visual.frontLine.glowSize, 0.7);
-    visual.frontLine.trailStrength = Math.min(visual.frontLine.trailStrength, 0.08);
-    visual.frontLine.trailDuration = Math.min(visual.frontLine.trailDuration, 0.35);
-    visual.aura.intensity = Math.min(visual.aura.intensity, 0.12);
+    visual.frontLine.glowSize = Math.min(visual.frontLine.glowSize, 0.58);
+    visual.frontLine.trailStrength = 0;
+    visual.frontLine.trailDuration = 0.25;
+    visual.aura.intensity = Math.min(visual.aura.intensity, 0.04);
     visual.aura.pulse = 0;
     visual.aura.reactiveness = 0;
-    visual.volatileAura.intensity = Math.min(visual.volatileAura.intensity, 0.08);
+    visual.volatileAura.intensity = Math.min(visual.volatileAura.intensity, 0.03);
     visual.sparks.intensity = 0;
     visual.sparks.reactiveness = 0;
     visual.sparks.opacity = 0;
@@ -4279,12 +4414,12 @@ function sanitizeWheelVisualConfig(input = {}, options = {}) {
     visual.seamSparks.opacity = 0;
     visual.outerSparks.intensity = 0;
     visual.outerSparks.opacity = 0;
-    visual.eventReactions.shotPulseStrength = Math.min(visual.eventReactions.shotPulseStrength, 0.2);
-    visual.eventReactions.saveFlashStrength = Math.min(visual.eventReactions.saveFlashStrength, 0.2);
-    visual.eventReactions.goalFullRingPulseStrength = Math.min(visual.eventReactions.goalFullRingPulseStrength, 0.2);
-    visual.eventReactions.epicSaveAfterglow = Math.min(visual.eventReactions.epicSaveAfterglow, 0.15);
+    visual.eventReactions.shotPulseStrength = Math.min(visual.eventReactions.shotPulseStrength, 0.08);
+    visual.eventReactions.saveFlashStrength = Math.min(visual.eventReactions.saveFlashStrength, 0.08);
+    visual.eventReactions.goalFullRingPulseStrength = Math.min(visual.eventReactions.goalFullRingPulseStrength, 0.08);
+    visual.eventReactions.epicSaveAfterglow = 0;
     visual.eventReactions.demoJaggedSparkStrength = 0;
-    visual.centerWash.intensity = Math.min(visual.centerWash.intensity, 0.25);
+    visual.centerWash.intensity = Math.min(visual.centerWash.intensity, 0.14);
   }
   return visual;
 }

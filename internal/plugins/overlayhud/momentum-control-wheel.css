@@ -865,6 +865,7 @@
 .is-performance-mode #bg-vignette,
 .is-performance-mode #bg-radial-shadow,
 .is-performance-mode #bg-subtle-noise,
+.is-performance-mode #outer-aura,
 .is-performance-mode #center-reactive-layer,
 .is-performance-mode .mcw-sparks,
 .is-performance-mode .mcw-streaks,
@@ -926,7 +927,7 @@
 }
 
 .is-performance-mode #center-color-washes {
-  opacity: 0.42;
+  opacity: 0.24;
 }
 
 .is-performance-mode .mcw-segment,
@@ -952,7 +953,7 @@
 .is-performance-mode .mcw-aura-blue,
 .is-performance-mode .mcw-aura-orange,
 .is-performance-mode .mcw-aura-contest {
-  opacity: calc(0.018 + var(--mcw-static-aura-intensity) * 0.032);
+  opacity: 0;
   transition: none !important;
 }
 
@@ -962,11 +963,11 @@
 .is-performance-mode.mcw-state-orange-pressure #outer-aura-orange,
 .is-performance-mode.mcw-state-orange-control #outer-aura-orange,
 .is-performance-mode.mcw-state-dominant-orange #outer-aura-orange {
-  opacity: 0.08;
+  opacity: 0;
 }
 
 .is-performance-mode.mcw-state-volatile #outer-aura-purple-contest {
-  opacity: 0.10;
+  opacity: 0;
 }
 
 .is-performance-mode #contest-top-core {
@@ -974,11 +975,11 @@
 }
 
 .is-performance-mode #contest-top-purple-glow {
-  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-seam-intensity) * 0.06);
+  opacity: 0;
 }
 
 .is-performance-mode #contest-top-vertical-beam {
-  opacity: calc(0.12 + var(--mcw-seam-intensity) * 0.14);
+  opacity: calc(0.10 + var(--mcw-seam-intensity) * 0.10);
 }
 
 .is-reduced-motion *,
