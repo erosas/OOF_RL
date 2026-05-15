@@ -655,7 +655,7 @@ function renderPluginAccordion(blobs, cfg) {
              </label>
            </div>
            <div class="settings-row">
-             <span class="settings-label text-gray-500 text-xs">Plugin enable/disable changes are saved now and take effect after restarting OOF RL.</span>
+             <span class="settings-label text-gray-500 text-xs">Plugin GUI/runtime toggles are saved now and take effect after restarting OOF RL.</span>
            </div>
            ${fieldRows}${devRows}
            ${hasFields ? `<div class="settings-footer">
