@@ -170,6 +170,17 @@
       "summary": "Assist linked to the orange goal event."
     },
     {
+      "id": "evt-010",
+      "second": 121,
+      "type": "epic_save",
+      "team": "blue",
+      "playerId": "player-blue-2",
+      "playerName": "Blue Two",
+      "segmentId": "seg-004",
+      "label": "Epic save",
+      "summary": ""
+    },
+    {
       "id": "evt-006",
       "second": 149,
       "type": "shot",
