@@ -120,4 +120,37 @@ func TestBaseAppURLFromRequest(t *testing.T) {
 	if got := baseAppURLFromRequest(req); got != "https://localhost:8080" {
 		t.Fatalf("baseAppURLFromRequest forwarded = %q, want https://localhost:8080", got)
 	}
+
+	req.Header.Set("X-Forwarded-Proto", "http")
+	if got := baseAppURLFromRequest(req); got != "http://localhost:8080" {
+		t.Fatalf("baseAppURLFromRequest forwarded http = %q, want http://localhost:8080", got)
+	}
+}
+
+func TestBaseAppURLFromRequestRejectsUnsafeForwardedProto(t *testing.T) {
+	for _, proto := range []string{"javascript", "file", "ftp", "ws", "://bad"} {
+		req := httptest.NewRequest(http.MethodGet, "http://localhost:8080"+launchRoutePath, nil)
+		req.Header.Set("X-Forwarded-Proto", proto)
+
+		if got := baseAppURLFromRequest(req); got != "http://localhost:8080" {
+			t.Fatalf("baseAppURLFromRequest proto %q = %q, want http fallback", proto, got)
+		}
+	}
+}
+
+func TestBaseAppURLFromRequestEmptyForwardedProtoFallsBack(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080"+launchRoutePath, nil)
+	req.Header.Set("X-Forwarded-Proto", "   ")
+	if got := baseAppURLFromRequest(req); got != "http://localhost:8080" {
+		t.Fatalf("baseAppURLFromRequest empty forwarded = %q, want http fallback", got)
+	}
+}
+
+func TestBaseAppURLFromRequestEmptyHostIsPredictable(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080"+launchRoutePath, nil)
+	req.Host = ""
+
+	if got := baseAppURLFromRequest(req); got != "http://" {
+		t.Fatalf("baseAppURLFromRequest empty host = %q, want predictable empty-host URL", got)
+	}
 }

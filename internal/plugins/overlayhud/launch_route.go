@@ -52,10 +52,19 @@ func baseAppURLFromRequest(r *http.Request) string {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
+	if forwarded := safeForwardedProto(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
 		scheme = forwarded
 	}
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
+}
+
+func safeForwardedProto(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "http", "https":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
 }
 
 func writeLaunchStatus(w http.ResponseWriter, status string, targetURL string) {
