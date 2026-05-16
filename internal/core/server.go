@@ -63,8 +63,8 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 	}
 }
 
-// Momentum returns the app-owned runtime Momentum service.
-func (s *Server) Momentum() *momentum.Service {
+// Momentum returns the read-only app-owned Momentum snapshot provider.
+func (s *Server) Momentum() momentum.SnapshotProvider {
 	return s.momentum
 }
 
