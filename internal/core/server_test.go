@@ -15,6 +15,7 @@ import (
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
@@ -91,6 +92,7 @@ func TestServerRegistersMomentumRuntime(t *testing.T) {
 	if srv.Momentum() == nil {
 		t.Fatal("Momentum() returned nil")
 	}
+	var _ momentum.SnapshotProvider = srv.Momentum()
 }
 
 func TestServerMomentumRuntimeReceivesTranslatedGameActions(t *testing.T) {

@@ -31,6 +31,14 @@ type MomentumState struct {
 	LastEvent EventSignal
 }
 
+// SnapshotProvider is the read-only Momentum access contract for internal
+// consumers. It intentionally excludes event handlers, reset methods, and
+// wiring controls so consumers cannot own engine logic.
+type SnapshotProvider interface {
+	Snapshot() MomentumState
+	Status() ServiceStatus
+}
+
 // TeamSignal describes bounded, event-derived team influence. The fields are
 // heuristics, not possession, rotation, win odds, or tactical certainty.
 type TeamSignal struct {

@@ -1,11 +1,38 @@
 package momentum
 
 import (
+	"reflect"
 	"sync"
 	"testing"
 
 	"OOF_RL/internal/oofevents"
 )
+
+var _ SnapshotProvider = (*Service)(nil)
+
+func TestSnapshotProviderExposesReadOnlyMethods(t *testing.T) {
+	providerType := reflect.TypeOf((*SnapshotProvider)(nil)).Elem()
+
+	if _, ok := providerType.MethodByName("Snapshot"); !ok {
+		t.Fatal("SnapshotProvider missing Snapshot method")
+	}
+	if _, ok := providerType.MethodByName("Status"); !ok {
+		t.Fatal("SnapshotProvider missing Status method")
+	}
+	for _, name := range []string{
+		"HandleGameAction",
+		"HandleMatchStarted",
+		"HandleMatchRestarted",
+		"HandleMatchEnded",
+		"HandleMatchDestroyed",
+		"Reset",
+		"MarkMatchEnded",
+	} {
+		if _, ok := providerType.MethodByName(name); ok {
+			t.Fatalf("SnapshotProvider exposes mutating method %s", name)
+		}
+	}
+}
 
 func TestServiceHandleGameActionUpdatesSnapshot(t *testing.T) {
 	service := NewService(Config{Decay: 1})
