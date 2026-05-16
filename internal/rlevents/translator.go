@@ -105,9 +105,31 @@ func (t *Translator) onStatFeed(env events.Envelope) {
 	}
 	t.bus.PublishAuthoritative(oofevents.NewStatFeed(
 		d.MatchGuid, d.EventName,
-		d.MainTarget.Name, d.MainTarget.Shortcut, d.MainTarget.TeamNum,
-		nameOrEmpty(d.SecondaryTarget), shortcutOrZero(d.SecondaryTarget),
+		d.MainTarget.Name, d.MainTarget.PrimaryId, d.MainTarget.Shortcut, d.MainTarget.TeamNum,
+		nameOrEmpty(d.SecondaryTarget), primaryIDOrEmpty(d.SecondaryTarget), shortcutOrZero(d.SecondaryTarget),
 	))
+
+	team, ok := oofevents.TeamFromNum(d.MainTarget.TeamNum)
+	if !ok {
+		return
+	}
+	guid, actor, victim := d.MatchGuid, d.MainTarget, primaryIDOrEmpty(d.SecondaryTarget)
+	switch d.EventName {
+	case "Shot":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionShot, team, actor.PrimaryId, actor.Name))
+	case "Save":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionSave, team, actor.PrimaryId, actor.Name))
+	case "EpicSave":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionSave, team, actor.PrimaryId, actor.Name, oofevents.WithEpicSave()))
+	case "Goal":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionGoal, team, actor.PrimaryId, actor.Name))
+	case "OwnGoal":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionGoal, team, actor.PrimaryId, actor.Name, oofevents.WithOwnGoal()))
+	case "Assist":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionAssist, team, actor.PrimaryId, actor.Name))
+	case "Demolish":
+		t.bus.PublishAuthoritative(oofevents.NewGameAction(guid, oofevents.ActionDemo, team, actor.PrimaryId, actor.Name, oofevents.WithVictim(victim)))
+	}
 }
 
 func (t *Translator) onClockUpdated(env events.Envelope) {
@@ -128,17 +150,25 @@ func (t *Translator) onBallHit(env events.Envelope) {
 		return
 	}
 	playerName, playerPrimaryID := "", ""
-	playerShortcut := 0
+	playerShortcut, playerTeamNum := 0, 0
 	if len(d.Players) > 0 {
 		playerName = d.Players[0].Name
 		playerPrimaryID = d.Players[0].PrimaryId
 		playerShortcut = d.Players[0].Shortcut
+		playerTeamNum = d.Players[0].TeamNum
 	}
 	t.bus.PublishAuthoritative(oofevents.NewBallHit(
-		d.MatchGuid, playerName, playerPrimaryID, playerShortcut,
+		d.MatchGuid, playerName, playerPrimaryID, playerShortcut, playerTeamNum,
 		d.Ball.PreHitSpeed, d.Ball.PostHitSpeed,
 		d.Ball.Location.X, d.Ball.Location.Y, d.Ball.Location.Z,
 	))
+	if len(d.Players) > 0 {
+		if team, ok := oofevents.TeamFromNum(playerTeamNum); ok {
+			t.bus.PublishAuthoritative(oofevents.NewGameAction(
+				d.MatchGuid, oofevents.ActionBallHit, team, playerPrimaryID, playerName,
+			))
+		}
+	}
 }
 
 func (t *Translator) onCrossbarHit(env events.Envelope) {
@@ -222,6 +252,13 @@ func nameOrEmpty(p *events.PlayerRef) string {
 		return ""
 	}
 	return p.Name
+}
+
+func primaryIDOrEmpty(p *events.PlayerRef) string {
+	if p == nil {
+		return ""
+	}
+	return p.PrimaryId
 }
 
 func shortcutOrZero(p *events.PlayerRef) int {

@@ -9,6 +9,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
+
+	"github.com/arl/statsviz"
 	"os"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	"OOF_RL/internal/plugins/debugassistant"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
+	"OOF_RL/internal/plugins/overlayhud"
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
@@ -98,7 +102,12 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
+	srv.Use(overlayhud.New(srv.Momentum()))
 	srv.Register(mux)
+	mux.Handle("/debug/pprof/", http.DefaultServeMux)
+	if err := statsviz.Register(mux); err != nil {
+		log.Printf("statsviz: %v", err)
+	}
 
 	if err := srv.InitPlugins(); err != nil {
 		log.Fatalf("plugin init: %v", err)
@@ -112,6 +121,8 @@ func main() {
 	ln, port := bindAvailablePort(cfg.AppPort)
 	url := fmt.Sprintf("http://localhost:%d", port)
 	log.Printf("OOF RL running at %s", url)
+	log.Printf("pprof     at %s/debug/pprof/", url)
+	log.Printf("statsviz  at %s/debug/statsviz/", url)
 
 	httpSrv := &http.Server{Handler: mux}
 	go func() {
@@ -144,6 +155,7 @@ func main() {
 
 	w.Run()
 	srv.ShutdownPlugins()
+	srv.ShutdownRuntime()
 	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
 }
