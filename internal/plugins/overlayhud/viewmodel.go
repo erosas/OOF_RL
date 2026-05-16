@@ -29,11 +29,7 @@ type ViewModel struct {
 }
 
 func (p *Plugin) momentumViewModel(now time.Time) (ViewModel, bool) {
-	state, status, ok := p.momentumSnapshot()
-	if !ok {
-		return ViewModel{}, false
-	}
-	return mapMomentumViewModel(state, status, now), true
+	return momentumViewModelFromProvider(p.momentum, now)
 }
 
 func mapMomentumViewModel(state momentum.MomentumState, status momentum.ServiceStatus, now time.Time) ViewModel {

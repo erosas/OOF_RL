@@ -1,7 +1,6 @@
 package overlayhud
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 )
@@ -14,15 +13,12 @@ func (p *Plugin) handlePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, ok := p.momentumViewModel(time.Now())
+	html, ok := NewDisplayAdapter(p.momentum).RenderHTML(time.Now())
 	if !ok {
 		http.Error(w, "momentum snapshot provider unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
-	model := buildRenderModel(view)
-	svg := RenderSVG(model)
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = fmt.Fprintf(w, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Momentum Overlay Preview</title></head><body>%s</body></html>", svg)
+	_, _ = w.Write([]byte(html))
 }
