@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/core"
 	"OOF_RL/internal/db"
+	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugins/ballchasing"
@@ -46,6 +48,27 @@ func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	return mux, &cfg
 }
 
+func newTestServer(t *testing.T) (*core.Server, oofevents.Bus) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	database, err := db.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	cfg := config.Defaults()
+	h := hub.New()
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+
+	srv := core.NewServer(filepath.Join(tmpDir, "config.toml"), &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
+	return srv, bus
+}
+
 func get(mux *http.ServeMux, path string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	w := httptest.NewRecorder()
@@ -60,6 +83,64 @@ func postJSON(mux *http.ServeMux, path string, body any) *httptest.ResponseRecor
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	return w
+}
+
+func TestServerRegistersMomentumRuntime(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	if srv.Momentum() == nil {
+		t.Fatal("Momentum() returned nil")
+	}
+}
+
+func TestServerMomentumRuntimeReceivesTranslatedGameActions(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	srv.DispatchEvent(events.Envelope{
+		Event: "StatfeedEvent",
+		Data: []byte(`{
+			"MatchGuid":"match-1",
+			"EventName":"Shot",
+			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
+		}`),
+	})
+
+	waitForCoreTest(t, func() bool {
+		return srv.Momentum().Snapshot().Sequence == 1
+	})
+	if srv.Momentum().Snapshot().Teams[oofevents.TeamBlue].MomentumInfluence <= 0 {
+		t.Fatalf("momentum snapshot not updated: %+v", srv.Momentum().Snapshot())
+	}
+}
+
+func TestServerShutdownRuntimeStopsMomentumWiring(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	srv.ShutdownRuntime()
+	srv.DispatchEvent(events.Envelope{
+		Event: "StatfeedEvent",
+		Data: []byte(`{
+			"MatchGuid":"match-1",
+			"EventName":"Shot",
+			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
+		}`),
+	})
+	time.Sleep(20 * time.Millisecond)
+	if srv.Momentum().Snapshot().Sequence != 0 {
+		t.Fatalf("momentum updated after runtime shutdown: %+v", srv.Momentum().Snapshot())
+	}
+}
+
+func waitForCoreTest(t *testing.T, fn func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition not met before timeout")
 }
 
 // --- /api/config ---
