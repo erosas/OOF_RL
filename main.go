@@ -102,7 +102,7 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
-	srv.Use(overlayhud.New(srv.Momentum()))
+	srv.Use(overlayhud.NewWithConfig(srv.Momentum(), &cfg))
 	srv.Register(mux)
 	mux.Handle("/debug/pprof/", http.DefaultServeMux)
 	if err := statsviz.Register(mux); err != nil {
