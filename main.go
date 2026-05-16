@@ -9,6 +9,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
+
+	"github.com/arl/statsviz"
 	"os"
 	"time"
 
@@ -99,6 +102,10 @@ func main() {
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
 	srv.Register(mux)
+	mux.Handle("/debug/pprof/", http.DefaultServeMux)
+	if err := statsviz.Register(mux); err != nil {
+		log.Printf("statsviz: %v", err)
+	}
 
 	if err := srv.InitPlugins(); err != nil {
 		log.Fatalf("plugin init: %v", err)
@@ -112,6 +119,8 @@ func main() {
 	ln, port := bindAvailablePort(cfg.AppPort)
 	url := fmt.Sprintf("http://localhost:%d", port)
 	log.Printf("OOF RL running at %s", url)
+	log.Printf("pprof     at %s/debug/pprof/", url)
+	log.Printf("statsviz  at %s/debug/statsviz/", url)
 
 	httpSrv := &http.Server{Handler: mux}
 	go func() {
