@@ -91,4 +91,8 @@ Your [ballchasing.com](https://ballchasing.com) API key. Get one at ballchasing.
 disabled_plugins = []
 ```
 
-A list of plugin IDs to hide from the nav bar. Example: `disabled_plugins = ["bc", "session"]`. Disabled plugins still load — they just don't appear in the UI.
+A list of plugin IDs whose GUI/runtime should be disabled after the next app restart. Example: `disabled_plugins = ["overlayhud"]`.
+
+Disabled plugins are still listed in Settings so they can be re-enabled. They do not initialize, register routes, serve assets, or appear in navigation on the next app start.
+
+For overlay-style plugins, disabling the plugin means disabling the overlay GUI/runtime, not disabling the underlying enrichment engine concept. Engines and overlays should remain separable: an engine may run without its overlay, but an overlay must never be required for the engine.

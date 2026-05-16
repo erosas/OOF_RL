@@ -1,0 +1,267 @@
+.momentum-flow-bar {
+  --mfb-blue: #3b82f6;
+  --mfb-orange: #f97316;
+  --mfb-text: #e5e7eb;
+  --mfb-muted: #9ca3af;
+  --mfb-bg: rgba(5, 10, 20, 0.55);
+  --mfb-border: rgba(148, 163, 184, 0.18);
+  --mfb-blue-glow: 0 0 18px rgba(59, 130, 246, 0.55);
+  --mfb-orange-glow: 0 0 18px rgba(249, 115, 22, 0.55);
+  --mfb-volatile-glow: 0 0 18px rgba(168, 85, 247, 0.55);
+  color: var(--mfb-text);
+  font-family: Inter, Sora, "Space Grotesk", system-ui, sans-serif;
+  width: 100%;
+}
+
+.momentum-flow-bar__panel {
+  background:
+    linear-gradient(180deg, rgba(7, 12, 22, 0.68), rgba(3, 7, 14, 0.52)),
+    var(--mfb-bg);
+  border: 1px solid var(--mfb-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  padding: 18px 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.momentum-flow-bar__panel::before {
+  background: linear-gradient(90deg, rgba(59,130,246,0.18), transparent 32%, transparent 68%, rgba(249,115,22,0.18));
+  content: "";
+  inset: 0;
+  opacity: 0.75;
+  pointer-events: none;
+  position: absolute;
+}
+
+.momentum-flow-bar__main {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 72px minmax(180px, 1fr) 72px;
+  position: relative;
+  z-index: 1;
+}
+
+.momentum-flow-bar__percent {
+  font-size: 1.9rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.momentum-flow-bar__percent--blue {
+  color: var(--mfb-blue);
+  text-shadow: var(--mfb-blue-glow);
+}
+
+.momentum-flow-bar__percent--orange {
+  color: var(--mfb-orange);
+  text-shadow: var(--mfb-orange-glow);
+}
+
+.momentum-flow-bar__rail-wrap {
+  position: relative;
+  padding: 12px 0;
+}
+
+.momentum-flow-bar__rail {
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.38);
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.momentum-flow-bar__blue,
+.momentum-flow-bar__orange {
+  height: 100%;
+  transition: width 220ms ease;
+}
+
+.momentum-flow-bar__blue {
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  box-shadow: var(--mfb-blue-glow);
+}
+
+.momentum-flow-bar__orange {
+  background: linear-gradient(90deg, #fb923c, #f97316);
+  box-shadow: var(--mfb-orange-glow);
+}
+
+.momentum-flow-bar__pulse {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(229, 231, 235, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.45);
+  display: flex;
+  height: 42px;
+  justify-content: center;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  width: 42px;
+  z-index: 2;
+}
+
+.momentum-flow-bar__pulse svg {
+  height: 24px;
+  width: 24px;
+}
+
+.momentum-flow-bar__labels {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.momentum-flow-bar__label {
+  color: var(--mfb-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.momentum-flow-bar__label--left {
+  color: var(--mfb-blue);
+  text-align: left;
+}
+
+.momentum-flow-bar__label--center {
+  color: rgba(229, 231, 235, 0.72);
+  text-align: center;
+}
+
+.momentum-flow-bar__label--right {
+  color: var(--mfb-orange);
+  text-align: right;
+}
+
+.momentum-flow-bar.is-blue-pressure .momentum-flow-bar__panel,
+.momentum-flow-bar.is-blue-control .momentum-flow-bar__panel {
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), 0 0 24px rgba(59, 130, 246, 0.18);
+}
+
+.momentum-flow-bar.is-orange-pressure .momentum-flow-bar__panel,
+.momentum-flow-bar.is-orange-control .momentum-flow-bar__panel {
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), 0 0 24px rgba(249, 115, 22, 0.18);
+}
+
+.momentum-flow-bar.is-volatile .momentum-flow-bar__pulse {
+  border-color: rgba(168, 85, 247, 0.86);
+  box-shadow: var(--mfb-volatile-glow);
+}
+
+.momentum-flow-bar.is-orange-pressure .momentum-flow-bar__pulse,
+.momentum-flow-bar.is-orange-control .momentum-flow-bar__pulse,
+.momentum-flow-bar.is-pulse-orange .momentum-flow-bar__pulse {
+  border-color: rgba(249, 115, 22, 0.86);
+  box-shadow: var(--mfb-orange-glow);
+}
+
+.momentum-flow-bar.is-blue-pressure .momentum-flow-bar__pulse,
+.momentum-flow-bar.is-blue-control .momentum-flow-bar__pulse,
+.momentum-flow-bar.is-pulse-blue .momentum-flow-bar__pulse {
+  border-color: rgba(59, 130, 246, 0.86);
+  box-shadow: var(--mfb-blue-glow);
+}
+
+.momentum-flow-bar.is-low-confidence {
+  opacity: 0.66;
+}
+
+.momentum-flow-bar.is-pulsing .momentum-flow-bar__pulse {
+  animation: mfb-pulse 440ms ease-out;
+}
+
+.momentum-flow-bar.is-pulse-goal .momentum-flow-bar__panel {
+  animation: mfb-goal-burst 560ms ease-out;
+}
+
+.momentum-flow-bar.is-volatile.is-pulsing .momentum-flow-bar__rail {
+  animation: mfb-volatile 520ms ease-out;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__panel {
+  padding: 12px 16px;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__main {
+  grid-template-columns: 54px minmax(150px, 1fr) 54px;
+  gap: 12px;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__percent {
+  font-size: 1.28rem;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__pulse {
+  height: 34px;
+  width: 34px;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__pulse svg {
+  height: 20px;
+  width: 20px;
+}
+
+.momentum-flow-bar--compact .momentum-flow-bar__label {
+  font-size: 0.62rem;
+}
+
+.momentum-flow-bar--minimal .momentum-flow-bar__panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.momentum-flow-bar--minimal .momentum-flow-bar__panel::before,
+.momentum-flow-bar--minimal .momentum-flow-bar__percent,
+.momentum-flow-bar--minimal .momentum-flow-bar__labels {
+  display: none;
+}
+
+.momentum-flow-bar--minimal .momentum-flow-bar__main {
+  grid-template-columns: minmax(120px, 1fr);
+}
+
+.momentum-flow-bar--minimal .momentum-flow-bar__rail-wrap {
+  padding: 13px 0;
+}
+
+@keyframes mfb-pulse {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  45% { transform: translate(-50%, -50%) scale(1.18); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes mfb-goal-burst {
+  0% { filter: brightness(1); }
+  38% { filter: brightness(1.65); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes mfb-volatile {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(55deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .momentum-flow-bar *,
+  .momentum-flow-bar.is-pulsing .momentum-flow-bar__pulse,
+  .momentum-flow-bar.is-pulse-goal .momentum-flow-bar__panel,
+  .momentum-flow-bar.is-volatile.is-pulsing .momentum-flow-bar__rail {
+    animation: none !important;
+    transition: none !important;
+  }
+}

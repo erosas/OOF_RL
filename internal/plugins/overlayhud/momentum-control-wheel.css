@@ -1,0 +1,1226 @@
+.momentum-control-wheel {
+  --mcw-blue-core: #1ea7ff;
+  --mcw-blue-edge: #76d8ff;
+  --mcw-blue-glow: #00c8ff;
+  --mcw-orange-core: #ff7a1a;
+  --mcw-orange-edge: #ffc06a;
+  --mcw-orange-glow: #ff8a2a;
+  --mcw-frame: #202834;
+  --mcw-frame-edge: #5e7086;
+  --mcw-center: #07111c;
+  --mcw-text-primary: #f4fbff;
+  --mcw-text-secondary: #9edcff;
+  --mcw-text-muted: #7f93a8;
+  --mcw-seam: #f7fbff;
+  --mcw-purple: #b45cff;
+  --mcw-purple-hot: #f0b8ff;
+  --mcw-blue-pressure: 0.5;
+  --mcw-orange-pressure: 0.5;
+  --mcw-volatility: 0;
+  --mcw-recent-event-energy: 0;
+  --mcw-recent-blue-energy: 0;
+  --mcw-recent-orange-energy: 0;
+  --mcw-scale: 1;
+  --mcw-opacity: 0.92;
+  --mcw-glow-intensity: 0.72;
+  --mcw-segment-brightness: 0.88;
+  --mcw-inactive-opacity: 0.28;
+  --mcw-seam-intensity: 0.82;
+  --mcw-static-aura-intensity: 0.45;
+  --mcw-volatile-effects: 0.55;
+  --mcw-dominant-pulse: 0.45;
+  --mcw-timer-scale: 1;
+  --mcw-label-scale: 1;
+  --mcw-segment-saturation: 1;
+  --mcw-segment-glow: 0.72;
+  --mcw-blue-segment-brightness: 0.88;
+  --mcw-blue-segment-saturation: 1;
+  --mcw-blue-segment-glow: 0.72;
+  --mcw-blue-segment-opacity: 0.94;
+  --mcw-orange-segment-brightness: 0.88;
+  --mcw-orange-segment-saturation: 1;
+  --mcw-orange-segment-glow: 0.72;
+  --mcw-orange-segment-opacity: 0.94;
+  --mcw-inactive-segment-opacity: 0.28;
+  --mcw-inactive-segment-brightness: 0.78;
+  --mcw-aura-intensity: 0.45;
+  --mcw-aura-pulse: 0.5;
+  --mcw-seam-flare: 0.5;
+  --mcw-seam-flicker: 0.5;
+  --mcw-front-line-intensity: 0.82;
+  --mcw-front-line-core-size: 1;
+  --mcw-front-line-glow-size: 1;
+  --mcw-front-line-opacity: 1;
+  --mcw-front-line-trail-strength: 0.5;
+  --mcw-front-line-trail-duration: 1;
+  --mcw-front-line-layer-priority: 1;
+  --mcw-aura-reactiveness: 0.5;
+  --mcw-aura-pulse-strength: 0.5;
+  --mcw-aura-pulse-speed: 1;
+  --mcw-blue-aura-strength: 1;
+  --mcw-orange-aura-strength: 1;
+  --mcw-volatile-purple-aura-strength: 1;
+  --mcw-volatile-aura-intensity: 0.55;
+  --mcw-volatile-aura-saturation: 1;
+  --mcw-spark-intensity: 0.55;
+  --mcw-spark-saturation: 1;
+  --mcw-spark-opacity: 0.92;
+  --mcw-spark-reactiveness: 0.5;
+  --mcw-seam-spark-intensity: 0.55;
+  --mcw-seam-spark-opacity: 0.92;
+  --mcw-seam-spark-travel-distance: 1;
+  --mcw-seam-spark-duration: 1;
+  --mcw-seam-spark-density: 1;
+  --mcw-volatile-seam-spark-multiplier: 1.25;
+  --mcw-outer-arc-spark-intensity: 0.55;
+  --mcw-outer-arc-spark-opacity: 0.82;
+  --mcw-outer-arc-spark-speed: 1;
+  --mcw-pressure-arc-spark-multiplier: 1;
+  --mcw-control-edge-spark-multiplier: 1;
+  --mcw-dominant-edge-spark-multiplier: 0.85;
+  --mcw-shot-pulse-strength: 1;
+  --mcw-save-flash-strength: 1;
+  --mcw-epic-save-afterglow: 1;
+  --mcw-goal-full-ring-pulse-strength: 1;
+  --mcw-demo-jagged-spark-strength: 1;
+  --mcw-state-neutral-intensity: 0.35;
+  --mcw-state-pressure-intensity: 1;
+  --mcw-state-control-intensity: 1.12;
+  --mcw-state-volatile-intensity: 1.25;
+  --mcw-state-dominant-intensity: 1.18;
+  --mcw-state-intensity: var(--mcw-state-neutral-intensity);
+  --mcw-center-wash-strength: 0.5;
+  --mcw-center-wash-saturation: 1;
+  --mcw-center-wash-blue-strength: 1;
+  --mcw-center-wash-orange-strength: 1;
+  --mcw-center-wash-purple-strength: 1;
+  --mcw-center-text-brightness: 1;
+  --mcw-confidence-text-brightness: 1;
+  --mcw-inner-tick-opacity: 0.28;
+  --mcw-inner-tick-brightness: 1;
+  --mcw-inner-tick-saturation: 1;
+  --mcw-frame-brightness: 0.5;
+  --mcw-frame-saturation: 1;
+  --mcw-frame-opacity: 1;
+  --mcw-badge-opacity: 1;
+  --mcw-response-pressure: 1;
+  --mcw-response-volatility: 1;
+  --mcw-response-confidence: 1;
+  --mcw-response-event-reactiveness: 1;
+  --mcw-transition-sharpness: 0.75;
+  --mcw-smoothing: 0.5;
+  --mcw-reaction-speed: 1;
+  --mcw-hold-duration: 1;
+  --mcw-decay-speed: 1;
+  --mcw-pulse-duration: 1;
+  --mcw-afterglow-duration: 1.6;
+  --mcw-event-burst-duration: 1;
+  --mcw-response-transition-ms: 370ms;
+  --mcw-response-effect-transition-ms: 320ms;
+  --mcw-afterglow-duration-ms: 1600ms;
+  --mcw-neutral-spark-duration-ms: 780ms;
+  --mcw-control-spark-duration-ms: 1040ms;
+  --mcw-volatile-spark-duration-ms: 620ms;
+  --mcw-dominant-spark-duration-ms: 1680ms;
+  --mcw-contest-flicker-duration-ms: 760ms;
+  display: grid;
+  font-family: Inter, Sora, "Space Grotesk", system-ui, sans-serif;
+  height: 330px;
+  opacity: var(--mcw-opacity);
+  place-items: center;
+  transform: scale(var(--mcw-scale));
+  transform-origin: center;
+  width: 330px;
+}
+
+.momentum-control-wheel[hidden] {
+  display: none;
+}
+
+.momentum-control-wheel-svg {
+  display: block;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  overflow: visible;
+  width: 100%;
+}
+
+.mcw-state-blue-pressure,
+.mcw-state-orange-pressure {
+  --mcw-state-intensity: var(--mcw-state-pressure-intensity);
+}
+
+.mcw-state-blue-control,
+.mcw-state-orange-control {
+  --mcw-state-intensity: var(--mcw-state-control-intensity);
+}
+
+.mcw-state-volatile {
+  --mcw-state-intensity: var(--mcw-state-volatile-intensity);
+}
+
+.mcw-state-dominant-blue,
+.mcw-state-dominant-orange {
+  --mcw-state-intensity: var(--mcw-state-dominant-intensity);
+}
+
+.momentum-control-wheel--full {
+  height: 352px;
+  width: 352px;
+}
+
+.momentum-control-wheel--compact {
+  height: 274px;
+  width: 274px;
+}
+
+.momentum-control-wheel--minimal {
+  height: 202px;
+  width: 202px;
+}
+
+.momentum-control-wheel--minimal #text-confidence-label,
+.momentum-control-wheel--minimal #text-confidence-value,
+.momentum-control-wheel--minimal #oof-badge,
+.momentum-control-wheel--minimal #center-telemetry-waveform,
+.momentum-control-wheel--minimal #outer-energy-streaks,
+.momentum-control-wheel--minimal #outer-sparks {
+  display: none;
+}
+
+#outer-mechanical-frame {
+  opacity: var(--mcw-frame-opacity);
+  filter:
+    saturate(var(--mcw-frame-saturation))
+    brightness(var(--mcw-frame-brightness))
+    drop-shadow(0 10px 18px rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 10px rgba(94, 112, 134, 0.1));
+}
+
+#outer-frame-base {
+  stroke: var(--mcw-frame);
+}
+
+#outer-frame-highlight {
+  stroke: var(--mcw-frame-edge);
+  opacity: 0.78;
+}
+
+#outer-frame-bolts circle {
+  stroke: color-mix(in srgb, var(--mcw-frame-edge) 80%, #f5f7fb);
+}
+
+#outer-frame-shadow {
+  stroke: #030711;
+}
+
+#outer-frame-panels-top,
+#outer-frame-panels-bottom,
+#outer-frame-panels-left,
+#outer-frame-panels-right {
+  fill: color-mix(in srgb, var(--mcw-frame) 66%, #050a12);
+  stroke: color-mix(in srgb, var(--mcw-frame-edge) 76%, #f5f7fb);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.42));
+}
+
+#outer-frame-top-notch,
+#outer-frame-bottom-notch {
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+}
+
+.mcw-frame-slot {
+  stroke: rgba(3, 7, 17, 0.92);
+}
+
+#center-disc-base {
+  fill: var(--mcw-center);
+  stroke: color-mix(in srgb, var(--mcw-frame-edge) 50%, #050a12);
+  filter:
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36))
+    drop-shadow(0 0 10px rgba(245, 247, 251, 0.05));
+}
+
+#center-disc-rim {
+  stroke: color-mix(in srgb, var(--mcw-text-primary) 34%, transparent);
+}
+
+#center-disc-glass-highlight {
+  fill: var(--mcw-text-primary);
+}
+
+#center-color-washes {
+  filter: saturate(var(--mcw-center-wash-saturation));
+  opacity: calc(0.72 + var(--mcw-center-wash-strength) * 0.56);
+}
+
+#center-reactive-layer {
+  opacity: calc((0.18 + var(--mcw-state-intensity) * 0.18 + var(--mcw-recent-event-energy) * 0.18) * var(--mcw-center-wash-strength));
+  transition:
+    opacity var(--mcw-response-effect-transition-ms) ease-out,
+    transform var(--mcw-response-transition-ms) ease-out;
+}
+
+#center-reactive-blue-field {
+  opacity: calc((0.12 + var(--mcw-blue-pressure) * 0.2) * var(--mcw-center-wash-blue-strength));
+}
+
+#center-reactive-orange-field {
+  opacity: calc((0.12 + var(--mcw-orange-pressure) * 0.2) * var(--mcw-center-wash-orange-strength));
+}
+
+#center-reactive-seam {
+  opacity: calc((0.14 + var(--mcw-seam-intensity) * 0.28 + var(--mcw-volatility) * var(--mcw-response-volatility) * 0.2) * var(--mcw-center-wash-purple-strength));
+  filter:
+    drop-shadow(0 0 calc(5px + var(--mcw-seam-flare) * 12px) var(--mcw-seam))
+    drop-shadow(0 0 calc(4px + var(--mcw-volatility) * 14px) var(--mcw-purple-hot));
+}
+
+#center-disc-blue-wash {
+  opacity: calc(var(--mcw-blue-wash-opacity, 0.12) * var(--mcw-center-wash-strength) * var(--mcw-center-wash-blue-strength) * (0.8 + var(--mcw-response-pressure) * 0.2));
+}
+
+#center-disc-orange-wash {
+  opacity: calc(var(--mcw-orange-wash-opacity, 0.12) * var(--mcw-center-wash-strength) * var(--mcw-center-wash-orange-strength) * (0.8 + var(--mcw-response-pressure) * 0.2));
+}
+
+#center-disc-purple-contest-wash {
+  opacity: calc(var(--mcw-purple-wash-opacity, 0) * var(--mcw-center-wash-strength) * var(--mcw-center-wash-purple-strength) * (0.75 + var(--mcw-response-volatility) * 0.25));
+}
+
+#center-telemetry-waveform {
+  stroke: var(--mcw-text-secondary);
+  opacity: calc((0.16 + var(--mcw-glow-intensity) * 0.16) * var(--mcw-center-wash-strength));
+  filter: drop-shadow(0 0 7px var(--mcw-text-secondary));
+}
+
+.mcw-segment {
+  transition: filter var(--mcw-response-transition-ms) ease-out, opacity var(--mcw-response-transition-ms) ease-out;
+}
+
+.mcw-segment-inactive {
+  fill: color-mix(in srgb, var(--mcw-frame-edge) 40%, #050a12);
+  opacity: var(--mcw-inactive-segment-opacity);
+  stroke: rgba(245, 247, 251, 0.08);
+  stroke-width: 1;
+  filter: brightness(var(--mcw-inactive-segment-brightness));
+}
+
+.mcw-segment-blue,
+.mcw-segment-orange,
+.mcw-segment-cap {
+  transition: opacity var(--mcw-response-transition-ms) ease-out, filter var(--mcw-response-effect-transition-ms) ease-out;
+  stroke-width: 1.6;
+}
+
+.mcw-segment-blue {
+  opacity: var(--mcw-blue-segment-opacity);
+  stroke: color-mix(in srgb, var(--mcw-blue-edge) 82%, #f5f7fb);
+  filter:
+    saturate(var(--mcw-blue-segment-saturation))
+    brightness(var(--mcw-blue-segment-brightness))
+    drop-shadow(0 0 calc(2px + var(--mcw-glow-intensity) * var(--mcw-blue-segment-glow) * (0.65 + var(--mcw-response-pressure) * 0.35) * 10px) var(--mcw-blue-glow));
+}
+
+.mcw-segment-orange {
+  opacity: var(--mcw-orange-segment-opacity);
+  stroke: color-mix(in srgb, var(--mcw-orange-edge) 82%, #f5f7fb);
+  filter:
+    saturate(var(--mcw-orange-segment-saturation))
+    brightness(var(--mcw-orange-segment-brightness))
+    drop-shadow(0 0 calc(2px + var(--mcw-glow-intensity) * var(--mcw-orange-segment-glow) * (0.65 + var(--mcw-response-pressure) * 0.35) * 10px) var(--mcw-orange-glow));
+}
+
+.mcw-segment-cap {
+  fill: var(--mcw-seam);
+  stroke: rgba(245, 247, 251, 0.9);
+  filter:
+    drop-shadow(0 0 calc(3px + var(--mcw-seam-intensity) * var(--mcw-seam-flare) * 12px) var(--mcw-seam))
+    drop-shadow(0 0 calc(1px + var(--mcw-volatile-effects) * var(--mcw-seam-flare) * 12px) var(--mcw-purple-hot));
+  opacity: calc(0.34 + var(--mcw-seam-intensity) * (0.26 + var(--mcw-seam-flare) * 0.22));
+}
+
+.mcw-segment-blue.is-low-confidence,
+.mcw-segment-orange.is-low-confidence {
+  filter: saturate(calc(1 - var(--mcw-response-confidence) * 0.14 + var(--mcw-recent-event-energy) * 0.16)) brightness(calc(0.94 - var(--mcw-response-confidence) * 0.12 + var(--mcw-recent-event-energy) * 0.2));
+  opacity: calc(0.82 - var(--mcw-response-confidence) * 0.18 + var(--mcw-recent-event-energy) * 0.22);
+}
+
+.mcw-aura {
+  opacity: calc(var(--mcw-outer-aura-opacity) * var(--mcw-aura-intensity) * var(--mcw-glow-intensity) * var(--mcw-state-intensity));
+  transition: opacity var(--mcw-response-effect-transition-ms) cubic-bezier(0.18, 0.78, 0.24, 1);
+}
+
+.mcw-aura-blue {
+  opacity: calc(var(--mcw-blue-aura-base) * var(--mcw-aura-intensity) * var(--mcw-blue-aura-strength) * var(--mcw-glow-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  stroke: var(--mcw-blue-glow);
+}
+
+.mcw-aura-orange {
+  opacity: calc(var(--mcw-orange-aura-base) * var(--mcw-aura-intensity) * var(--mcw-orange-aura-strength) * var(--mcw-glow-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  stroke: var(--mcw-orange-glow);
+}
+
+.mcw-aura-contest {
+  fill: var(--mcw-purple);
+  opacity: calc(var(--mcw-contest-aura-base) * var(--mcw-seam-intensity) * var(--mcw-volatile-aura-intensity) * var(--mcw-volatile-purple-aura-strength) * var(--mcw-state-intensity) * (0.65 + var(--mcw-response-volatility) * 0.35));
+  filter: saturate(var(--mcw-volatile-aura-saturation)) url(#mcw-soft-blur);
+  transition:
+    cx var(--mcw-response-transition-ms) ease-out,
+    cy var(--mcw-response-transition-ms) ease-out,
+    opacity var(--mcw-response-effect-transition-ms) ease-out;
+}
+
+#outer-sparks {
+  opacity: calc(var(--mcw-volatile-effects) * var(--mcw-spark-intensity) * var(--mcw-state-intensity) * (0.55 + var(--mcw-response-event-reactiveness) * 0.45));
+  pointer-events: none;
+}
+
+#inner-tick-ring-muted line {
+  opacity: var(--mcw-inner-tick-opacity);
+  filter:
+    saturate(var(--mcw-inner-tick-saturation))
+    brightness(var(--mcw-inner-tick-brightness));
+}
+
+#outer-energy-streaks {
+  opacity: calc(var(--mcw-glow-intensity) * var(--mcw-outer-arc-spark-intensity) * (0.42 + var(--mcw-state-intensity) * 0.48));
+  transition: opacity var(--mcw-response-effect-transition-ms) ease-out;
+}
+
+.mcw-streaks line {
+  opacity: calc(var(--mcw-outer-arc-spark-opacity) * (0.18 + var(--mcw-state-intensity) * 0.28));
+  filter: drop-shadow(0 0 calc(4px + var(--mcw-outer-arc-spark-intensity) * 10px) currentColor);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mcw-energy-streak var(--mcw-control-spark-duration-ms) ease-in-out infinite;
+}
+
+.mcw-streaks line:nth-child(2n) {
+  animation-delay: 280ms;
+}
+
+.mcw-streaks line:nth-child(3n) {
+  animation-delay: 520ms;
+}
+
+.mcw-streaks-blue line,
+#outer-sparks-blue .mcw-spark {
+  stroke: var(--mcw-blue-glow);
+  fill: var(--mcw-blue-glow);
+}
+
+.mcw-streaks-blue {
+  color: var(--mcw-blue-glow);
+}
+
+.mcw-streaks-orange line,
+#outer-sparks-orange .mcw-spark {
+  stroke: var(--mcw-orange-glow);
+  fill: var(--mcw-orange-glow);
+}
+
+.mcw-streaks-orange {
+  color: var(--mcw-orange-glow);
+}
+
+#outer-sparks-purple .mcw-spark {
+  stroke: var(--mcw-purple-hot);
+  fill: var(--mcw-purple-hot);
+}
+
+#outer-sparks-white .mcw-spark {
+  stroke: var(--mcw-seam);
+  fill: var(--mcw-seam);
+}
+
+#outer-sparks-blue,
+#outer-sparks-orange,
+#outer-sparks-purple,
+#outer-sparks-white {
+  display: none;
+}
+
+.mcw-spark {
+  display: none;
+  opacity: 0;
+  stroke-opacity: calc(var(--mcw-spark-opacity) * (0.58 + var(--mcw-spark-intensity) * 0.42));
+  fill-opacity: calc(var(--mcw-spark-opacity) * (0.58 + var(--mcw-spark-intensity) * 0.42));
+  filter: saturate(var(--mcw-spark-saturation)) drop-shadow(0 0 calc(4px + var(--mcw-spark-reactiveness) * 10px) currentColor);
+  --mcw-spark-travel-scale: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mcw-spark-fly var(--mcw-spark-duration, 850ms) cubic-bezier(0.2, 0.85, 0.28, 1) infinite;
+  animation-delay: var(--mcw-spark-delay, 0ms);
+}
+
+.mcw-spark-zone--seam {
+  --mcw-spark-travel-scale: var(--mcw-seam-spark-travel-distance);
+  opacity: calc(var(--mcw-seam-spark-density) * var(--mcw-seam-spark-intensity));
+  stroke-opacity: calc(var(--mcw-spark-opacity) * var(--mcw-seam-spark-opacity));
+  fill-opacity: calc(var(--mcw-spark-opacity) * var(--mcw-seam-spark-opacity));
+  animation-duration: calc(var(--mcw-spark-duration, 850ms) * var(--mcw-seam-spark-duration));
+}
+
+.mcw-spark-zone--arc {
+  --mcw-spark-travel-scale: var(--mcw-outer-arc-spark-speed);
+  opacity: calc(var(--mcw-outer-arc-spark-intensity) * var(--mcw-outer-arc-spark-opacity));
+  stroke-opacity: calc(var(--mcw-spark-opacity) * var(--mcw-outer-arc-spark-opacity));
+  fill-opacity: calc(var(--mcw-spark-opacity) * var(--mcw-outer-arc-spark-opacity));
+  animation-duration: calc(var(--mcw-spark-duration, 850ms) * var(--mcw-outer-arc-spark-speed));
+}
+
+.mcw-spark--white {
+  filter:
+    drop-shadow(0 0 7px var(--mcw-seam))
+    drop-shadow(0 0 12px var(--mcw-purple-hot));
+}
+
+#contest-top-core {
+  fill: var(--mcw-seam);
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-front-line-opacity));
+}
+
+#contest-top-purple-glow {
+  fill: var(--mcw-purple);
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-front-line-opacity) * var(--mcw-seam-intensity) * (0.12 + var(--mcw-volatility) * var(--mcw-response-volatility) * 0.24) * (0.72 + var(--mcw-seam-flare) * var(--mcw-front-line-glow-size) * 0.48));
+}
+
+#contest-top-vertical-beam {
+  stroke: var(--mcw-purple-hot);
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-front-line-opacity) * (0.14 + var(--mcw-seam-intensity) * (0.22 + var(--mcw-seam-flare) * var(--mcw-front-line-trail-strength) * 0.24)));
+}
+
+#contest-bottom-seam {
+  fill: var(--mcw-seam);
+  opacity: calc(0.12 + var(--mcw-seam-intensity) * 0.18);
+}
+
+.mcw-text {
+  fill: var(--mcw-text-primary);
+  filter: brightness(var(--mcw-center-text-brightness));
+  paint-order: stroke;
+  stroke: rgba(5, 10, 18, 0.7);
+  stroke-width: 6px;
+}
+
+.mcw-time {
+  font-size: calc(112px * var(--mcw-timer-scale));
+  font-weight: 900;
+  letter-spacing: 2px;
+  filter: drop-shadow(0 0 9px rgba(245, 247, 251, 0.28));
+}
+
+.mcw-state-label {
+  fill: var(--mcw-text-primary);
+  font-size: calc(40px * var(--mcw-label-scale));
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.mcw-confidence-label {
+  fill: var(--mcw-text-muted);
+  filter: brightness(var(--mcw-confidence-text-brightness));
+  font-size: calc(22px * var(--mcw-label-scale));
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.mcw-confidence-value {
+  fill: var(--mcw-text-muted);
+  filter: brightness(var(--mcw-confidence-text-brightness));
+  font-size: calc(30px * var(--mcw-label-scale));
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+
+.mcw-badge-text {
+  fill: var(--mcw-text-muted);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+#oof-badge-shell {
+  fill: color-mix(in srgb, var(--mcw-center) 72%, #050a12);
+  stroke: var(--mcw-frame-edge);
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.55));
+  opacity: calc(0.72 * var(--mcw-badge-opacity));
+}
+
+#oof-badge-border {
+  stroke: var(--mcw-text-muted);
+  opacity: calc(0.2 * var(--mcw-badge-opacity));
+}
+
+#oof-badge-text {
+  opacity: var(--mcw-badge-opacity);
+}
+
+.mcw-state-blue-pressure .mcw-state-label,
+.mcw-state-blue-pressure .mcw-confidence-value,
+.mcw-state-blue-control .mcw-state-label,
+.mcw-state-blue-control .mcw-confidence-value,
+.mcw-state-dominant-blue .mcw-state-label,
+.mcw-state-dominant-blue .mcw-confidence-value {
+  fill: var(--mcw-blue-edge);
+}
+
+.mcw-state-orange-pressure .mcw-state-label,
+.mcw-state-orange-pressure .mcw-confidence-value,
+.mcw-state-orange-control .mcw-state-label,
+.mcw-state-orange-control .mcw-confidence-value,
+.mcw-state-dominant-orange .mcw-state-label,
+.mcw-state-dominant-orange .mcw-confidence-value {
+  fill: var(--mcw-orange-edge);
+}
+
+.mcw-state-volatile .mcw-state-label,
+.mcw-state-volatile .mcw-confidence-value {
+  fill: var(--mcw-purple-hot);
+}
+
+.mcw-state-blue-pressure .mcw-segment-blue,
+.mcw-state-blue-control .mcw-segment-blue {
+  filter:
+    saturate(var(--mcw-blue-segment-saturation))
+    brightness(calc(var(--mcw-blue-segment-brightness) + var(--mcw-response-pressure) * 0.06))
+    drop-shadow(0 0 calc(4px + var(--mcw-glow-intensity) * var(--mcw-blue-segment-glow) * (0.72 + var(--mcw-response-pressure) * 0.28) * 12px) var(--mcw-blue-glow));
+}
+
+.mcw-state-orange-pressure .mcw-segment-orange,
+.mcw-state-orange-control .mcw-segment-orange {
+  filter:
+    saturate(var(--mcw-orange-segment-saturation))
+    brightness(calc(var(--mcw-orange-segment-brightness) + var(--mcw-response-pressure) * 0.06))
+    drop-shadow(0 0 calc(4px + var(--mcw-glow-intensity) * var(--mcw-orange-segment-glow) * (0.72 + var(--mcw-response-pressure) * 0.28) * 12px) var(--mcw-orange-glow));
+}
+
+.mcw-state-blue-pressure .mcw-segment-orange,
+.mcw-state-blue-control .mcw-segment-orange {
+  opacity: calc(var(--mcw-orange-segment-opacity) * 0.78);
+}
+
+.mcw-state-orange-pressure .mcw-segment-blue,
+.mcw-state-orange-control .mcw-segment-blue {
+  opacity: calc(var(--mcw-blue-segment-opacity) * 0.78);
+}
+
+.mcw-state-blue-pressure .mcw-segment-cap,
+.mcw-state-blue-control .mcw-segment-cap {
+  filter:
+    drop-shadow(0 0 calc(3px + var(--mcw-seam-intensity) * 7px) var(--mcw-seam))
+    drop-shadow(0 0 calc(1px + var(--mcw-seam-intensity) * 7px) var(--mcw-blue-glow));
+}
+
+.mcw-state-orange-pressure .mcw-segment-cap,
+.mcw-state-orange-control .mcw-segment-cap {
+  filter:
+    drop-shadow(0 0 calc(3px + var(--mcw-seam-intensity) * 7px) var(--mcw-seam))
+    drop-shadow(0 0 calc(1px + var(--mcw-seam-intensity) * 7px) var(--mcw-orange-glow));
+}
+
+.mcw-state-neutral .mcw-segment-blue {
+  filter:
+    saturate(calc((0.84 + var(--mcw-recent-event-energy) * 0.18) * var(--mcw-blue-segment-saturation)))
+    brightness(calc(0.72 + var(--mcw-blue-segment-brightness) * 0.2 + var(--mcw-recent-event-energy) * 0.24))
+    drop-shadow(0 0 calc(1px + var(--mcw-glow-intensity) * var(--mcw-blue-segment-glow) * 4px + var(--mcw-recent-event-energy) * 10px) currentColor);
+  opacity: calc((0.58 + var(--mcw-recent-event-energy) * 0.28) * var(--mcw-blue-segment-opacity));
+}
+
+.mcw-state-neutral .mcw-segment-orange {
+  filter:
+    saturate(calc((0.84 + var(--mcw-recent-event-energy) * 0.18) * var(--mcw-orange-segment-saturation)))
+    brightness(calc(0.72 + var(--mcw-orange-segment-brightness) * 0.2 + var(--mcw-recent-event-energy) * 0.24))
+    drop-shadow(0 0 calc(1px + var(--mcw-glow-intensity) * var(--mcw-orange-segment-glow) * 4px + var(--mcw-recent-event-energy) * 10px) currentColor);
+  opacity: calc((0.58 + var(--mcw-recent-event-energy) * 0.28) * var(--mcw-orange-segment-opacity));
+}
+
+.mcw-state-neutral.is-recent-event #center-disc-rim {
+  opacity: calc(0.22 + var(--mcw-recent-event-energy) * 0.2);
+}
+
+.mcw-state-neutral #center-reactive-layer {
+  opacity: calc((0.08 + var(--mcw-recent-event-energy) * 0.16) * var(--mcw-center-wash-strength));
+}
+
+.mcw-state-volatile #center-reactive-layer {
+  opacity: calc((0.28 + var(--mcw-response-volatility) * 0.16) * var(--mcw-center-wash-strength) * var(--mcw-state-volatile-intensity));
+}
+
+.mcw-state-dominant-blue #center-reactive-blue-field,
+.mcw-state-dominant-orange #center-reactive-orange-field {
+  opacity: calc(0.34 * var(--mcw-center-wash-strength));
+}
+
+.mcw-state-neutral.is-recent-blue #outer-aura-blue,
+.mcw-state-neutral.is-recent-orange #outer-aura-orange {
+  animation: mcw-event-afterglow var(--mcw-afterglow-duration-ms) ease-out;
+}
+
+.mcw-state-blue-pressure #outer-aura-blue,
+.mcw-state-orange-pressure #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-blue-aura-base);
+  --mcw-aura-active-peak: var(--mcw-blue-aura-peak);
+  animation: mcw-aura-pressure-breathe var(--mcw-aura-pulse-ms, 1750ms) ease-in-out infinite;
+}
+
+.mcw-state-orange-pressure #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-orange-aura-base);
+  --mcw-aura-active-peak: var(--mcw-orange-aura-peak);
+}
+
+.mcw-state-blue-control #outer-aura-blue,
+.mcw-state-orange-control #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-blue-aura-base);
+  --mcw-aura-active-peak: var(--mcw-blue-aura-peak);
+  animation: mcw-aura-control-breathe var(--mcw-aura-pulse-ms, 2250ms) ease-in-out infinite;
+}
+
+.mcw-state-orange-control #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-orange-aura-base);
+  --mcw-aura-active-peak: var(--mcw-orange-aura-peak);
+}
+
+.mcw-state-volatile #outer-aura-purple-contest {
+  animation: mcw-aura-contest-breathe var(--mcw-aura-pulse-ms, 900ms) ease-in-out infinite;
+}
+
+.mcw-state-dominant-blue #outer-aura-blue,
+.mcw-state-dominant-orange #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-blue-aura-base);
+  --mcw-aura-active-peak: var(--mcw-blue-aura-peak);
+  animation: mcw-aura-dominant-breathe var(--mcw-aura-pulse-ms, 2850ms) ease-in-out infinite;
+}
+
+.mcw-state-dominant-orange #outer-aura-orange {
+  --mcw-aura-active-base: var(--mcw-orange-aura-base);
+  --mcw-aura-active-peak: var(--mcw-orange-aura-peak);
+}
+
+.is-recent-event #contest-top-core,
+.is-recent-event #contest-top-purple-glow,
+.is-recent-event #contest-top-vertical-beam {
+  transition: opacity var(--mcw-response-effect-transition-ms) ease-out;
+}
+
+.momentum-control-wheel-svg[data-recent-event="shot"] #contest-top-core,
+.momentum-control-wheel-svg[data-recent-event="shot"] #contest-top-purple-glow {
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-shot-pulse-strength) * (0.18 + var(--mcw-recent-event-energy) * 0.38));
+}
+
+.momentum-control-wheel-svg[data-recent-event="save"] #contest-top-purple-glow {
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-save-flash-strength) * (0.14 + var(--mcw-recent-event-energy) * 0.34));
+}
+
+.momentum-control-wheel-svg[data-recent-event="goal"] .mcw-aura {
+  opacity: calc(var(--mcw-goal-full-ring-pulse-strength) * (0.08 + var(--mcw-recent-event-energy) * 0.28));
+}
+
+.momentum-control-wheel-svg[data-recent-event="demo"] .mcw-spark--jagged {
+  opacity: calc(var(--mcw-demo-jagged-spark-strength) * var(--mcw-recent-event-energy));
+}
+
+.momentum-control-wheel-svg[data-recent-event="assist"] #center-telemetry-waveform {
+  opacity: calc((0.24 + var(--mcw-recent-event-energy) * 0.34) * var(--mcw-center-wash-strength));
+  filter:
+    drop-shadow(0 0 8px var(--mcw-text-secondary))
+    drop-shadow(0 0 14px var(--mcw-seam));
+}
+
+.mcw-state-neutral.is-recent-blue #outer-sparks-blue,
+.mcw-state-neutral.is-recent-orange #outer-sparks-orange,
+.mcw-state-neutral.is-recent-event #outer-sparks-white {
+  display: block;
+}
+
+.mcw-state-neutral.is-recent-blue #outer-sparks-blue .mcw-spark-role-neutral,
+.mcw-state-neutral.is-recent-orange #outer-sparks-orange .mcw-spark-role-neutral,
+.mcw-state-neutral.is-recent-event #outer-sparks-white .mcw-spark-role-neutral {
+  display: block;
+}
+
+.mcw-state-blue-pressure #outer-sparks-blue,
+.mcw-state-blue-control #outer-sparks-blue {
+  display: block;
+}
+
+.mcw-state-orange-pressure #outer-sparks-orange,
+.mcw-state-orange-control #outer-sparks-orange {
+  display: block;
+}
+
+.mcw-state-blue-pressure #outer-sparks-blue .mcw-spark-role-pressure,
+.mcw-state-orange-pressure #outer-sparks-orange .mcw-spark-role-pressure {
+  display: block;
+}
+
+.mcw-state-blue-pressure .mcw-spark-zone--arc,
+.mcw-state-orange-pressure .mcw-spark-zone--arc {
+  opacity: calc(var(--mcw-outer-arc-spark-intensity) * var(--mcw-outer-arc-spark-opacity) * var(--mcw-pressure-arc-spark-multiplier));
+}
+
+.mcw-state-blue-control #outer-sparks-blue .mcw-spark-role-control,
+.mcw-state-orange-control #outer-sparks-orange .mcw-spark-role-control {
+  display: block;
+}
+
+.mcw-state-blue-control .mcw-spark-zone--arc,
+.mcw-state-orange-control .mcw-spark-zone--arc {
+  opacity: calc(var(--mcw-outer-arc-spark-intensity) * var(--mcw-outer-arc-spark-opacity) * var(--mcw-control-edge-spark-multiplier));
+}
+
+.mcw-state-volatile #outer-sparks-blue,
+.mcw-state-volatile #outer-sparks-orange,
+.mcw-state-volatile #outer-sparks-purple,
+.mcw-state-volatile #outer-sparks-white {
+  display: block;
+}
+
+.mcw-state-volatile #outer-sparks-purple .mcw-spark-role-volatile,
+.mcw-state-volatile #outer-sparks-white .mcw-spark-role-volatile,
+.mcw-state-volatile #outer-sparks-blue .mcw-spark-role-volatile-accent,
+.mcw-state-volatile #outer-sparks-orange .mcw-spark-role-volatile-accent {
+  display: block;
+}
+
+.mcw-state-dominant-blue #outer-sparks-blue,
+.mcw-state-dominant-orange #outer-sparks-orange {
+  display: block;
+}
+
+.mcw-state-dominant-blue #outer-sparks-blue .mcw-spark-role-dominant,
+.mcw-state-dominant-orange #outer-sparks-orange .mcw-spark-role-dominant {
+  display: block;
+}
+
+.mcw-state-neutral #outer-sparks {
+  opacity: calc(var(--mcw-recent-event-energy) * var(--mcw-state-neutral-intensity) * 0.55);
+}
+
+.mcw-state-blue-pressure #outer-sparks,
+.mcw-state-orange-pressure #outer-sparks {
+  opacity: calc((0.28 + var(--mcw-response-pressure) * 0.08 + var(--mcw-volatile-effects) * 0.42) * var(--mcw-spark-intensity) * var(--mcw-state-pressure-intensity) * (0.55 + var(--mcw-response-event-reactiveness) * 0.45));
+}
+
+.mcw-state-blue-control #outer-sparks,
+.mcw-state-orange-control #outer-sparks {
+  opacity: calc((0.34 + var(--mcw-response-pressure) * 0.10 + var(--mcw-volatile-effects) * 0.42) * var(--mcw-spark-intensity) * var(--mcw-state-control-intensity) * (0.55 + var(--mcw-response-event-reactiveness) * 0.45));
+}
+
+.mcw-state-volatile #outer-sparks {
+  opacity: calc((0.58 + var(--mcw-response-volatility) * 0.10 + var(--mcw-volatile-effects) * 0.24) * var(--mcw-spark-intensity) * var(--mcw-state-volatile-intensity) * var(--mcw-volatile-seam-spark-multiplier) * (0.55 + var(--mcw-response-event-reactiveness) * 0.45));
+}
+
+.mcw-state-dominant-blue #outer-sparks,
+.mcw-state-dominant-orange #outer-sparks {
+  opacity: calc((0.24 + var(--mcw-dominant-pulse) * 0.32) * var(--mcw-spark-intensity) * var(--mcw-state-dominant-intensity) * var(--mcw-dominant-edge-spark-multiplier) * (0.55 + var(--mcw-response-event-reactiveness) * 0.35));
+}
+
+.mcw-state-neutral .mcw-spark {
+  animation-duration: var(--mcw-neutral-spark-duration-ms);
+  animation-iteration-count: 1;
+}
+
+.mcw-state-blue-control .mcw-spark,
+.mcw-state-orange-control .mcw-spark {
+  animation-duration: var(--mcw-control-spark-duration-ms);
+}
+
+.mcw-state-volatile .mcw-spark {
+  animation-duration: var(--mcw-volatile-spark-duration-ms);
+}
+
+.mcw-state-dominant-blue .mcw-spark,
+.mcw-state-dominant-orange .mcw-spark {
+  animation-duration: var(--mcw-dominant-spark-duration-ms);
+}
+
+.mcw-state-blue-pressure #outer-energy-streaks-blue,
+.mcw-state-blue-control #outer-energy-streaks-blue,
+.mcw-state-dominant-blue #outer-energy-streaks-blue,
+.mcw-state-orange-pressure #outer-energy-streaks-orange,
+.mcw-state-orange-control #outer-energy-streaks-orange,
+.mcw-state-dominant-orange #outer-energy-streaks-orange {
+  opacity: calc(0.48 + var(--mcw-outer-arc-spark-intensity) * 0.38);
+}
+
+.mcw-state-dominant-blue .mcw-segment-blue {
+  opacity: calc((0.72 + var(--mcw-blue-segment-brightness) * 0.28) * var(--mcw-blue-segment-opacity));
+}
+
+.mcw-state-dominant-orange .mcw-segment-orange {
+  opacity: calc((0.72 + var(--mcw-orange-segment-brightness) * 0.28) * var(--mcw-orange-segment-opacity));
+}
+
+.mcw-state-volatile #contest-top-core,
+.mcw-state-volatile #contest-top-purple-glow,
+.mcw-state-volatile #contest-top-vertical-beam {
+  animation: mcw-contest-flicker var(--mcw-contest-flicker-duration-ms) ease-in-out infinite alternate;
+}
+
+.is-performance-mode #bg-vignette,
+.is-performance-mode #bg-radial-shadow,
+.is-performance-mode #bg-subtle-noise,
+.is-performance-mode #outer-aura,
+.is-performance-mode #center-reactive-layer,
+.is-performance-mode .mcw-sparks,
+.is-performance-mode .mcw-streaks,
+.is-performance-mode #outer-sparks,
+.is-performance-mode #outer-energy-streaks,
+.is-performance-mode #center-telemetry-waveform {
+  display: none !important;
+}
+
+.is-performance-mode *,
+.is-performance-mode .mcw-segment,
+.is-performance-mode .mcw-aura,
+.is-performance-mode .mcw-segment-cap,
+.is-performance-mode #center-reactive-layer,
+.is-performance-mode #contest-top-core,
+.is-performance-mode #contest-top-purple-glow,
+.is-performance-mode #contest-top-vertical-beam {
+  animation: none !important;
+  transition: none !important;
+}
+
+.is-performance-mode [filter],
+.is-performance-mode #outer-mechanical-frame,
+.is-performance-mode #outer-frame-panels-top,
+.is-performance-mode #outer-frame-panels-bottom,
+.is-performance-mode #outer-frame-panels-left,
+.is-performance-mode #outer-frame-panels-right,
+.is-performance-mode #outer-frame-top-notch,
+.is-performance-mode #outer-frame-bottom-notch,
+.is-performance-mode #center-disc-base,
+.is-performance-mode #center-color-washes,
+.is-performance-mode #center-reactive-seam,
+.is-performance-mode #inner-tick-ring-muted line,
+.is-performance-mode .mcw-segment,
+.is-performance-mode .mcw-segment-inactive,
+.is-performance-mode .mcw-segment-blue,
+.is-performance-mode .mcw-segment-orange,
+.is-performance-mode .mcw-segment-cap,
+.is-performance-mode .mcw-segment-blue.is-low-confidence,
+.is-performance-mode .mcw-segment-orange.is-low-confidence,
+.is-performance-mode .mcw-aura-contest,
+.is-performance-mode .mcw-spark,
+.is-performance-mode .mcw-spark--white,
+.is-performance-mode .mcw-text,
+.is-performance-mode .mcw-time,
+.is-performance-mode .mcw-confidence-label,
+.is-performance-mode .mcw-confidence-value,
+.is-performance-mode #oof-badge-shell {
+  filter: none !important;
+}
+
+.is-performance-mode #center-reactive-layer {
+  opacity: 0;
+  transition: none !important;
+}
+
+.is-performance-mode #center-reactive-seam {
+  opacity: calc(0.08 + var(--mcw-seam-intensity) * 0.08);
+}
+
+.is-performance-mode #center-color-washes {
+  opacity: 0.24;
+}
+
+.is-performance-mode .mcw-segment,
+.is-performance-mode .mcw-segment-blue,
+.is-performance-mode .mcw-segment-orange,
+.is-performance-mode .mcw-segment-cap {
+  transition: none !important;
+}
+
+.is-performance-mode .mcw-segment-blue,
+.is-performance-mode .mcw-segment-orange {
+  opacity: 0.86;
+}
+
+.is-performance-mode .mcw-segment-inactive {
+  opacity: calc(var(--mcw-inactive-segment-opacity) * 0.72);
+}
+
+.is-performance-mode .mcw-segment-cap {
+  opacity: calc(0.28 + var(--mcw-seam-intensity) * 0.18);
+}
+
+.is-performance-mode .mcw-aura-blue,
+.is-performance-mode .mcw-aura-orange,
+.is-performance-mode .mcw-aura-contest {
+  opacity: 0;
+  transition: none !important;
+}
+
+.is-performance-mode.mcw-state-blue-pressure #outer-aura-blue,
+.is-performance-mode.mcw-state-blue-control #outer-aura-blue,
+.is-performance-mode.mcw-state-dominant-blue #outer-aura-blue,
+.is-performance-mode.mcw-state-orange-pressure #outer-aura-orange,
+.is-performance-mode.mcw-state-orange-control #outer-aura-orange,
+.is-performance-mode.mcw-state-dominant-orange #outer-aura-orange {
+  opacity: 0;
+}
+
+.is-performance-mode.mcw-state-volatile #outer-aura-purple-contest {
+  opacity: 0;
+}
+
+.is-performance-mode #contest-top-core {
+  opacity: calc(var(--mcw-front-line-intensity) * var(--mcw-front-line-opacity) * 0.82);
+}
+
+.is-performance-mode #contest-top-purple-glow {
+  opacity: 0;
+}
+
+.is-performance-mode #contest-top-vertical-beam {
+  opacity: calc(0.10 + var(--mcw-seam-intensity) * 0.10);
+}
+
+.is-reduced-motion *,
+.momentum-control-wheel-svg--minimal * {
+  animation: none !important;
+}
+
+.is-reduced-motion .mcw-sparks,
+.is-reduced-motion .mcw-streaks,
+.is-reduced-motion #outer-sparks,
+.is-reduced-motion #outer-energy-streaks,
+.is-reduced-motion #center-telemetry-waveform {
+  display: none !important;
+}
+
+.is-reduced-motion [filter],
+.is-reduced-motion #outer-mechanical-frame,
+.is-reduced-motion #center-disc-base,
+.is-reduced-motion #center-color-washes,
+.is-reduced-motion #center-reactive-seam,
+.is-reduced-motion #inner-tick-ring-muted line,
+.is-reduced-motion .mcw-segment,
+.is-reduced-motion .mcw-text,
+.is-reduced-motion .mcw-time,
+.is-reduced-motion #oof-badge-shell {
+  filter: none !important;
+}
+
+.is-reduced-motion .mcw-segment,
+.is-reduced-motion .mcw-segment-blue,
+.is-reduced-motion .mcw-segment-orange,
+.is-reduced-motion .mcw-segment-cap {
+  transition-duration: 100ms;
+}
+
+.mcw-cost-disable-animations *,
+.mcw-cost-flat-static * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.mcw-cost-disable-filters [filter],
+.mcw-cost-disable-filters #outer-mechanical-frame,
+.mcw-cost-disable-filters #outer-frame-panels-top,
+.mcw-cost-disable-filters #outer-frame-panels-bottom,
+.mcw-cost-disable-filters #outer-frame-panels-left,
+.mcw-cost-disable-filters #outer-frame-panels-right,
+.mcw-cost-disable-filters #outer-frame-top-notch,
+.mcw-cost-disable-filters #outer-frame-bottom-notch,
+.mcw-cost-disable-filters #center-disc-base,
+.mcw-cost-disable-filters #center-color-washes,
+.mcw-cost-disable-filters #center-reactive-seam,
+.mcw-cost-disable-filters #center-telemetry-waveform,
+.mcw-cost-disable-filters #inner-tick-ring-muted line,
+.mcw-cost-disable-filters .mcw-segment,
+.mcw-cost-disable-filters .mcw-segment-inactive,
+.mcw-cost-disable-filters .mcw-segment-blue,
+.mcw-cost-disable-filters .mcw-segment-orange,
+.mcw-cost-disable-filters .mcw-segment-cap,
+.mcw-cost-disable-filters .mcw-aura-contest,
+.mcw-cost-disable-filters .mcw-streaks line,
+.mcw-cost-disable-filters .mcw-spark,
+.mcw-cost-disable-filters .mcw-spark--white,
+.mcw-cost-disable-filters .mcw-text,
+.mcw-cost-disable-filters .mcw-time,
+.mcw-cost-disable-filters .mcw-confidence-label,
+.mcw-cost-disable-filters .mcw-confidence-value,
+.mcw-cost-disable-filters #oof-badge-shell,
+.mcw-cost-flat-static [filter],
+.mcw-cost-flat-static #outer-mechanical-frame,
+.mcw-cost-flat-static #outer-frame-panels-top,
+.mcw-cost-flat-static #outer-frame-panels-bottom,
+.mcw-cost-flat-static #outer-frame-panels-left,
+.mcw-cost-flat-static #outer-frame-panels-right,
+.mcw-cost-flat-static #outer-frame-top-notch,
+.mcw-cost-flat-static #outer-frame-bottom-notch,
+.mcw-cost-flat-static #center-disc-base,
+.mcw-cost-flat-static #center-color-washes,
+.mcw-cost-flat-static #center-reactive-seam,
+.mcw-cost-flat-static #center-telemetry-waveform,
+.mcw-cost-flat-static #inner-tick-ring-muted line,
+.mcw-cost-flat-static .mcw-segment,
+.mcw-cost-flat-static .mcw-segment-inactive,
+.mcw-cost-flat-static .mcw-segment-blue,
+.mcw-cost-flat-static .mcw-segment-orange,
+.mcw-cost-flat-static .mcw-segment-cap,
+.mcw-cost-flat-static .mcw-aura-contest,
+.mcw-cost-flat-static .mcw-streaks line,
+.mcw-cost-flat-static .mcw-spark,
+.mcw-cost-flat-static .mcw-spark--white,
+.mcw-cost-flat-static .mcw-text,
+.mcw-cost-flat-static .mcw-time,
+.mcw-cost-flat-static .mcw-confidence-label,
+.mcw-cost-flat-static .mcw-confidence-value,
+.mcw-cost-flat-static #oof-badge-shell {
+  filter: none !important;
+}
+
+.mcw-cost-disable-segment-filters .mcw-segment,
+.mcw-cost-disable-segment-filters .mcw-segment-inactive,
+.mcw-cost-disable-segment-filters .mcw-segment-blue,
+.mcw-cost-disable-segment-filters .mcw-segment-orange,
+.mcw-cost-disable-segment-filters .mcw-segment-cap {
+  filter: none !important;
+}
+
+.mcw-cost-disable-sparks #outer-sparks,
+.mcw-cost-disable-sparks #outer-energy-streaks,
+.mcw-cost-disable-sparks .mcw-sparks,
+.mcw-cost-disable-sparks .mcw-streaks,
+.mcw-cost-flat-static #outer-sparks,
+.mcw-cost-flat-static #outer-energy-streaks,
+.mcw-cost-flat-static .mcw-sparks,
+.mcw-cost-flat-static .mcw-streaks {
+  display: none !important;
+}
+
+.mcw-cost-disable-aura #outer-aura,
+.mcw-cost-disable-aura .mcw-aura,
+.mcw-cost-disable-aura .mcw-aura-blue,
+.mcw-cost-disable-aura .mcw-aura-orange,
+.mcw-cost-disable-aura .mcw-aura-contest,
+.mcw-cost-flat-static #outer-aura,
+.mcw-cost-flat-static .mcw-aura,
+.mcw-cost-flat-static .mcw-aura-blue,
+.mcw-cost-flat-static .mcw-aura-orange,
+.mcw-cost-flat-static .mcw-aura-contest {
+  display: none !important;
+}
+
+.mcw-cost-disable-center-reactive #center-reactive-layer,
+.mcw-cost-disable-center-reactive .mcw-center-reactive-layer,
+.mcw-cost-flat-static #center-reactive-layer,
+.mcw-cost-flat-static .mcw-center-reactive-layer {
+  display: none !important;
+}
+
+.mcw-cost-flat-static #bg-vignette,
+.mcw-cost-flat-static #bg-radial-shadow,
+.mcw-cost-flat-static #bg-subtle-noise,
+.mcw-cost-flat-static #center-telemetry-waveform {
+  display: none !important;
+}
+
+.mcw-debug-text {
+  fill: var(--mcw-purple-hot);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+@keyframes mcw-dominant-pulse {
+  0%, 100% { opacity: calc((0.18 + var(--mcw-dominant-pulse) * 0.24) * var(--mcw-state-dominant-intensity)); }
+  50% { opacity: calc((0.22 + var(--mcw-dominant-pulse) * 0.42) * var(--mcw-state-dominant-intensity)); }
+}
+
+@keyframes mcw-aura-pressure-breathe {
+  0%, 100% {
+    opacity: calc(var(--mcw-aura-active-base) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * var(--mcw-state-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+  50% {
+    opacity: calc(var(--mcw-aura-active-peak) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * var(--mcw-state-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+}
+
+@keyframes mcw-aura-control-breathe {
+  0%, 100% {
+    opacity: calc(var(--mcw-aura-active-base) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * var(--mcw-state-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+  45%, 58% {
+    opacity: calc(var(--mcw-aura-active-peak) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * var(--mcw-state-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+}
+
+@keyframes mcw-aura-contest-breathe {
+  0%, 100% { opacity: calc(var(--mcw-contest-aura-base) * var(--mcw-seam-intensity) * var(--mcw-volatile-purple-aura-strength) * var(--mcw-state-intensity) * (0.65 + var(--mcw-response-volatility) * 0.35)); }
+  46% { opacity: calc(var(--mcw-contest-aura-peak) * var(--mcw-seam-intensity) * var(--mcw-volatile-purple-aura-strength) * var(--mcw-state-intensity) * (0.65 + var(--mcw-response-volatility) * 0.35)); }
+  68% { opacity: calc(var(--mcw-contest-aura-base) * var(--mcw-seam-intensity) * var(--mcw-volatile-purple-aura-strength) * var(--mcw-state-intensity) * (0.65 + var(--mcw-response-volatility) * 0.35)); }
+}
+
+@keyframes mcw-aura-dominant-breathe {
+  0%, 100% {
+    opacity: calc(var(--mcw-aura-active-base) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+  50% {
+    opacity: calc(var(--mcw-aura-active-peak) * var(--mcw-static-aura-intensity) * var(--mcw-glow-intensity) * (0.75 + var(--mcw-response-pressure) * 0.25));
+  }
+}
+
+@keyframes mcw-contest-flicker {
+  0% { opacity: calc(0.22 + var(--mcw-seam-intensity) * (0.18 + var(--mcw-seam-flicker) * var(--mcw-response-volatility) * 0.08)); }
+  45% { opacity: calc(0.42 + var(--mcw-seam-intensity) * (0.26 + var(--mcw-seam-flicker) * var(--mcw-response-volatility) * 0.24)); }
+  70% { opacity: calc(0.28 + var(--mcw-seam-intensity) * (0.22 + var(--mcw-seam-flicker) * var(--mcw-response-volatility) * 0.10)); }
+  100% { opacity: calc(0.36 + var(--mcw-seam-intensity) * (0.24 + var(--mcw-seam-flicker) * var(--mcw-response-volatility) * 0.18)); }
+}
+
+@keyframes mcw-spark-shock {
+  0% { opacity: 0.12; transform: scale(0.78); }
+  48% { opacity: calc(0.22 + var(--mcw-volatile-effects) * 0.62); transform: scale(1.2); }
+  100% { opacity: 0.08; transform: scale(1.48); }
+}
+
+@keyframes mcw-spark-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.86);
+  }
+  18% {
+    opacity: 0.92;
+    transform: translate(calc(var(--mcw-spark-dx) * var(--mcw-spark-travel-scale) * 0.24), calc(var(--mcw-spark-dy) * var(--mcw-spark-travel-scale) * 0.24)) scale(1);
+  }
+  72% {
+    opacity: 0.48;
+    transform: translate(calc(var(--mcw-spark-dx) * var(--mcw-spark-travel-scale) * 0.82), calc(var(--mcw-spark-dy) * var(--mcw-spark-travel-scale) * 0.82)) scale(0.84);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--mcw-spark-dx) * var(--mcw-spark-travel-scale)), calc(var(--mcw-spark-dy) * var(--mcw-spark-travel-scale))) scale(0.62);
+  }
+}
+
+@keyframes mcw-energy-streak {
+  0%, 100% {
+    opacity: calc(var(--mcw-outer-arc-spark-opacity) * 0.16);
+    transform: translate(0, 0) scale(0.96);
+  }
+  45% {
+    opacity: calc(var(--mcw-outer-arc-spark-opacity) * (0.32 + var(--mcw-outer-arc-spark-intensity) * 0.42));
+    transform: translate(0, -2px) scale(1.08);
+  }
+}
+
+@keyframes mcw-event-afterglow {
+  0% { opacity: calc(0.12 + var(--mcw-recent-event-energy) * 0.46); }
+  100% { opacity: calc(0.08 + var(--mcw-recent-event-energy) * 0.28); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .momentum-control-wheel *,
+  .momentum-control-wheel-svg * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

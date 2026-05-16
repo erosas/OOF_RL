@@ -654,6 +654,9 @@ function renderPluginAccordion(blobs, cfg) {
                Enable ${esc(blob.title)}
              </label>
            </div>
+           <div class="settings-row">
+             <span class="settings-label text-gray-500 text-xs">Plugin GUI/runtime toggles are saved now and take effect after restarting OOF RL.</span>
+           </div>
            ${fieldRows}${devRows}
            ${hasFields ? `<div class="settings-footer">
              <button class="btn-action plugin-save-btn">Save</button>
@@ -698,7 +701,7 @@ function renderPluginAccordion(blobs, cfg) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ disabled_plugins: _disabledPlugins }),
       });
-      showMsg(msgId, enabled ? 'Enabled.' : 'Disabled.', true);
+      showMsg(msgId, enabled ? 'Enabled after restart.' : 'Disabled after restart.', true);
     });
 
     // Save plugin-specific settings
@@ -769,6 +772,13 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+const APP_ASSET_VERSION = new URLSearchParams(window.location.search || '').get('assetVersion') || Date.now().toString(36);
+
+function versionedAssetURL(src) {
+  const sep = src.includes('?') ? '&' : '?';
+  return `${src}${sep}v=${encodeURIComponent(APP_ASSET_VERSION)}`;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleString();
@@ -793,7 +803,7 @@ function formatBytes(n) {
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = src;
+    s.src = versionedAssetURL(src);
     s.onload  = resolve;
     s.onerror = reject;
     document.head.appendChild(s);
@@ -818,7 +828,7 @@ async function injectPluginViews(allSchema) {
   const container = document.getElementById('plugin-views');
   const ids = allSchema.filter(b => b.nav_tab_id).map(b => b.nav_tab_id);
   const htmls = await Promise.all(ids.map(id =>
-    fetch(`/api/plugins/${id}/view`)
+    fetch(versionedAssetURL(`/api/plugins/${id}/view`), { cache: 'no-store' })
       .then(r => r.ok ? r.text() : '')
       .catch(() => '')
   ));
@@ -836,19 +846,26 @@ async function injectPluginViews(allSchema) {
 }
 
 async function initApp() {
+  const params = new URLSearchParams(location.search);
   const [tabs, schema] = await Promise.all([
     fetch('/api/nav').then(r => r.json()).catch(() => []),
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
   ]);
   buildNav(tabs, schema);
   await injectPluginViews(schema);
-  showView(tabs[0]?.id || 'settings');
+  const requestedView = params.get('view');
+  const knownViews = new Set([...tabs.map(t => t.id), 'settings']);
+  showView(knownViews.has(requestedView) ? requestedView : (tabs[0]?.id || 'settings'));
   connectWS();
 }
 
 // Overlay-mode init: runs only in the overlay window (url has ?overlay=1)
-if (new URLSearchParams(location.search).has('overlay')) {
+const _appParams = new URLSearchParams(location.search);
+if (_appParams.has('overlay')) {
   document.body.classList.add('overlay-mode');
+  if (_appParams.has('hud')) {
+    document.body.classList.add('overlay-hud-mode');
+  }
   document.getElementById('overlay-drag-bar').addEventListener('mousedown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.button === 0) window.overlayStartDrag?.();

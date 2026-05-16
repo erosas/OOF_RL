@@ -3,6 +3,8 @@
 package overlay
 
 import (
+	"net/http"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -11,6 +13,8 @@ import (
 
 	"OOF_RL/internal/config"
 )
+
+var overlayHTTPClient = &http.Client{Timeout: 2 * time.Second}
 
 var (
 	user32                   = windows.NewLazySystemDLL("user32.dll")
@@ -31,18 +35,19 @@ var (
 )
 
 const (
-	wmSetIcon   = uintptr(0x0080)       // WM_SETICON
-	iconSmall   = uintptr(0)            // ICON_SMALL
-	iconBig     = uintptr(1)            // ICON_BIG
-	imageIcon   = uintptr(1)            // IMAGE_ICON
-	lrShared    = uintptr(0x8000)       // LR_SHARED
-	gclpHIcon   = uintptr(0xFFFFFFF2)  // GCLP_HICON   = -14
-	gclpHIconSm = uintptr(0xFFFFFFDE)  // GCLP_HICONSM = -34
+	wmSetIcon   = uintptr(0x0080)     // WM_SETICON
+	iconSmall   = uintptr(0)          // ICON_SMALL
+	iconBig     = uintptr(1)          // ICON_BIG
+	imageIcon   = uintptr(1)          // IMAGE_ICON
+	lrShared    = uintptr(0x8000)     // LR_SHARED
+	gclpHIcon   = uintptr(0xFFFFFFF2) // GCLP_HICON   = -14
+	gclpHIconSm = uintptr(0xFFFFFFDE) // GCLP_HICONSM = -34
 
 	// SetWindowPos flags for forcing non-client area repaint without moving/resizing
-	swpNoMove    = uintptr(0x0002)
-	swpNoSize    = uintptr(0x0001)
-	swpNoZOrder  = uintptr(0x0004)
+	swpNoMove     = uintptr(0x0002)
+	swpNoSize     = uintptr(0x0001)
+	swpNoZOrder   = uintptr(0x0004)
+	swpNoActivate = uintptr(0x0010)
 
 	gwlStyle        = uintptr(0xFFFFFFF0) // GWL_STYLE   = -16
 	gwlExStyle      = uintptr(0xFFFFFFEC) // GWL_EXSTYLE = -20
@@ -58,11 +63,13 @@ const (
 	wmNclbuttondown = uintptr(0x00A1)
 	htCaption       = uintptr(2)
 	htBottomRight   = uintptr(17)
+	lwColorKey      = uintptr(1) // LWA_COLORKEY
 	lwAlpha         = uintptr(2) // LWA_ALPHA
 	vkLButton       = uintptr(0x01)
 )
 
 var hwndTopmost = ^uintptr(0)
+var overlayColorKey = uintptr(0x00030201) // RGB(1,2,3), used by HUD mode as transparent chrome key.
 
 var vkMap = map[string]uintptr{
 	"F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73,
@@ -100,7 +107,7 @@ func SetWindowIcon(hwnd uintptr) {
 	// Load big (32×32) and small (16×16) separately so each is the right size.
 	// MAKEINTRESOURCE(1) == uintptr(1) — rsrc uses ID 1 for the first icon.
 	hBig, _, _ := procLoadImage.Call(hInst, 1, imageIcon, 32, 32, lrShared)
-	hSm, _, _  := procLoadImage.Call(hInst, 1, imageIcon, 16, 16, lrShared)
+	hSm, _, _ := procLoadImage.Call(hInst, 1, imageIcon, 16, 16, lrShared)
 	if hBig == 0 {
 		return
 	}
@@ -131,11 +138,62 @@ func Start(url string, cfg *config.Config) webview2.WebView {
 
 	bindFunctions(ov, hwnd, cfg)
 
-	ov.Navigate(url + "?overlay=1")
+	ov.Navigate(overlayHUDURL(url))
 	configureWindow(hwnd, cfg)
 	SetWindowIcon(uintptr(hwnd))
-	go listenHotkey(hwnd, cfg)
+	postHUDNativeVisible(url, false)
+	notifyHUDNativeVisibleSoon(ov, false)
+	go listenHotkey(ov, hwnd, cfg, url)
 	return ov
+}
+
+func overlayHUDURL(baseURL string) string {
+	return baseURL + "?overlay=1&view=overlay&hud=1&nativeHud=1&assetVersion=" + time.Now().Format("20060102150405.000000000")
+}
+
+func notifyHUDNativeVisible(ov webview2.WebView, visible bool) {
+	if ov == nil {
+		return
+	}
+	value := "false"
+	if visible {
+		value = "true"
+	}
+	ov.Dispatch(func() {
+		ov.Eval("(function(visible){ window.__OOFNativeVisiblePending = visible; if (window.__OOFOverlaySetNativeVisible) { window.__OOFOverlaySetNativeVisible(visible); } })(" + value + ");")
+	})
+}
+
+func notifyHUDNativeVisibleSoon(ov webview2.WebView, visible bool) {
+	notifyHUDNativeVisible(ov, visible)
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		notifyHUDNativeVisible(ov, visible)
+		time.Sleep(350 * time.Millisecond)
+		notifyHUDNativeVisible(ov, visible)
+	}()
+}
+
+func postHUDNativeVisible(baseURL string, visible bool) {
+	if baseURL == "" {
+		return
+	}
+	value := "0"
+	if visible {
+		value = "1"
+	}
+	endpoint := strings.TrimRight(baseURL, "/") + "/api/overlay/hud/native-visibility?visible=" + value
+	go func() {
+		req, err := http.NewRequest(http.MethodPost, endpoint, nil)
+		if err != nil {
+			return
+		}
+		resp, err := overlayHTTPClient.Do(req)
+		if err != nil {
+			return
+		}
+		_ = resp.Body.Close()
+	}()
 }
 
 func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
@@ -158,7 +216,7 @@ func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
 		if alpha > 255 {
 			alpha = 255
 		}
-		procSetLayeredWindowAttr.Call(uintptr(hwnd), 0, uintptr(alpha), lwAlpha)
+		procSetLayeredWindowAttr.Call(uintptr(hwnd), overlayColorKey, uintptr(alpha), lwAlpha|lwColorKey)
 		cfg.OverlayOpacity = float64(alpha) / 255.0
 		_ = config.Save(config.ConfigPath(), *cfg)
 	})
@@ -195,7 +253,7 @@ func configureWindow(hwnd windows.HWND, cfg *config.Config) {
 	if alpha > 255 {
 		alpha = 255
 	}
-	procSetLayeredWindowAttr.Call(uintptr(hwnd), 0, uintptr(alpha), lwAlpha)
+	procSetLayeredWindowAttr.Call(uintptr(hwnd), overlayColorKey, uintptr(alpha), lwAlpha|lwColorKey)
 
 	x, y := cfg.OverlayX, cfg.OverlayY
 	if x < 0 || y < 0 {
@@ -214,7 +272,16 @@ func configureWindow(hwnd windows.HWND, cfg *config.Config) {
 	procShowWindow.Call(uintptr(hwnd), swHide)
 }
 
-func listenHotkey(hwnd windows.HWND, cfg *config.Config) {
+func showOverlayWindow(hwnd windows.HWND) {
+	procShowWindow.Call(uintptr(hwnd), swShowNA)
+	procSetWindowPos.Call(
+		uintptr(hwnd), hwndTopmost,
+		0, 0, 0, 0,
+		swpNoMove|swpNoSize|swpNoActivate|swpFrameChange,
+	)
+}
+
+func listenHotkey(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config, baseURL string) {
 	var prev bool
 	visible := false
 	for range time.Tick(50 * time.Millisecond) {
@@ -228,18 +295,26 @@ func listenHotkey(hwnd windows.HWND, cfg *config.Config) {
 
 		if cfg.OverlayHoldMode {
 			if curr && !visible {
-				procShowWindow.Call(uintptr(hwnd), swShowNA)
+				showOverlayWindow(hwnd)
+				postHUDNativeVisible(baseURL, true)
+				notifyHUDNativeVisibleSoon(ov, true)
 				visible = true
 			} else if !curr && visible {
+				postHUDNativeVisible(baseURL, false)
+				notifyHUDNativeVisible(ov, false)
 				procShowWindow.Call(uintptr(hwnd), swHide)
 				visible = false
 			}
 		} else {
 			if curr && !prev {
 				if visible {
+					postHUDNativeVisible(baseURL, false)
+					notifyHUDNativeVisible(ov, false)
 					procShowWindow.Call(uintptr(hwnd), swHide)
 				} else {
-					procShowWindow.Call(uintptr(hwnd), swShowNA)
+					showOverlayWindow(hwnd)
+					postHUDNativeVisible(baseURL, true)
+					notifyHUDNativeVisibleSoon(ov, true)
 				}
 				visible = !visible
 			}

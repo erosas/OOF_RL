@@ -29,6 +29,7 @@ import (
 	"OOF_RL/internal/plugins/debugassistant"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
+	"OOF_RL/internal/plugins/overlayhud"
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
@@ -84,6 +85,7 @@ func main() {
 
 	webSub, _ := fs.Sub(webFS, "web")
 	mux := http.NewServeMux()
+	overlayHUDEnabled := !pluginDisabled(cfg, "overlayhud")
 
 	var rlReconnect func()
 	srv := core.NewServer(cfgPath, &cfg, database, h, http.FileServer(http.FS(webSub)), func() {
@@ -98,6 +100,7 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
+	srv.Use(overlayhud.New())
 	srv.Register(mux)
 
 	if err := srv.InitPlugins(); err != nil {
@@ -138,14 +141,25 @@ func main() {
 		w.Dispatch(func() { overlay.SetWindowIcon(hwnd) })
 	}()
 
-	if ov := overlay.Start(url, &cfg); ov != nil {
-		defer ov.Destroy()
+	if overlayHUDEnabled {
+		if ov := overlay.Start(url, &cfg); ov != nil {
+			defer ov.Destroy()
+		}
 	}
 
 	w.Run()
 	srv.ShutdownPlugins()
 	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
+}
+
+func pluginDisabled(cfg config.Config, id string) bool {
+	for _, disabled := range cfg.DisabledPlugins {
+		if disabled == id {
+			return true
+		}
+	}
+	return false
 }
 
 func bindAvailablePort(start int) (net.Listener, int) {

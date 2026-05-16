@@ -61,6 +61,9 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 // Must be called before the RL client starts delivering events.
 func (s *Server) InitPlugins() error {
 	for _, p := range s.plugins {
+		if s.pluginDisabled(p.ID()) {
+			continue
+		}
 		if err := p.Init(s.bus.ForPlugin(p.ID()), s, s.db); err != nil {
 			return fmt.Errorf("plugin %s Init: %w", p.ID(), err)
 		}
@@ -114,13 +117,24 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
 	for _, p := range s.plugins {
+		if s.pluginDisabled(p.ID()) {
+			continue
+		}
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
 			prefix := "/plugins/" + p.NavTab().ID + "/"
-			mux.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(assets))))
+			mux.Handle(prefix, noStoreAssets(http.StripPrefix(prefix, http.FileServer(http.FS(assets)))))
 		}
 	}
-	mux.Handle("/", s.fs)
+	mux.Handle("/", noStoreAssets(s.fs))
+}
+
+func noStoreAssets(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // -- WebSocket --
@@ -231,6 +245,9 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 	}
 	var target plugin.Plugin
 	for _, p := range s.plugins {
+		if s.pluginDisabled(p.ID()) {
+			continue
+		}
 		if p.NavTab().ID == id {
 			target = p
 			break
@@ -252,6 +269,15 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(b)
+}
+
+func (s *Server) pluginDisabled(id string) bool {
+	for _, disabled := range s.cfg.DisabledPlugins {
+		if disabled == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) coreSettingsSchema() []plugin.Setting {
