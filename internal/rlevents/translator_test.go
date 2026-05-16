@@ -190,14 +190,14 @@ func TestTranslateStatFeed(t *testing.T) {
 	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
 		MatchGuid:  "g1",
 		EventName:  "Save",
-		MainTarget: events.PlayerRef{Name: "Alice", Shortcut: 3, TeamNum: 1},
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", Shortcut: 3, TeamNum: 1},
 	}))
 	e := as[oofevents.StatFeedEvent](t, mustRecv(t, ch))
 	if e.EventName != "Save" {
 		t.Errorf("event name %q, want Save", e.EventName)
 	}
-	if e.MainTarget != "Alice" {
-		t.Errorf("main target %q, want Alice", e.MainTarget)
+	if e.MainTarget != "Alice" || e.MainTargetPrimaryID != "pid-a" {
+		t.Errorf("main target name=%q id=%q", e.MainTarget, e.MainTargetPrimaryID)
 	}
 	if e.MainTargetShortcut != 3 {
 		t.Errorf("main target shortcut %d, want 3", e.MainTargetShortcut)
@@ -205,24 +205,24 @@ func TestTranslateStatFeed(t *testing.T) {
 	if e.MainTargetTeamNum != 1 {
 		t.Errorf("main target team %d, want 1", e.MainTargetTeamNum)
 	}
-	if e.SecondaryTarget != "" {
-		t.Errorf("secondary target %q, want empty", e.SecondaryTarget)
+	if e.SecondaryTarget != "" || e.SecondaryTargetPrimaryID != "" {
+		t.Errorf("secondary target name=%q id=%q, want empty", e.SecondaryTarget, e.SecondaryTargetPrimaryID)
 	}
 }
 
 func TestTranslateStatFeedWithSecondary(t *testing.T) {
 	bus, tr := newBusWithTranslator(t)
 	ch := subscribe(t, bus, oofevents.TypeStatFeed)
-	victim := events.PlayerRef{Name: "Bob", Shortcut: 8}
+	victim := events.PlayerRef{Name: "Bob", PrimaryId: "pid-b", Shortcut: 8}
 	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
 		MatchGuid:       "g1",
 		EventName:       "Demolish",
-		MainTarget:      events.PlayerRef{Name: "Alice", Shortcut: 3},
+		MainTarget:      events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", Shortcut: 3},
 		SecondaryTarget: &victim,
 	}))
 	e := as[oofevents.StatFeedEvent](t, mustRecv(t, ch))
-	if e.SecondaryTarget != "Bob" {
-		t.Errorf("secondary target %q, want Bob", e.SecondaryTarget)
+	if e.SecondaryTarget != "Bob" || e.SecondaryTargetPrimaryID != "pid-b" {
+		t.Errorf("secondary target name=%q id=%q", e.SecondaryTarget, e.SecondaryTargetPrimaryID)
 	}
 	if e.SecondaryTargetShortcut != 8 {
 		t.Errorf("secondary shortcut %d, want 8", e.SecondaryTargetShortcut)
@@ -284,7 +284,7 @@ func TestTranslateBallHitWithPlayer(t *testing.T) {
 	ch := subscribe(t, bus, oofevents.TypeBallHit)
 	tr.Translate(env("BallHit", events.BallHitData{
 		MatchGuid: "g1",
-		Players:   []events.PlayerRef{{Name: "Alice", PrimaryId: "steam|123", Shortcut: 2}},
+		Players:   []events.PlayerRef{{Name: "Alice", PrimaryId: "steam|123", Shortcut: 2, TeamNum: 1}},
 		Ball:      events.BallHitBall{PreHitSpeed: 10, PostHitSpeed: 50, Location: events.Vec3{X: 1, Y: 2, Z: 3}},
 	}))
 	e := as[oofevents.BallHitEvent](t, mustRecv(t, ch))
@@ -296,6 +296,9 @@ func TestTranslateBallHitWithPlayer(t *testing.T) {
 	}
 	if e.PlayerShortcut != 2 {
 		t.Errorf("shortcut %d, want 2", e.PlayerShortcut)
+	}
+	if e.PlayerTeamNum != 1 {
+		t.Errorf("team num %d, want 1", e.PlayerTeamNum)
 	}
 	if e.PreHitSpeed != 10 || e.PostHitSpeed != 50 {
 		t.Errorf("speeds (%f,%f), want (10,50)", e.PreHitSpeed, e.PostHitSpeed)
@@ -310,8 +313,8 @@ func TestTranslateBallHitNoPlayers(t *testing.T) {
 	ch := subscribe(t, bus, oofevents.TypeBallHit)
 	tr.Translate(env("BallHit", events.BallHitData{MatchGuid: "g1", Players: nil}))
 	e := as[oofevents.BallHitEvent](t, mustRecv(t, ch))
-	if e.PlayerName != "" || e.PlayerPrimaryID != "" || e.PlayerShortcut != 0 {
-		t.Errorf("expected empty player fields, got name=%q id=%q sc=%d", e.PlayerName, e.PlayerPrimaryID, e.PlayerShortcut)
+	if e.PlayerName != "" || e.PlayerPrimaryID != "" || e.PlayerShortcut != 0 || e.PlayerTeamNum != 0 {
+		t.Errorf("expected empty player fields, got name=%q id=%q sc=%d team=%d", e.PlayerName, e.PlayerPrimaryID, e.PlayerShortcut, e.PlayerTeamNum)
 	}
 }
 
@@ -414,4 +417,195 @@ func TestTranslateInvalidJSONIgnored(t *testing.T) {
 	ch := subscribe(t, bus, oofevents.TypeMatchStarted)
 	tr.Translate(events.Envelope{Event: "MatchCreated", Data: []byte(`not json`)})
 	mustNotRecv(t, ch)
+}
+
+// -- GameActionEvent --
+
+func TestTranslateBallHitEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("BallHit", events.BallHitData{
+		MatchGuid: "g1",
+		Players:   []events.PlayerRef{{Name: "Alice", PrimaryId: "pid-a", Shortcut: 2, TeamNum: 0}},
+		Ball:      events.BallHitBall{PreHitSpeed: 10, PostHitSpeed: 50},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionBallHit {
+		t.Errorf("action %q, want ball_hit", e.Action)
+	}
+	if e.Team != oofevents.TeamBlue {
+		t.Errorf("team %q, want blue", e.Team)
+	}
+	if e.PlayerID != "pid-a" || e.PlayerName != "Alice" {
+		t.Errorf("player id=%q name=%q", e.PlayerID, e.PlayerName)
+	}
+	if e.MatchGUID() != "g1" {
+		t.Errorf("guid %q, want g1", e.MatchGUID())
+	}
+}
+
+func TestTranslateBallHitNoPlayersNoGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("BallHit", events.BallHitData{MatchGuid: "g1", Players: nil}))
+	mustNotRecv(t, gaCh)
+}
+
+func TestTranslateGoalScoredNoGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("GoalScored", events.GoalScoredData{
+		MatchGuid: "g1",
+		Scorer:    events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	mustNotRecv(t, gaCh)
+}
+
+func TestTranslateStatFeedShotEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "Shot",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionShot || e.Team != oofevents.TeamBlue {
+		t.Errorf("action=%q team=%q", e.Action, e.Team)
+	}
+	if e.PlayerID != "pid-a" {
+		t.Errorf("player id %q, want pid-a", e.PlayerID)
+	}
+}
+
+func TestTranslateStatFeedSaveEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "Save",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 1},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionSave || e.Team != oofevents.TeamOrange {
+		t.Errorf("action=%q team=%q", e.Action, e.Team)
+	}
+	if e.IsEpicSave {
+		t.Error("IsEpicSave should be false for Save")
+	}
+}
+
+func TestTranslateStatFeedEpicSaveEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "EpicSave",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionSave {
+		t.Errorf("action %q, want save", e.Action)
+	}
+	if !e.IsEpicSave {
+		t.Error("IsEpicSave should be true for EpicSave")
+	}
+}
+
+func TestTranslateStatFeedGoalEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "Goal",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionGoal || e.IsOwnGoal {
+		t.Errorf("action=%q ownGoal=%v", e.Action, e.IsOwnGoal)
+	}
+}
+
+func TestTranslateStatFeedOwnGoalEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "OwnGoal",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionGoal || !e.IsOwnGoal {
+		t.Errorf("action=%q ownGoal=%v", e.Action, e.IsOwnGoal)
+	}
+}
+
+func TestTranslateStatFeedAssistEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "Assist",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionAssist {
+		t.Errorf("action %q, want assist", e.Action)
+	}
+}
+
+func TestTranslateStatFeedDemoEmitsGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	victim := events.PlayerRef{Name: "Bob", PrimaryId: "pid-b", Shortcut: 8}
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:       "g1",
+		EventName:       "Demolish",
+		MainTarget:      events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+		SecondaryTarget: &victim,
+	}))
+	e := as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+	if e.Action != oofevents.ActionDemo {
+		t.Errorf("action %q, want demo", e.Action)
+	}
+	if e.VictimID != "pid-b" {
+		t.Errorf("victim id %q, want pid-b", e.VictimID)
+	}
+}
+
+func TestTranslateStatFeedUnknownNoGameAction(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "SomeUnknownFeed",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	mustNotRecv(t, gaCh)
+}
+
+func TestTranslateStatFeedAlsoEmitsStatFeedEvent(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	sfCh := subscribe(t, bus, oofevents.TypeStatFeed)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("StatfeedEvent", events.StatfeedEventData{
+		MatchGuid:  "g1",
+		EventName:  "Shot",
+		MainTarget: events.PlayerRef{Name: "Alice", PrimaryId: "pid-a", TeamNum: 0},
+	}))
+	as[oofevents.StatFeedEvent](t, mustRecv(t, sfCh))
+	as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
+}
+
+func TestTranslateBallHitAlsoemitsBallHitEvent(t *testing.T) {
+	bus, tr := newBusWithTranslator(t)
+	bhCh := subscribe(t, bus, oofevents.TypeBallHit)
+	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
+	tr.Translate(env("BallHit", events.BallHitData{
+		MatchGuid: "g1",
+		Players:   []events.PlayerRef{{Name: "Alice", PrimaryId: "pid-a", TeamNum: 1}},
+		Ball:      events.BallHitBall{PreHitSpeed: 10},
+	}))
+	as[oofevents.BallHitEvent](t, mustRecv(t, bhCh))
+	as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
 }
