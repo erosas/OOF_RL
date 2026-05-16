@@ -20,6 +20,7 @@ import (
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
+	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
@@ -40,10 +41,13 @@ type Server struct {
 	plugins     []plugin.Plugin
 	bus         oofevents.Bus
 	translator  *rlevents.Translator
+	momentum    *momentum.Service
+	momentumW   *momentum.Wiring
 }
 
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
+	momentumService := momentum.NewService(momentum.DefaultConfig())
 	return &Server{
 		cfgPath:     cfgPath,
 		cfg:         cfg,
@@ -54,7 +58,14 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		mmrProvider: mmrProvider,
 		bus:         bus,
 		translator:  rlevents.New(rlBus),
+		momentum:    momentumService,
+		momentumW:   momentum.NewWiring(bus.ForPlugin("momentum"), momentumService),
 	}
+}
+
+// Momentum returns the app-owned runtime Momentum service.
+func (s *Server) Momentum() *momentum.Service {
+	return s.momentum
 }
 
 // InitPlugins calls Init on every registered plugin after all plugins are registered.
@@ -75,6 +86,13 @@ func (s *Server) ShutdownPlugins() {
 		if err := p.Shutdown(); err != nil {
 			log.Printf("[core] plugin %s Shutdown: %v", p.ID(), err)
 		}
+	}
+}
+
+// ShutdownRuntime stops app-owned runtime services that are not plugins.
+func (s *Server) ShutdownRuntime() {
+	if s.momentumW != nil {
+		s.momentumW.Stop()
 	}
 }
 

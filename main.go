@@ -153,6 +153,7 @@ func main() {
 
 	w.Run()
 	srv.ShutdownPlugins()
+	srv.ShutdownRuntime()
 	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
 }
