@@ -15,6 +15,52 @@ const (
 	TypeBallHit         = "ball.hit"
 	TypeCrossbarHit     = "crossbar.hit"
 	TypeStateUpdated    = "state.updated"
+	TypeGameAction      = "game.action"
+)
+
+// Team identifies which side of the field an action belongs to.
+type Team string
+
+const (
+	TeamBlue   Team = "blue"
+	TeamOrange Team = "orange"
+)
+
+// TeamFromNum converts a RL team number (0=blue, 1=orange) to a Team.
+// Returns false for any value that is not a recognised team number.
+func TeamFromNum(teamNum int) (Team, bool) {
+	switch teamNum {
+	case 0:
+		return TeamBlue, true
+	case 1:
+		return TeamOrange, true
+	default:
+		return "", false
+	}
+}
+
+// Opponent returns the opposing team. Returns "" for unrecognised input.
+func Opponent(t Team) Team {
+	switch t {
+	case TeamBlue:
+		return TeamOrange
+	case TeamOrange:
+		return TeamBlue
+	default:
+		return ""
+	}
+}
+
+// ActionKind classifies the game action carried by a GameActionEvent.
+type ActionKind string
+
+const (
+	ActionBallHit ActionKind = "ball_hit"
+	ActionShot    ActionKind = "shot"
+	ActionSave    ActionKind = "save"
+	ActionGoal    ActionKind = "goal"
+	ActionAssist  ActionKind = "assist"
+	ActionDemo    ActionKind = "demo"
 )
 
 // NewBase constructs a Base stamped with the current time.
@@ -105,23 +151,27 @@ func NewGoalScored(guid, scorer string, scorerShortcut int, assister string, ass
 // EventName: "Goal", "OwnGoal", "Save", "EpicSave", "Assist", "Demolish", "Shot".
 type StatFeedEvent struct {
 	Base
-	EventName               string
-	MainTarget              string
-	MainTargetShortcut      int
-	MainTargetTeamNum       int
-	SecondaryTarget         string // present for Demolish (victim)
-	SecondaryTargetShortcut int
+	EventName                string
+	MainTarget               string
+	MainTargetPrimaryID      string
+	MainTargetShortcut       int
+	MainTargetTeamNum        int
+	SecondaryTarget          string // present for Demolish (victim)
+	SecondaryTargetPrimaryID string
+	SecondaryTargetShortcut  int
 }
 
-func NewStatFeed(guid, eventName, mainTarget string, mainTargetShortcut, mainTargetTeamNum int, secondaryTarget string, secondaryTargetShortcut int) StatFeedEvent {
+func NewStatFeed(guid, eventName, mainTarget, mainTargetPrimaryID string, mainTargetShortcut, mainTargetTeamNum int, secondaryTarget, secondaryTargetPrimaryID string, secondaryTargetShortcut int) StatFeedEvent {
 	return StatFeedEvent{
-		Base:                    NewBase(TypeStatFeed, Authoritative, guid),
-		EventName:               eventName,
-		MainTarget:              mainTarget,
-		MainTargetShortcut:      mainTargetShortcut,
-		MainTargetTeamNum:       mainTargetTeamNum,
-		SecondaryTarget:         secondaryTarget,
-		SecondaryTargetShortcut: secondaryTargetShortcut,
+		Base:                     NewBase(TypeStatFeed, Authoritative, guid),
+		EventName:                eventName,
+		MainTarget:               mainTarget,
+		MainTargetPrimaryID:      mainTargetPrimaryID,
+		MainTargetShortcut:       mainTargetShortcut,
+		MainTargetTeamNum:        mainTargetTeamNum,
+		SecondaryTarget:          secondaryTarget,
+		SecondaryTargetPrimaryID: secondaryTargetPrimaryID,
+		SecondaryTargetShortcut:  secondaryTargetShortcut,
 	}
 }
 
@@ -146,6 +196,7 @@ type BallHitEvent struct {
 	PlayerName      string
 	PlayerPrimaryID string
 	PlayerShortcut  int
+	PlayerTeamNum   int
 	PreHitSpeed     float64
 	PostHitSpeed    float64
 	LocX            float64
@@ -153,12 +204,13 @@ type BallHitEvent struct {
 	LocZ            float64
 }
 
-func NewBallHit(guid, playerName, playerPrimaryID string, playerShortcut int, preSpeed, postSpeed, locX, locY, locZ float64) BallHitEvent {
+func NewBallHit(guid, playerName, playerPrimaryID string, playerShortcut, playerTeamNum int, preSpeed, postSpeed, locX, locY, locZ float64) BallHitEvent {
 	return BallHitEvent{
 		Base:            NewBase(TypeBallHit, Authoritative, guid),
 		PlayerName:      playerName,
 		PlayerPrimaryID: playerPrimaryID,
 		PlayerShortcut:  playerShortcut,
+		PlayerTeamNum:   playerTeamNum,
 		PreHitSpeed:     preSpeed,
 		PostHitSpeed:    postSpeed,
 		LocX:            locX,
@@ -249,3 +301,45 @@ type TeamSnapshot struct {
 	ColorPrimary   string `json:"ColorPrimary,omitempty"`
 	ColorSecondary string `json:"ColorSecondary,omitempty"`
 }
+
+// GameActionEvent is a normalised game action emitted once per real-world event.
+// Source rules (no duplicates):
+//   - ActionBallHit  ← BallHit envelope
+//   - ActionShot     ← StatFeed "Shot"
+//   - ActionSave     ← StatFeed "Save" / "EpicSave" (IsEpicSave set for epic)
+//   - ActionGoal     ← StatFeed "Goal" / "OwnGoal" (IsOwnGoal set for own goals)
+//   - ActionAssist   ← StatFeed "Assist"
+//   - ActionDemo     ← StatFeed "Demolish"
+//
+// GoalScored is intentionally NOT a source; it fires twice per goal and carries
+// rich data (impact, speed, last touch) for consumers that need it via TypeGoalScored.
+type GameActionEvent struct {
+	Base
+	Action     ActionKind
+	Team       Team
+	PlayerID   string // PrimaryId of the acting player
+	PlayerName string
+	IsOwnGoal  bool   // set when Action == ActionGoal and scored into own net
+	IsEpicSave bool   // set when Action == ActionSave and flagged as epic
+	VictimID   string // set when Action == ActionDemo: demolished player's PrimaryId
+}
+
+func NewGameAction(guid string, action ActionKind, team Team, playerID, playerName string, opts ...gameActionOpt) GameActionEvent {
+	e := GameActionEvent{
+		Base:       NewBase(TypeGameAction, Authoritative, guid),
+		Action:     action,
+		Team:       team,
+		PlayerID:   playerID,
+		PlayerName: playerName,
+	}
+	for _, o := range opts {
+		o(&e)
+	}
+	return e
+}
+
+type gameActionOpt func(*GameActionEvent)
+
+func WithOwnGoal() gameActionOpt    { return func(e *GameActionEvent) { e.IsOwnGoal = true } }
+func WithEpicSave() gameActionOpt   { return func(e *GameActionEvent) { e.IsEpicSave = true } }
+func WithVictim(id string) gameActionOpt { return func(e *GameActionEvent) { e.VictimID = id } }
