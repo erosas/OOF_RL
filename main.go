@@ -32,6 +32,7 @@ import (
 	"OOF_RL/internal/plugins/debugassistant"
 	"OOF_RL/internal/plugins/history"
 	"OOF_RL/internal/plugins/live"
+	"OOF_RL/internal/plugins/overlayhud"
 	"OOF_RL/internal/plugins/ranks"
 	"OOF_RL/internal/plugins/session"
 	"OOF_RL/internal/rl"
@@ -101,6 +102,7 @@ func main() {
 	srv.Use(ballchasing.New(&cfg, database, h))
 	srv.Use(dashboard.New(database))
 	srv.Use(debugassistant.New(&cfg))
+	srv.Use(overlayhud.New(srv.Momentum()))
 	srv.Register(mux)
 	mux.Handle("/debug/pprof/", http.DefaultServeMux)
 	if err := statsviz.Register(mux); err != nil {
