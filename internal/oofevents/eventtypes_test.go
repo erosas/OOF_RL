@@ -127,18 +127,18 @@ func TestNewGoalScored(t *testing.T) {
 }
 
 func TestNewStatFeed(t *testing.T) {
-	e := oofevents.NewStatFeed("g1", "Save", "Alice", 3, 1, "Bob", 8)
+	e := oofevents.NewStatFeed("g1", "Save", "Alice", "pid-a", 3, 1, "Bob", "pid-b", 8)
 	if e.Type() != oofevents.TypeStatFeed {
 		t.Errorf("type %q", e.Type())
 	}
 	if e.EventName != "Save" {
 		t.Errorf("event name %q, want Save", e.EventName)
 	}
-	if e.MainTarget != "Alice" || e.MainTargetShortcut != 3 || e.MainTargetTeamNum != 1 {
-		t.Errorf("main target: name=%q sc=%d team=%d", e.MainTarget, e.MainTargetShortcut, e.MainTargetTeamNum)
+	if e.MainTarget != "Alice" || e.MainTargetPrimaryID != "pid-a" || e.MainTargetShortcut != 3 || e.MainTargetTeamNum != 1 {
+		t.Errorf("main target: name=%q id=%q sc=%d team=%d", e.MainTarget, e.MainTargetPrimaryID, e.MainTargetShortcut, e.MainTargetTeamNum)
 	}
-	if e.SecondaryTarget != "Bob" || e.SecondaryTargetShortcut != 8 {
-		t.Errorf("secondary: name=%q sc=%d", e.SecondaryTarget, e.SecondaryTargetShortcut)
+	if e.SecondaryTarget != "Bob" || e.SecondaryTargetPrimaryID != "pid-b" || e.SecondaryTargetShortcut != 8 {
+		t.Errorf("secondary: name=%q id=%q sc=%d", e.SecondaryTarget, e.SecondaryTargetPrimaryID, e.SecondaryTargetShortcut)
 	}
 }
 
@@ -156,18 +156,104 @@ func TestNewClockUpdated(t *testing.T) {
 }
 
 func TestNewBallHit(t *testing.T) {
-	e := oofevents.NewBallHit("g1", "Alice", "steam|1", 2, 10.0, 50.0, 1.0, 2.0, 3.0)
+	e := oofevents.NewBallHit("g1", "Alice", "steam|1", 2, 1, 10.0, 50.0, 1.0, 2.0, 3.0)
 	if e.Type() != oofevents.TypeBallHit {
 		t.Errorf("type %q", e.Type())
 	}
 	if e.PlayerName != "Alice" || e.PlayerPrimaryID != "steam|1" || e.PlayerShortcut != 2 {
 		t.Errorf("player: name=%q id=%q sc=%d", e.PlayerName, e.PlayerPrimaryID, e.PlayerShortcut)
 	}
+	if e.PlayerTeamNum != 1 {
+		t.Errorf("player team num %d, want 1", e.PlayerTeamNum)
+	}
 	if e.PreHitSpeed != 10.0 || e.PostHitSpeed != 50.0 {
 		t.Errorf("speeds: pre=%f post=%f", e.PreHitSpeed, e.PostHitSpeed)
 	}
 	if e.LocX != 1.0 || e.LocY != 2.0 || e.LocZ != 3.0 {
 		t.Errorf("location (%f,%f,%f), want (1,2,3)", e.LocX, e.LocY, e.LocZ)
+	}
+}
+
+func TestTeamFromNum(t *testing.T) {
+	cases := []struct {
+		num  int
+		want oofevents.Team
+		ok   bool
+	}{
+		{0, oofevents.TeamBlue, true},
+		{1, oofevents.TeamOrange, true},
+		{2, "", false},
+		{-1, "", false},
+	}
+	for _, tc := range cases {
+		got, ok := oofevents.TeamFromNum(tc.num)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("TeamFromNum(%d) = (%q, %v), want (%q, %v)", tc.num, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestOpponent(t *testing.T) {
+	if oofevents.Opponent(oofevents.TeamBlue) != oofevents.TeamOrange {
+		t.Error("Opponent(blue) should be orange")
+	}
+	if oofevents.Opponent(oofevents.TeamOrange) != oofevents.TeamBlue {
+		t.Error("Opponent(orange) should be blue")
+	}
+	if oofevents.Opponent("") != "" {
+		t.Error("Opponent of unknown team should be empty")
+	}
+}
+
+func TestNewGameActionDefaults(t *testing.T) {
+	e := oofevents.NewGameAction("g1", oofevents.ActionShot, oofevents.TeamBlue, "pid1", "Alice")
+	if e.Type() != oofevents.TypeGameAction {
+		t.Errorf("type %q, want %q", e.Type(), oofevents.TypeGameAction)
+	}
+	if e.Action != oofevents.ActionShot {
+		t.Errorf("action %q, want shot", e.Action)
+	}
+	if e.Team != oofevents.TeamBlue {
+		t.Errorf("team %q, want blue", e.Team)
+	}
+	if e.PlayerID != "pid1" || e.PlayerName != "Alice" {
+		t.Errorf("player: id=%q name=%q", e.PlayerID, e.PlayerName)
+	}
+	if e.IsOwnGoal || e.IsEpicSave || e.VictimID != "" {
+		t.Errorf("unexpected flags/fields: ownGoal=%v epicSave=%v victimID=%q", e.IsOwnGoal, e.IsEpicSave, e.VictimID)
+	}
+	if e.Certainty() != oofevents.Authoritative {
+		t.Errorf("certainty %s, want authoritative", e.Certainty())
+	}
+	if e.MatchGUID() != "g1" {
+		t.Errorf("guid %q, want g1", e.MatchGUID())
+	}
+}
+
+func TestNewGameActionOwnGoal(t *testing.T) {
+	e := oofevents.NewGameAction("g1", oofevents.ActionGoal, oofevents.TeamOrange, "pid2", "Bob", oofevents.WithOwnGoal())
+	if !e.IsOwnGoal {
+		t.Error("IsOwnGoal should be true")
+	}
+	if e.IsEpicSave {
+		t.Error("IsEpicSave should be false")
+	}
+}
+
+func TestNewGameActionEpicSave(t *testing.T) {
+	e := oofevents.NewGameAction("g1", oofevents.ActionSave, oofevents.TeamBlue, "pid1", "Alice", oofevents.WithEpicSave())
+	if !e.IsEpicSave {
+		t.Error("IsEpicSave should be true")
+	}
+	if e.IsOwnGoal {
+		t.Error("IsOwnGoal should be false")
+	}
+}
+
+func TestNewGameActionDemo(t *testing.T) {
+	e := oofevents.NewGameAction("g1", oofevents.ActionDemo, oofevents.TeamBlue, "pid1", "Alice", oofevents.WithVictim("pid2"))
+	if e.VictimID != "pid2" {
+		t.Errorf("victim id %q, want pid2", e.VictimID)
 	}
 }
 
