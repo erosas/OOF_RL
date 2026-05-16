@@ -11,7 +11,7 @@ type Engine struct {
 
 // NewEngine creates an Engine with safe default values filled in.
 func NewEngine(config Config) *Engine {
-	if config.Decay <= 0 || config.Decay > 1 {
+	if config.Decay < 0 || config.Decay > 1 {
 		config.Decay = DefaultConfig().Decay
 	}
 
