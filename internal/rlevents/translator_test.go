@@ -597,7 +597,7 @@ func TestTranslateStatFeedAlsoEmitsStatFeedEvent(t *testing.T) {
 	as[oofevents.GameActionEvent](t, mustRecv(t, gaCh))
 }
 
-func TestTranslateBallHitAlsoemitsBallHitEvent(t *testing.T) {
+func TestTranslateBallHitAlsoEmitsBallHitEvent(t *testing.T) {
 	bus, tr := newBusWithTranslator(t)
 	bhCh := subscribe(t, bus, oofevents.TypeBallHit)
 	gaCh := subscribe(t, bus, oofevents.TypeGameAction)
