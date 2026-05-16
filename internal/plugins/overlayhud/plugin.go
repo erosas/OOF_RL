@@ -1,6 +1,6 @@
 // Package overlayhud contains the display-only Overlay HUD consumer rebuild.
-// This slice intentionally contains no routes, assets, rendering, or overlay
-// lifecycle behavior yet. It only proves read-only Momentum consumption.
+// It consumes read-only Momentum state and exposes only narrowly scoped display
+// surfaces; native overlay/window lifecycle behavior is intentionally separate.
 package overlayhud
 
 import (
@@ -28,7 +28,7 @@ func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return nil }
 
 func (p *Plugin) NavTab() plugin.NavTab                   { return plugin.NavTab{} }
-func (p *Plugin) Routes(_ *http.ServeMux)                 {}
+func (p *Plugin) Routes(mux *http.ServeMux)               { mux.HandleFunc(previewRoutePath, p.handlePreview) }
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return nil }
