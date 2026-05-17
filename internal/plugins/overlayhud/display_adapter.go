@@ -131,21 +131,80 @@ svg {
 	stroke: #f4d35e;
 	opacity: 0.85;
 }
+.mcw-frame-base {
+	fill: none;
+	stroke: rgba(14, 22, 34, 0.96);
+	stroke-width: 20;
+}
+.mcw-frame-highlight {
+	fill: none;
+	stroke: rgba(195, 215, 240, 0.18);
+	stroke-width: 4;
+}
+.mcw-frame-shadow {
+	fill: none;
+	stroke: rgba(0, 0, 0, 0.38);
+	stroke-width: 8;
+}
+.mcw-segment-inactive {
+	fill: rgba(105, 125, 150, 0.18);
+}
+.mcw-segment-blue {
+	fill: #3aa8ff;
+}
+.mcw-segment-orange {
+	fill: #ff9a3a;
+}
+.mcw-segment-cap {
+	fill: rgba(245, 250, 255, 0.82);
+}
+.mcw-segment-bevel {
+	fill: rgba(255, 255, 255, 0.10);
+}
+.mcw-segment-inner-shadow,
+.mcw-segment-outer-highlight {
+	fill: none;
+}
+.mcw-segment-inner-shadow {
+	stroke: rgba(0, 0, 0, 0.40);
+	stroke-width: 8;
+}
+.mcw-segment-outer-highlight {
+	stroke: rgba(230, 240, 255, 0.15);
+	stroke-width: 5;
+}
+.mcw-tick {
+	stroke-width: 1.8;
+	stroke-linecap: round;
+}
+.mcw-tick-blue {
+	stroke: rgba(58, 168, 255, 0.52);
+}
+.mcw-tick-orange {
+	stroke: rgba(255, 154, 58, 0.50);
+}
+.mcw-tick-neutral {
+	stroke: rgba(190, 210, 230, 0.24);
+}
+.mcw-crosshair-line {
+	stroke: rgba(210, 225, 245, 0.16);
+	stroke-width: 1.2;
+}
 .overlayhud-center-core {
 	fill: rgba(8, 14, 24, 0.92);
 	stroke: rgba(220, 235, 255, 0.20);
-	stroke-width: 2;
+	stroke-width: 4;
 }
 .overlayhud-timer-text {
 	fill: #f7fbff;
-	font-size: 34px;
+	font-size: 108px;
 	font-weight: 700;
 	letter-spacing: 0;
 }
 .overlayhud-state-label,
 .overlayhud-status-text {
 	fill: #cbd8e8;
-	font-size: 13px;
+	font-size: 38px;
 	font-weight: 700;
 	letter-spacing: 0;
 }
@@ -165,8 +224,10 @@ svg {
 }
 .is-inactive .overlayhud-arc-blue,
 .is-inactive .overlayhud-arc-orange,
+.is-inactive .mcw-segment,
 .has-no-data .overlayhud-volatility-segment,
-.has-no-data .overlayhud-confidence {
+.has-no-data .overlayhud-confidence,
+.has-no-data .mcw-segment {
 	opacity: 0.28;
 	filter: none;
 }

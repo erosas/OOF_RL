@@ -11,7 +11,7 @@ type svgFixture struct {
 	expectedClasses        []string
 	expectedLabel          string
 	expectedConfidence     string
-	expectedActiveTicks    int
+	expectedBlueSegments   int
 	expectedStaleIndicator bool
 }
 
@@ -32,7 +32,7 @@ func TestSVGFixtureStatesRenderExpectedOutput(t *testing.T) {
 			expectedClasses:        []string{"is-inactive", "has-no-data", "is-stale", "mcw-state-no-data"},
 			expectedLabel:          "NO DATA",
 			expectedConfidence:     "overlayhud-confidence is-empty",
-			expectedActiveTicks:    0,
+			expectedBlueSegments:   48,
 			expectedStaleIndicator: true,
 		},
 		{
@@ -48,10 +48,10 @@ func TestSVGFixtureStatesRenderExpectedOutput(t *testing.T) {
 				Confidence:   0.42,
 				Volatility:   0.38,
 			},
-			expectedClasses:     []string{"is-active", "has-data", "mcw-state-neutral"},
-			expectedLabel:       "NEUTRAL",
-			expectedConfidence:  "overlayhud-confidence is-medium",
-			expectedActiveTicks: 10,
+			expectedClasses:      []string{"is-active", "has-data", "mcw-state-neutral"},
+			expectedLabel:        "NEUTRAL",
+			expectedConfidence:   "overlayhud-confidence is-medium",
+			expectedBlueSegments: 50,
 		},
 		{
 			name: "blue pressure",
@@ -66,10 +66,10 @@ func TestSVGFixtureStatesRenderExpectedOutput(t *testing.T) {
 				Confidence:   0.76,
 				Volatility:   0.24,
 			},
-			expectedClasses:     []string{"is-active", "has-data", "mcw-state-blue-control"},
-			expectedLabel:       "BLUE CONTROL",
-			expectedConfidence:  "overlayhud-confidence is-high",
-			expectedActiveTicks: 6,
+			expectedClasses:      []string{"is-active", "has-data", "mcw-state-blue-control"},
+			expectedLabel:        "BLUE CONTROL",
+			expectedConfidence:   "overlayhud-confidence is-high",
+			expectedBlueSegments: 70,
 		},
 		{
 			name: "volatile contested",
@@ -84,10 +84,10 @@ func TestSVGFixtureStatesRenderExpectedOutput(t *testing.T) {
 				Confidence:   0.67,
 				Volatility:   0.86,
 			},
-			expectedClasses:     []string{"is-active", "has-data", "mcw-state-volatile"},
-			expectedLabel:       "VOLATILE",
-			expectedConfidence:  "overlayhud-confidence is-high",
-			expectedActiveTicks: 21,
+			expectedClasses:      []string{"is-active", "has-data", "mcw-state-volatile"},
+			expectedLabel:        "VOLATILE",
+			expectedConfidence:   "overlayhud-confidence is-high",
+			expectedBlueSegments: 30,
 		},
 		{
 			name: "stale last known",
@@ -105,7 +105,7 @@ func TestSVGFixtureStatesRenderExpectedOutput(t *testing.T) {
 			expectedClasses:        []string{"is-active", "has-data", "is-stale", "mcw-state-stale"},
 			expectedLabel:          "STALE",
 			expectedConfidence:     "overlayhud-confidence is-medium",
-			expectedActiveTicks:    5,
+			expectedBlueSegments:   62,
 			expectedStaleIndicator: true,
 		},
 	}
@@ -128,11 +128,12 @@ func assertFixtureSVG(t *testing.T, svg string, fixture svgFixture) {
 	t.Helper()
 
 	for _, want := range []string{
-		`viewBox="0 0 320 320"`,
-		`id="hud-root"`,
-		`id="hud-momentum-blue"`,
-		`id="hud-momentum-orange"`,
-		`id="hud-volatility-segments"`,
+		`viewBox="0 0 1024 1024"`,
+		`id="momentum-wheel-root"`,
+		`id="segment-ring-underlay"`,
+		`id="segment-ring-blue-active"`,
+		`id="segment-ring-orange-active"`,
+		`id="inner-tick-ring"`,
 		`>--:--</text>`,
 		`>` + fixture.expectedLabel + `</text>`,
 		`class="` + fixture.expectedConfidence + `"`,
@@ -148,9 +149,17 @@ func assertFixtureSVG(t *testing.T, svg string, fixture svgFixture) {
 		}
 	}
 
-	activeTicks := strings.Count(svg, `data-active="true"`)
-	if activeTicks != fixture.expectedActiveTicks {
-		t.Fatalf("fixture %q active ticks = %d, want %d", fixture.name, activeTicks, fixture.expectedActiveTicks)
+	segments := strings.Count(svg, `class="mcw-segment mcw-segment-inactive"`)
+	if segments != 96 {
+		t.Fatalf("fixture %q inactive segments = %d, want 96", fixture.name, segments)
+	}
+	ticks := strings.Count(svg, `class="mcw-tick `)
+	if ticks != 120 {
+		t.Fatalf("fixture %q ticks = %d, want 120", fixture.name, ticks)
+	}
+	blueSegments := strings.Count(svg, `class="mcw-segment mcw-segment-blue`)
+	if blueSegments != fixture.expectedBlueSegments {
+		t.Fatalf("fixture %q blue segments = %d, want %d", fixture.name, blueSegments, fixture.expectedBlueSegments)
 	}
 
 	hasStaleIndicator := strings.Contains(svg, `>STALE</text>`)

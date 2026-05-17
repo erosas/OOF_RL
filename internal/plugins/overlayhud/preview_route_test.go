@@ -48,8 +48,8 @@ func TestPreviewRouteRendersCurrentMomentumSVG(t *testing.T) {
 	body := w.Body.String()
 	for _, want := range []string{
 		"<!doctype html>",
-		`viewBox="0 0 320 320"`,
-		`id="hud-root"`,
+		`viewBox="0 0 1024 1024"`,
+		`id="momentum-wheel-root"`,
 		`>--:--</text>`,
 		`>BLUE CONTROL</text>`,
 		previewSVGRoutePath,
@@ -100,7 +100,7 @@ func TestPreviewSVGRouteRendersCurrentMomentumSVG(t *testing.T) {
 	body := w.Body.String()
 	for _, want := range []string{
 		`<svg `,
-		`viewBox="0 0 320 320"`,
+		`viewBox="0 0 1024 1024"`,
 		`data-state="blue-control"`,
 		`>BLUE CONTROL</text>`,
 	} {
@@ -128,7 +128,7 @@ func TestPreviewRouteRendersNoDataState(t *testing.T) {
 	body := w.Body.String()
 	for _, want := range []string{
 		"<!doctype html>",
-		`viewBox="0 0 320 320"`,
+		`viewBox="0 0 1024 1024"`,
 		`mcw-state-no-data`,
 		`is-inactive`,
 		`has-no-data`,
