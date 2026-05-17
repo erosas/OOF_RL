@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"OOF_RL/internal/config"
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
@@ -58,6 +59,36 @@ func TestPluginDoesNotExposeMomentumMutation(t *testing.T) {
 		if _, ok := providerType.MethodByName(name); ok {
 			t.Fatalf("SnapshotProvider exposes mutating method %s", name)
 		}
+	}
+}
+
+type fakeRegistry struct {
+	provider momentum.SnapshotProvider
+}
+
+func (f *fakeRegistry) Get(_ string) (plugin.Plugin, bool)  { return nil, false }
+func (f *fakeRegistry) List() []plugin.Plugin                { return nil }
+func (f *fakeRegistry) Momentum() momentum.SnapshotProvider { return f.provider }
+func (f *fakeRegistry) Config() *config.Config              { return &config.Config{} }
+
+func TestInitWiresMomentumAndConfig(t *testing.T) {
+	provider := &fakeMomentumProvider{
+		state: momentum.MomentumState{MatchGUID: "init-test"},
+	}
+	p := &Plugin{launchShell: startManualShell}
+	reg := &fakeRegistry{provider: provider}
+	if err := p.Init(nil, reg, nil); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if p.momentum == nil {
+		t.Fatal("Init should set momentum from registry")
+	}
+	if p.cfg == nil {
+		t.Fatal("Init should set cfg from registry")
+	}
+	state, _, ok := p.momentumSnapshot()
+	if !ok || state.MatchGUID != "init-test" {
+		t.Fatalf("momentum not wired correctly: ok=%v state=%+v", ok, state)
 	}
 }
 
