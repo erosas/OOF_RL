@@ -20,8 +20,8 @@ import (
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/hub"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
@@ -40,28 +40,33 @@ const (
 	WSEventUploaded = "bc:uploaded"
 )
 
+func init() {
+	plugin.Register("ballchasing", func() plugin.Plugin {
+		return &Plugin{startupTime: time.Now()}
+	})
+}
+
 type Plugin struct {
 	plugin.BasePlugin
-	cfg           *config.Config
-	store         *store
 	hub           *hub.Hub
 	startupTime   time.Time
 	mu            sync.Mutex
 	uploadPending bool
-	subs          []oofevents.Subscription
+	store         *store
 }
 
 func New(cfg *config.Config, database *db.DB, h *hub.Hub) *Plugin {
-	if err := database.RunMigration(`
-	CREATE TABLE IF NOT EXISTS bc_uploads (
-		replay_name    TEXT PRIMARY KEY,
-		ballchasing_id TEXT NOT NULL
-	);
-`); err != nil {
-		log.Printf("[ballchasing] migrate: %v", err)
-	}
-	return &Plugin{cfg: cfg, store: &store{conn: database.Conn()}, hub: h, startupTime: time.Now()}
+	p := &Plugin{hub: h, startupTime: time.Now()}
+	_ = p.Init(nil, &fakeReg{cfg: cfg}, database)
+	return p
 }
+
+type fakeReg struct {
+	plugin.Registry
+	cfg *config.Config
+}
+
+func (f *fakeReg) Config() *config.Config { return f.cfg }
 
 func (p *Plugin) ID() string         { return "ballchasing" }
 func (p *Plugin) DBPrefix() string   { return "bc" }
@@ -103,27 +108,36 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 
 func (p *Plugin) ApplySettings(values map[string]string) error {
 	if v, ok := values["ballchasing_api_key"]; ok {
-		p.cfg.BallchasingAPIKey = v
+		p.Cfg.BallchasingAPIKey = v
 	}
 	if v, ok := values["ballchasing_delete_after_upload"]; ok {
-		p.cfg.BallchasingDeleteAfterUpload = v == "true" || v == "1" || v == "on"
+		p.Cfg.BallchasingDeleteAfterUpload = v == "true" || v == "1" || v == "on"
 	}
 	return nil
 }
 
 func (p *Plugin) Assets() fs.FS { return viewFS }
 
-func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
-	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
-		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
+func (p *Plugin) Init(bus oofevents.PluginBus, reg plugin.Registry, database *db.DB) error {
+	if database != nil {
+		if err := database.RunMigration(`
+	CREATE TABLE IF NOT EXISTS bc_uploads (
+		replay_name    TEXT PRIMARY KEY,
+		ballchasing_id TEXT NOT NULL
+	);
+`); err != nil {
+			log.Printf("[ballchasing] migrate: %v", err)
+		}
+		p.store = &store{conn: database.Conn()}
+		p.DB = database
 	}
-	return nil
-}
+	if reg != nil {
+		p.Cfg = reg.Config()
+	}
 
-func (p *Plugin) Shutdown() error {
-	for _, s := range p.subs {
-		s.Cancel()
+	if bus != nil {
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded))
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed))
 	}
 	return nil
 }
@@ -136,7 +150,7 @@ func (p *Plugin) onMatchEnded(_ oofevents.OOFEvent) {
 
 // onMatchDestroyed triggers auto-upload after the match session is torn down.
 func (p *Plugin) onMatchDestroyed(_ oofevents.OOFEvent) {
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		return
 	}
 	p.mu.Lock()
@@ -166,7 +180,7 @@ func (p *Plugin) bcDo(ctx context.Context, method, path string, body io.Reader, 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", p.cfg.BallchasingAPIKey)
+	req.Header.Set("Authorization", p.Cfg.BallchasingAPIKey)
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -245,7 +259,7 @@ func (p *Plugin) autoUpload() {
 				_ = p.store.upsertBCUpload(name, res.ID)
 				uploaded = append(uploaded, autoUploadResult{Name: name, BcID: res.ID})
 				log.Printf("[bc] auto-uploaded %s → %s", name, res.ID)
-				if p.cfg.BallchasingDeleteAfterUpload {
+				if p.Cfg.BallchasingDeleteAfterUpload {
 					if rmErr := os.Remove(fullPath); rmErr != nil {
 						log.Printf("[bc] auto-upload delete %s: %v", name, rmErr)
 					}
@@ -269,7 +283,7 @@ func (p *Plugin) autoUpload() {
 // -- HTTP handlers --
 
 func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}
@@ -299,7 +313,7 @@ func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) handleReplays(w http.ResponseWriter, r *http.Request) {
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}
@@ -322,7 +336,7 @@ func (p *Plugin) handleReplays(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) handleGroups(w http.ResponseWriter, r *http.Request) {
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}
@@ -349,7 +363,7 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}
@@ -425,7 +439,7 @@ func (p *Plugin) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.Unmarshal(body, &uploadResp) == nil && uploadResp.ID != "" {
 			_ = p.store.upsertBCUpload(req.ReplayName, uploadResp.ID)
-			if p.cfg.BallchasingDeleteAfterUpload {
+			if p.Cfg.BallchasingDeleteAfterUpload {
 				if rmErr := os.Remove(fullPath); rmErr != nil {
 					log.Printf("[bc] upload delete %s: %v", req.ReplayName, rmErr)
 				}
@@ -545,7 +559,7 @@ func (p *Plugin) handleSync(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	if p.cfg.BallchasingAPIKey == "" {
+	if p.Cfg.BallchasingAPIKey == "" {
 		httputil.JSONError(w, 400, "ballchasing API key not configured")
 		return
 	}

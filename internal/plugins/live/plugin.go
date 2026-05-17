@@ -15,11 +15,16 @@ import (
 //go:embed view.html view.js
 var viewFS embed.FS
 
+func init() {
+	plugin.Register("live", func() plugin.Plugin {
+		return &Plugin{}
+	})
+}
+
 type Plugin struct {
 	plugin.BasePlugin
 	mu    sync.RWMutex
 	state *oofevents.StateUpdatedEvent // nil = no active match
-	subs  []oofevents.Subscription
 }
 
 func New() *Plugin { return &Plugin{} }
@@ -41,17 +46,8 @@ func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
 func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
-	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
-		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
-	}
-	return nil
-}
-
-func (p *Plugin) Shutdown() error {
-	for _, s := range p.subs {
-		s.Cancel()
-	}
+	p.AddSub(bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated))
+	p.AddSub(bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed))
 	return nil
 }
 

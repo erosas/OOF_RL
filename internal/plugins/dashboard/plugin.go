@@ -11,11 +11,18 @@ import (
 
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/httputil"
+	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 )
 
 //go:embed view.html view.js gridstack.min.css gridstack-all.js gridstack-all.js.LICENSE.txt
 var viewFS embed.FS
+
+func init() {
+	plugin.Register("dashboard", func() plugin.Plugin {
+		return &Plugin{}
+	})
+}
 
 type Plugin struct {
 	plugin.BasePlugin
@@ -23,15 +30,9 @@ type Plugin struct {
 }
 
 func New(database *db.DB) *Plugin {
-	if err := database.RunMigration(`
-		CREATE TABLE IF NOT EXISTS dash_layout (
-			id          INTEGER PRIMARY KEY CHECK (id = 1),
-			layout_json TEXT    NOT NULL DEFAULT '[]'
-		);
-	`); err != nil {
-		log.Printf("[dashboard] migrate: %v", err)
-	}
-	return &Plugin{conn: database.Conn()}
+	p := &Plugin{}
+	_ = p.Init(nil, nil, database)
+	return p
 }
 
 func (p *Plugin) ID() string         { return "dashboard" }
@@ -49,6 +50,21 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
+
+func (p *Plugin) Init(_ oofevents.PluginBus, _ plugin.Registry, database *db.DB) error {
+	if database != nil {
+		if err := database.RunMigration(`
+		CREATE TABLE IF NOT EXISTS dash_layout (
+			id          INTEGER PRIMARY KEY CHECK (id = 1),
+			layout_json TEXT    NOT NULL DEFAULT '[]'
+		);
+	`); err != nil {
+			log.Printf("[dashboard] migrate: %v", err)
+		}
+		p.conn = database.Conn()
+	}
+	return nil
+}
 
 // layoutItem is the validated shape of each entry in the dashboard layout array.
 type layoutItem struct {

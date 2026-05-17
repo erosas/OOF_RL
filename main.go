@@ -11,9 +11,10 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/arl/statsviz"
 	"os"
 	"time"
+
+	"github.com/arl/statsviz"
 
 	webview2 "github.com/jchv/go-webview2"
 
@@ -27,14 +28,7 @@ import (
 	"OOF_RL/internal/mmr/trackergg"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/overlay"
-	"OOF_RL/internal/plugins/ballchasing"
-	"OOF_RL/internal/plugins/dashboard"
-	"OOF_RL/internal/plugins/debugassistant"
-	"OOF_RL/internal/plugins/history"
-	"OOF_RL/internal/plugins/live"
-	"OOF_RL/internal/plugins/overlayhud"
-	"OOF_RL/internal/plugins/ranks"
-	"OOF_RL/internal/plugins/session"
+	_ "OOF_RL/internal/plugins/all"
 	"OOF_RL/internal/rl"
 	"OOF_RL/internal/singleinstance"
 )
@@ -95,14 +89,9 @@ func main() {
 			rlReconnect()
 		}
 	}, trnProvider, bus)
-	srv.Use(live.New())
-	srv.Use(ranks.New())
-	srv.Use(history.New(&cfg, database))
-	srv.Use(session.New(database))
-	srv.Use(ballchasing.New(&cfg, database, h))
-	srv.Use(dashboard.New(database))
-	srv.Use(debugassistant.New(&cfg))
-	srv.Use(overlayhud.NewWithConfig(srv.Momentum(), &cfg))
+	if err := srv.LoadPlugins(); err != nil {
+		log.Fatalf("plugin load: %v", err)
+	}
 	srv.Register(mux)
 	mux.Handle("/debug/pprof/", http.DefaultServeMux)
 	if err := statsviz.Register(mux); err != nil {

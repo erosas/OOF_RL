@@ -39,28 +39,43 @@ type exportReportRequest struct {
 	ExportID string          `json:"export_id"`
 }
 
+func init() {
+	plugin.Register("debugassistant", func() plugin.Plugin {
+		return &Plugin{}
+	})
+}
+
 // Plugin is a read-only regression helper. It observes RL event flow and serves
 // tester-facing state without writing match/session/history data.
 type Plugin struct {
 	plugin.BasePlugin
-	cfg    *config.Config
 	mu     sync.RWMutex
 	events []recentEvent
-	subs   []oofevents.Subscription
 }
 
 func New(cfg *config.Config) *Plugin {
-	p := &Plugin{cfg: cfg}
+	p := &Plugin{}
+	_ = p.Init(nil, &fakeReg{cfg: cfg}, nil)
 	p.append("PluginLoaded", "", "Debug Assistant ready")
 	return p
 }
 
-func (p *Plugin) ID() string         { return "debug-assistant" }
+type fakeReg struct {
+	plugin.Registry
+	cfg *config.Config
+}
+
+func (f *fakeReg) Config() *config.Config { return f.cfg }
+
+func (p *Plugin) ID() string         { return "debugassistant" }
 func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return nil }
 
 func (p *Plugin) NavTab() plugin.NavTab {
-	return plugin.NavTab{ID: "debug", Label: "Debug", Order: 90}
+	if !p.enabled() {
+		return plugin.NavTab{}
+	}
+	return plugin.NavTab{ID: "debugassistant", Label: "Debug", Order: 90}
 }
 
 func (p *Plugin) Routes(mux *http.ServeMux) {
@@ -76,25 +91,21 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+func (p *Plugin) Init(bus oofevents.PluginBus, reg plugin.Registry, _ *db.DB) error {
+	if reg != nil {
+		p.Cfg = reg.Config()
+	}
 	if !p.enabled() {
 		return nil
 	}
-	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
-		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
-		bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored),
-		bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed),
-		bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated),
-		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
-		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
-	}
-	return nil
-}
-
-func (p *Plugin) Shutdown() error {
-	for _, s := range p.subs {
-		s.Cancel()
+	if bus != nil {
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted))
+		p.AddSub(bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated))
+		p.AddSub(bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored))
+		p.AddSub(bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed))
+		p.AddSub(bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated))
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded))
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed))
 	}
 	return nil
 }
@@ -145,10 +156,10 @@ func (p *Plugin) onMatchDestroyed(e oofevents.OOFEvent) {
 }
 
 func (p *Plugin) enabled() bool {
-	if p.cfg == nil {
+	if p.Cfg == nil {
 		return true
 	}
-	for _, id := range p.cfg.DisabledPlugins {
+	for _, id := range p.Cfg.DisabledPlugins {
 		if id == p.ID() {
 			return false
 		}
@@ -184,8 +195,8 @@ func (p *Plugin) handleContext(w http.ResponseWriter, r *http.Request) {
 	p.mu.RUnlock()
 
 	dataDir := ""
-	if p.cfg != nil {
-		dataDir = p.cfg.DataDir
+	if p.Cfg != nil {
+		dataDir = p.Cfg.DataDir
 	}
 	httputil.WriteJSON(w, map[string]any{
 		"data_dir":          dataDir,
@@ -271,7 +282,7 @@ func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if p.cfg == nil || p.cfg.DataDir == "" {
+	if p.Cfg == nil || p.Cfg.DataDir == "" {
 		http.Error(w, "data dir unavailable", http.StatusInternalServerError)
 		return
 	}
@@ -286,7 +297,7 @@ func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(p.cfg.DataDir, "debug_reports")
+	dir := filepath.Join(p.Cfg.DataDir, "debug_reports")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, "creating report dir: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -338,10 +349,10 @@ func (p *Plugin) handleExportReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) debugScreenshotsDir() string {
-	if p.cfg == nil || p.cfg.DataDir == "" {
+	if p.Cfg == nil || p.Cfg.DataDir == "" {
 		return ""
 	}
-	return filepath.Join(p.cfg.DataDir, "debug_screenshots")
+	return filepath.Join(p.Cfg.DataDir, "debug_screenshots")
 }
 
 func isDebugImage(name string) bool {
