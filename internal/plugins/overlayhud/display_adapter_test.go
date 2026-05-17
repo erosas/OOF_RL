@@ -38,7 +38,10 @@ func TestDisplayAdapterRendersNoDataHTMLAndSVG(t *testing.T) {
 	for _, output := range []string{svg, html} {
 		for _, want := range []string{
 			`viewBox="0 0 320 320"`,
-			`class="overlayhud-render-model is-inactive has-no-data is-stale"`,
+			`mcw-state-no-data`,
+			`is-inactive`,
+			`has-no-data`,
+			`is-stale`,
 			`>NO DATA</text>`,
 		} {
 			if !strings.Contains(output, want) {
@@ -66,8 +69,10 @@ func TestDisplayAdapterRendersActiveHTMLAndSVG(t *testing.T) {
 
 	for _, output := range []string{svg, html} {
 		for _, want := range []string{
-			`class="overlayhud-render-model is-active has-data"`,
-			`>BLUE PRESSURE</text>`,
+			`mcw-state-blue-control`,
+			`is-active`,
+			`has-data`,
+			`>BLUE CONTROL</text>`,
 			`id="hud-momentum-blue"`,
 		} {
 			if !strings.Contains(output, want) {
@@ -92,7 +97,10 @@ func TestDisplayAdapterRendersStaleHTMLAndSVG(t *testing.T) {
 
 	for _, output := range []string{svg, html} {
 		for _, want := range []string{
-			`class="overlayhud-render-model is-active has-data is-stale"`,
+			`mcw-state-stale`,
+			`is-active`,
+			`has-data`,
+			`is-stale`,
 			`>STALE</text>`,
 		} {
 			if !strings.Contains(output, want) {
@@ -136,7 +144,7 @@ func TestPreviewRouteUsesDisplayAdapterOutput(t *testing.T) {
 	for _, want := range []string{
 		"<!doctype html>",
 		`viewBox="0 0 320 320"`,
-		`>BLUE PRESSURE</text>`,
+		`>BLUE CONTROL</text>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("route body missing adapter output %q: %s", want, body)

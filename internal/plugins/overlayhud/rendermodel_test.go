@@ -48,10 +48,13 @@ func TestBuildRenderModelUsesNeutralNoDataState(t *testing.T) {
 	if !almostEqual(model.BlueArc.Share, 0.5) || !almostEqual(model.OrangeArc.Share, 0.5) {
 		t.Fatalf("shares = %f/%f, want 0.5/0.5", model.BlueArc.Share, model.OrangeArc.Share)
 	}
-	for _, className := range []string{"is-inactive", "has-no-data"} {
+	for _, className := range []string{"is-inactive", "has-no-data", "mcw-state-no-data", "is-state-no-data"} {
 		if !hasStateClass(model.StateClasses, className) {
 			t.Fatalf("StateClasses = %v, want %s", model.StateClasses, className)
 		}
+	}
+	if model.DisplayState != displayStateNoData {
+		t.Fatalf("DisplayState = %q, want %q", model.DisplayState, displayStateNoData)
 	}
 	if model.Center.StateLabel != "NO DATA" {
 		t.Fatalf("StateLabel = %q, want NO DATA", model.Center.StateLabel)
@@ -72,6 +75,48 @@ func TestBuildRenderModelAddsStaleAndInactiveClasses(t *testing.T) {
 	}
 	if model.MatchActive || !model.HasData || !model.IsStale {
 		t.Fatalf("state flags = active:%v hasData:%v stale:%v", model.MatchActive, model.HasData, model.IsStale)
+	}
+}
+
+func TestBuildRenderModelAddsMomentumControlWheelStateClasses(t *testing.T) {
+	tests := []struct {
+		name        string
+		view        ViewModel
+		wantState   string
+		wantClasses []string
+	}{
+		{
+			name:      "explicit blue control",
+			view:      ViewModel{DisplayState: displayStateBlueControl, StateLabel: "BLUE CONTROL"},
+			wantState: displayStateBlueControl,
+			wantClasses: []string{
+				"mcw-state-blue-control",
+				"is-state-blue-control",
+			},
+		},
+		{
+			name:      "label fallback volatile",
+			view:      ViewModel{StateLabel: "VOLATILE"},
+			wantState: displayStateVolatile,
+			wantClasses: []string{
+				"mcw-state-volatile",
+				"is-state-volatile",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := buildRenderModel(tt.view)
+			if model.DisplayState != tt.wantState {
+				t.Fatalf("DisplayState = %q, want %q", model.DisplayState, tt.wantState)
+			}
+			for _, className := range tt.wantClasses {
+				if !hasStateClass(model.StateClasses, className) {
+					t.Fatalf("StateClasses = %v, want %s", model.StateClasses, className)
+				}
+			}
+		})
 	}
 }
 

@@ -11,6 +11,26 @@ import (
 // It does not affect Momentum Engine state or persistence.
 const staleSnapshotAfter = 10 * time.Second
 
+const (
+	displayStateNeutral        = "neutral"
+	displayStateBluePressure   = "blue-pressure"
+	displayStateOrangePressure = "orange-pressure"
+	displayStateBlueControl    = "blue-control"
+	displayStateOrangeControl  = "orange-control"
+	displayStateVolatile       = "volatile"
+	displayStateStale          = "stale"
+	displayStateNoData         = "no-data"
+	displayStateInactive       = "inactive"
+)
+
+const (
+	displayNeutralSpreadMax = 0.08
+	displayPressureShareMin = 0.58
+	displayControlShareMin  = 0.70
+	displayVolatilityMin    = 0.72
+	displayConfidenceMin    = 0.20
+)
+
 // ViewModel is display-oriented Momentum state for future Overlay HUD rendering.
 // It deliberately avoids exposing raw engine ownership or mutation details.
 type ViewModel struct {
@@ -21,9 +41,10 @@ type ViewModel struct {
 	BlueShare   float64
 	OrangeShare float64
 
-	StateLabel string
-	Confidence float64
-	Volatility float64
+	DisplayState string
+	StateLabel   string
+	Confidence   float64
+	Volatility   float64
 
 	LastUpdated time.Time
 }
@@ -37,18 +58,23 @@ func mapMomentumViewModel(state momentum.MomentumState, status momentum.ServiceS
 	orange := state.Teams[oofevents.TeamOrange]
 	blueShare, orangeShare := shares(blue.MomentumInfluence, orange.MomentumInfluence)
 	lastUpdated := state.LastEvent.OccurredAt
+	confidence := clamp01(avg(blue.Confidence, orange.Confidence))
+	volatility := clamp01(avg(blue.Volatility, orange.Volatility))
+	isStale := isStale(lastUpdated, now)
+	displayState := momentumDisplayState(blueShare, orangeShare, confidence, volatility, state.Sequence > 0, status.Active, isStale)
 
 	return ViewModel{
-		MatchActive: status.Active,
-		HasData:     state.Sequence > 0,
-		IsStale:     isStale(lastUpdated, now),
-		BlueShare:   blueShare,
-		OrangeShare: orangeShare,
-		StateLabel:  stateLabel(blueShare, orangeShare, avg(blue.Confidence, orange.Confidence)),
+		MatchActive:  status.Active,
+		HasData:      state.Sequence > 0,
+		IsStale:      isStale,
+		BlueShare:    blueShare,
+		OrangeShare:  orangeShare,
+		DisplayState: displayState,
+		StateLabel:   stateLabel(displayState),
 		// Confidence and volatility are averaged for display smoothing only.
 		// The engine remains the source of truth for team-level signals.
-		Confidence:  clamp01(avg(blue.Confidence, orange.Confidence)),
-		Volatility:  clamp01(avg(blue.Volatility, orange.Volatility)),
+		Confidence:  confidence,
+		Volatility:  volatility,
 		LastUpdated: lastUpdated,
 	}
 }
@@ -63,18 +89,61 @@ func shares(blue, orange float64) (float64, float64) {
 	return blue / total, orange / total
 }
 
-func stateLabel(blueShare, orangeShare, confidence float64) string {
-	if confidence <= 0 {
-		return "NO DATA"
+func momentumDisplayState(blueShare, orangeShare, confidence, volatility float64, hasData, matchActive, stale bool) string {
+	switch {
+	case !hasData:
+		return displayStateNoData
+	case !matchActive:
+		return displayStateInactive
+	case stale:
+		return displayStateStale
+	case volatility >= displayVolatilityMin && confidence < displayConfidenceMin:
+		return displayStateVolatile
 	}
+
 	diff := blueShare - orangeShare
 	switch {
-	case diff >= 0.12:
-		return "BLUE PRESSURE"
-	case diff <= -0.12:
-		return "ORANGE PRESSURE"
+	case diff >= shareSpreadThreshold(displayControlShareMin):
+		return displayStateBlueControl
+	case diff <= -shareSpreadThreshold(displayControlShareMin):
+		return displayStateOrangeControl
+	case diff >= shareSpreadThreshold(displayPressureShareMin):
+		return displayStateBluePressure
+	case diff <= -shareSpreadThreshold(displayPressureShareMin):
+		return displayStateOrangePressure
+	case diff > displayNeutralSpreadMax:
+		return displayStateBluePressure
+	case diff < -displayNeutralSpreadMax:
+		return displayStateOrangePressure
 	default:
-		return "SHIFTING"
+		return displayStateNeutral
+	}
+}
+
+func shareSpreadThreshold(share float64) float64 {
+	return share*2 - 1
+}
+
+func stateLabel(displayState string) string {
+	switch displayState {
+	case displayStateBluePressure:
+		return "BLUE PRESSURE"
+	case displayStateOrangePressure:
+		return "ORANGE PRESSURE"
+	case displayStateBlueControl:
+		return "BLUE CONTROL"
+	case displayStateOrangeControl:
+		return "ORANGE CONTROL"
+	case displayStateVolatile:
+		return "VOLATILE"
+	case displayStateStale:
+		return "STALE"
+	case displayStateNoData:
+		return "NO DATA"
+	case displayStateInactive:
+		return "INACTIVE"
+	default:
+		return "NEUTRAL"
 	}
 }
 

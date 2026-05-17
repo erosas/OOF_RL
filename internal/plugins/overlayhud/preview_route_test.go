@@ -51,7 +51,7 @@ func TestPreviewRouteRendersCurrentMomentumSVG(t *testing.T) {
 		`viewBox="0 0 320 320"`,
 		`id="hud-root"`,
 		`>--:--</text>`,
-		`>BLUE PRESSURE</text>`,
+		`>BLUE CONTROL</text>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("preview body missing %q: %s", want, body)
@@ -75,7 +75,10 @@ func TestPreviewRouteRendersNoDataState(t *testing.T) {
 	for _, want := range []string{
 		"<!doctype html>",
 		`viewBox="0 0 320 320"`,
-		`class="overlayhud-render-model is-inactive has-no-data is-stale"`,
+		`mcw-state-no-data`,
+		`is-inactive`,
+		`has-no-data`,
+		`is-stale`,
 		`>NO DATA</text>`,
 		`>STALE</text>`,
 	} {
@@ -118,8 +121,10 @@ func TestPreviewRouteRendersStaleState(t *testing.T) {
 	}
 	body := w.Body.String()
 	for _, want := range []string{
-		`class="overlayhud-render-model is-active has-data is-stale"`,
-		`>BLUE PRESSURE</text>`,
+		`mcw-state-stale`,
+		`is-active`,
+		`has-data`,
+		`is-stale`,
 		`>STALE</text>`,
 	} {
 		if !strings.Contains(body, want) {

@@ -20,9 +20,10 @@ func RenderSVG(model RenderModel) string {
 	var b strings.Builder
 	rootID := groupID(model.Groups.Root, "hud-root")
 
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" role="img" aria-label="%s">`,
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" data-state="%s" role="img" aria-label="%s">`,
 		escapeAttr(model.ViewBox),
 		escapeAttr(strings.Join(model.StateClasses, " ")),
+		escapeAttr(model.DisplayState),
 		escapeAttr(svgAriaLabel(model)),
 	)
 	fmt.Fprintf(&b, `<g id="%s">`, escapeAttr(rootID))
