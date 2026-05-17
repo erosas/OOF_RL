@@ -281,6 +281,46 @@ func TestMatchEndedNearZeroClockIsNotForfeit(t *testing.T) {
 	}
 }
 
+func TestHistoryInitWithBusWiresSubscriptions(t *testing.T) {
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+
+	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	cfg := config.Defaults()
+	p := &Plugin{}
+	if err := p.Init(bus.ForPlugin("history"), &fakeReg{cfg: &cfg}, database); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if len(p.Subs) != 8 {
+		t.Fatalf("Init should register 8 subscriptions, got %d", len(p.Subs))
+	}
+}
+
+func TestHistoryInitNilBusNoSubscriptions(t *testing.T) {
+	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	cfg := config.Defaults()
+	p := &Plugin{}
+	if err := p.Init(nil, &fakeReg{cfg: &cfg}, database); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if len(p.Subs) != 0 {
+		t.Fatalf("nil bus should register no subscriptions, got %d", len(p.Subs))
+	}
+}
+
 func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
 	p := newTestPlugin(t)
 

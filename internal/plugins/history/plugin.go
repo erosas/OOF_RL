@@ -121,11 +121,15 @@ CREATE INDEX IF NOT EXISTS idx_hist_sf_match  ON hist_statfeed_events(match_id);
 CREATE INDEX IF NOT EXISTS idx_hist_sf_player ON hist_statfeed_events(player_id);
 `
 
+func init() {
+	plugin.Register("history", func() plugin.Plugin {
+		return &Plugin{}
+	})
+}
+
 type Plugin struct {
 	plugin.BasePlugin
-	cfg   *config.Config
 	store *store
-	subs  []oofevents.Subscription
 
 	// per-match state, reset on MatchDestroyed
 	matchID         int64
@@ -138,21 +142,17 @@ type Plugin struct {
 }
 
 func New(cfg *config.Config, database *db.DB) *Plugin {
-	if err := database.RunMigration(historySchema); err != nil {
-		log.Printf("[history] migrate: %v", err)
-	}
-	for _, col := range [][2]string{
-		{"team_score_0", "INTEGER"},
-		{"team_score_1", "INTEGER"},
-		{"incomplete", "BOOLEAN DEFAULT 0"},
-		{"forfeit", "BOOLEAN DEFAULT 0"},
-	} {
-		if err := database.AddColumnIfNotExists("hist_matches", col[0], col[1]); err != nil {
-			log.Printf("[history] migrate hist_matches.%s: %v", col[0], err)
-		}
-	}
-	return &Plugin{cfg: cfg, store: &store{conn: database.Conn()}}
+	p := &Plugin{}
+	_ = p.Init(nil, &fakeReg{cfg: cfg}, database)
+	return p
 }
+
+type fakeReg struct {
+	plugin.Registry
+	cfg *config.Config
+}
+
+func (f *fakeReg) Config() *config.Config { return f.cfg }
 
 func (p *Plugin) ID() string         { return "history" }
 func (p *Plugin) DBPrefix() string   { return "hist" }
@@ -172,23 +172,37 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
-	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
-		bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated),
-		bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored),
-		bus.Subscribe(oofevents.TypeBallHit, p.onBallHit),
-		bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated),
-		bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed),
-		bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded),
-		bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed),
+func (p *Plugin) Init(bus oofevents.PluginBus, reg plugin.Registry, database *db.DB) error {
+	if database != nil {
+		if err := database.RunMigration(historySchema); err != nil {
+			log.Printf("[history] migrate: %v", err)
+		}
+		for _, col := range [][2]string{
+			{"team_score_0", "INTEGER"},
+			{"team_score_1", "INTEGER"},
+			{"incomplete", "BOOLEAN DEFAULT 0"},
+			{"forfeit", "BOOLEAN DEFAULT 0"},
+		} {
+			if err := database.AddColumnIfNotExists("hist_matches", col[0], col[1]); err != nil {
+				log.Printf("[history] migrate hist_matches.%s: %v", col[0], err)
+			}
+		}
+		p.store = &store{conn: database.Conn()}
+		p.DB = database
 	}
-	return nil
-}
+	if reg != nil {
+		p.Cfg = reg.Config()
+	}
 
-func (p *Plugin) Shutdown() error {
-	for _, s := range p.subs {
-		s.Cancel()
+	if bus != nil {
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted))
+		p.AddSub(bus.Subscribe(oofevents.TypeStateUpdated, p.onStateUpdated))
+		p.AddSub(bus.Subscribe(oofevents.TypeGoalScored, p.onGoalScored))
+		p.AddSub(bus.Subscribe(oofevents.TypeBallHit, p.onBallHit))
+		p.AddSub(bus.Subscribe(oofevents.TypeClockUpdated, p.onClockUpdated))
+		p.AddSub(bus.Subscribe(oofevents.TypeStatFeed, p.onStatFeed))
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchEnded, p.onMatchEnded))
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchDestroyed, p.onMatchDestroyed))
 	}
 	return nil
 }
@@ -286,7 +300,7 @@ func (p *Plugin) findPlayerByShortcut(shortcut int) string {
 }
 
 func (p *Plugin) onBallHit(e oofevents.OOFEvent) {
-	if !p.cfg.Storage.BallHitEvents || p.matchID == 0 {
+	if !p.Cfg.Storage.BallHitEvents || p.matchID == 0 {
 		return
 	}
 	ev, ok := oofevents.Unwrap(e).(oofevents.BallHitEvent)

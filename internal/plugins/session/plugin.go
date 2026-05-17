@@ -30,19 +30,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at);
 `
 
+func init() {
+	plugin.Register("session", func() plugin.Plugin {
+		return &Plugin{}
+	})
+}
+
 type Plugin struct {
 	plugin.BasePlugin
 	store *store
 	mu    sync.Mutex
 	since time.Time
-	subs  []oofevents.Subscription
 }
 
 func New(database *db.DB) *Plugin {
-	if err := database.RunMigration(sessionSchema); err != nil {
-		log.Printf("[session] migrate: %v", err)
-	}
-	return &Plugin{store: &store{conn: database.Conn()}} // since is zero until first match
+	p := &Plugin{}
+	_ = p.Init(nil, nil, database)
+	return p
 }
 
 func (p *Plugin) ID() string         { return "session" }
@@ -66,16 +70,17 @@ func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
 func (p *Plugin) Assets() fs.FS                           { return viewFS }
 
-func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
-	p.subs = []oofevents.Subscription{
-		bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted),
+func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, database *db.DB) error {
+	if database != nil {
+		if err := database.RunMigration(sessionSchema); err != nil {
+			log.Printf("[session] migrate: %v", err)
+		}
+		p.store = &store{conn: database.Conn()}
+		p.DB = database
 	}
-	return nil
-}
 
-func (p *Plugin) Shutdown() error {
-	for _, s := range p.subs {
-		s.Cancel()
+	if bus != nil {
+		p.AddSub(bus.Subscribe(oofevents.TypeMatchStarted, p.onMatchStarted))
 	}
 	return nil
 }

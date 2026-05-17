@@ -86,6 +86,23 @@ func postJSON(mux *http.ServeMux, path string, body any) *httptest.ResponseRecor
 	return w
 }
 
+func TestServerConfigReturnsConfig(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if srv.Config() == nil {
+		t.Fatal("Config() should return a non-nil config")
+	}
+}
+
+func TestServerLoadPlugins(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.LoadPlugins(); err != nil {
+		t.Fatalf("LoadPlugins: %v", err)
+	}
+	if len(srv.List()) == 0 {
+		t.Fatal("LoadPlugins should register at least the imported plugins")
+	}
+}
+
 func TestServerRegistersMomentumRuntime(t *testing.T) {
 	srv, _ := newTestServer(t)
 

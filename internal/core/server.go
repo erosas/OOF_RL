@@ -68,6 +68,8 @@ func (s *Server) Momentum() momentum.SnapshotProvider {
 	return s.momentum
 }
 
+func (s *Server) Config() *config.Config { return s.cfg }
+
 // InitPlugins calls Init on every registered plugin after all plugins are registered.
 // Must be called before the RL client starts delivering events.
 func (s *Server) InitPlugins() error {
@@ -116,6 +118,17 @@ func (s *Server) List() []plugin.Plugin {
 // Use registers a plugin. Call before Register.
 func (s *Server) Use(p plugin.Plugin) {
 	s.plugins = append(s.plugins, p)
+}
+
+func (s *Server) LoadPlugins() error {
+	for id, factory := range plugin.Factories() {
+		p := factory()
+		if p.ID() != id {
+			log.Printf("[core] warning: plugin ID mismatch for %q: got %q", id, p.ID())
+		}
+		s.Use(p)
+	}
+	return nil
 }
 
 // Register wires all routes onto mux: core endpoints first, then each plugin,
