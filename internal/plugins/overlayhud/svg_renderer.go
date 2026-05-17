@@ -20,26 +20,30 @@ func RenderSVG(model RenderModel) string {
 	var b strings.Builder
 	rootID := groupID(model.Groups.Root, "hud-root")
 
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" data-state="%s" role="img" aria-label="%s">`,
+	fmt.Fprintf(&b, `<svg id="momentum-control-wheel" xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" data-state="%s" data-seam-angle="%s" style="%s" role="img" aria-label="%s">`,
 		escapeAttr(model.ViewBox),
 		escapeAttr(strings.Join(model.StateClasses, " ")),
 		escapeAttr(model.DisplayState),
+		num(model.SeamAngleDeg),
+		escapeAttr(model.StyleVars),
 		escapeAttr(svgAriaLabel(model)),
 	)
+	renderDefs(&b)
 	fmt.Fprintf(&b, `<g id="%s">`, escapeAttr(rootID))
 	renderBackground(&b, model)
-	renderEmptyGroup(&b, model.Groups.OuterAura)
-	renderEmptyGroup(&b, model.Groups.OuterStreaks)
-	renderEmptyGroup(&b, model.Groups.OuterSparks)
+	renderAura(&b, model)
+	renderEnergyStreaks(&b, model)
+	renderSparks(&b, model)
 	renderFrame(&b, model)
 	renderSegments(&b, model)
 	renderTicks(&b, model)
 	renderConfidence(&b, model)
 	renderCenter(&b, model)
-	renderEmptyGroup(&b, model.Groups.CenterColorWashes)
+	renderCenterWashes(&b, model)
 	renderEmptyGroup(&b, model.Groups.CenterTexture)
-	renderEmptyGroup(&b, model.Groups.CenterRim)
-	renderEmptyGroup(&b, model.Groups.ContestedFrontLine)
+	renderCenterRim(&b, model)
+	renderContestedFrontLine(&b, model)
+	renderTextLayer(&b, model)
 	renderStateOverlay(&b, model)
 	renderEmptyGroup(&b, model.Groups.Badge)
 	renderEmptyGroup(&b, model.Groups.DebugOverlays)
@@ -48,10 +52,44 @@ func RenderSVG(model RenderModel) string {
 	return b.String()
 }
 
+func renderDefs(b *strings.Builder) {
+	b.WriteString(`<defs>`)
+	b.WriteString(`<filter id="mcw-soft-blur" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="18"/></filter>`)
+	b.WriteString(`<radialGradient id="mcw-center-blue-wash" cx="35%" cy="42%" r="62%"><stop offset="0%" stop-color="#38B2F6"/><stop offset="100%" stop-color="#38B2F6" stop-opacity="0"/></radialGradient>`)
+	b.WriteString(`<radialGradient id="mcw-center-orange-wash" cx="65%" cy="42%" r="62%"><stop offset="0%" stop-color="#F97316"/><stop offset="100%" stop-color="#F97316" stop-opacity="0"/></radialGradient>`)
+	b.WriteString(`<radialGradient id="mcw-center-purple-wash" cx="50%" cy="18%" r="58%"><stop offset="0%" stop-color="#F0B8FF"/><stop offset="100%" stop-color="#B45CFF" stop-opacity="0"/></radialGradient>`)
+	b.WriteString(`</defs>`)
+}
+
 func renderBackground(b *strings.Builder, model RenderModel) {
 	fmt.Fprintf(b, `<g id="%s" class="overlayhud-background">`, escapeAttr(groupID(model.Groups.Background, "background")))
 	fmt.Fprintf(b, `<rect id="bg-transparent-hitbox" x="0" y="0" width="1024" height="1024" fill="transparent"/>`)
 	fmt.Fprintf(b, `<circle id="bg-radial-shadow" cx="%s" cy="%s" r="440" class="overlayhud-background-disc"/>`, num(model.CenterX), num(model.CenterY))
+	b.WriteString(`</g>`)
+}
+
+func renderAura(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s" class="mcw-aura-layer">`, escapeAttr(groupID(model.Groups.OuterAura, "outer-aura")))
+	fmt.Fprintf(b, `<path id="outer-aura-blue" class="mcw-aura mcw-aura-blue" d="%s"/>`, escapeAttr(arcPath(model.CenterX, model.CenterY, 436, 180, 180+model.BlueArc.Share*renderFullSweepDeg)))
+	fmt.Fprintf(b, `<path id="outer-aura-orange" class="mcw-aura mcw-aura-orange" d="%s"/>`, escapeAttr(arcPath(model.CenterX, model.CenterY, 436, 180+model.BlueArc.Share*renderFullSweepDeg, 540)))
+	x, y := pointOnCircle(model.CenterX, model.CenterY, 428, model.SeamAngleDeg)
+	fmt.Fprintf(b, `<circle id="outer-aura-purple-contest" class="mcw-aura mcw-aura-contest" cx="%s" cy="%s" r="34"/>`, num(x), num(y))
+	b.WriteString(`</g>`)
+}
+
+func renderEnergyStreaks(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s" class="mcw-streaks">`, escapeAttr(groupID(model.Groups.OuterStreaks, "outer-energy-streaks")))
+	b.WriteString(`<g id="outer-energy-streaks-blue" class="mcw-streaks-blue"><line x1="228" y1="260" x2="178" y2="220"/><line x1="194" y1="354" x2="138" y2="330"/></g>`)
+	b.WriteString(`<g id="outer-energy-streaks-orange" class="mcw-streaks-orange"><line x1="796" y1="260" x2="846" y2="220"/><line x1="830" y1="354" x2="886" y2="330"/></g>`)
+	b.WriteString(`</g>`)
+}
+
+func renderSparks(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s" class="mcw-sparks">`, escapeAttr(groupID(model.Groups.OuterSparks, "outer-sparks")))
+	b.WriteString(`<g id="outer-sparks-blue"><circle class="mcw-spark mcw-spark-role-pressure" cx="214" cy="216" r="4"/><circle class="mcw-spark mcw-spark-role-control" cx="166" cy="308" r="3"/></g>`)
+	b.WriteString(`<g id="outer-sparks-orange"><circle class="mcw-spark mcw-spark-role-pressure" cx="810" cy="216" r="4"/><circle class="mcw-spark mcw-spark-role-control" cx="858" cy="308" r="3"/></g>`)
+	b.WriteString(`<g id="outer-sparks-purple"><circle class="mcw-spark mcw-spark-role-volatile" cx="512" cy="76" r="5"/></g>`)
+	b.WriteString(`<g id="outer-sparks-white"><circle class="mcw-spark mcw-spark-role-volatile" cx="512" cy="102" r="3"/></g>`)
 	b.WriteString(`</g>`)
 }
 
@@ -156,9 +194,36 @@ func renderTicks(b *strings.Builder, model RenderModel) {
 
 func renderCenter(b *strings.Builder, model RenderModel) {
 	fmt.Fprintf(b, `<g id="%s" class="overlayhud-center-panel">`, escapeAttr(groupID(model.Groups.CenterCore, "hud-center-panel")))
-	fmt.Fprintf(b, `<circle cx="%s" cy="%s" r="%d" class="overlayhud-center-core"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius)
+	fmt.Fprintf(b, `<circle id="center-disc-base" cx="%s" cy="%s" r="%d" class="overlayhud-center-core"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius)
+	fmt.Fprintf(b, `<circle id="center-disc-inner-shadow" cx="%s" cy="%s" r="%d" class="mcw-center-inner-shadow"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius-10)
 	b.WriteString(`</g>`)
+}
 
+func renderCenterWashes(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s">`, escapeAttr(groupID(model.Groups.CenterColorWashes, "center-color-washes")))
+	fmt.Fprintf(b, `<circle id="center-disc-blue-wash" cx="%s" cy="%s" r="%d" class="mcw-center-wash-blue"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius)
+	fmt.Fprintf(b, `<circle id="center-disc-orange-wash" cx="%s" cy="%s" r="%d" class="mcw-center-wash-orange"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius)
+	fmt.Fprintf(b, `<circle id="center-disc-purple-contest-wash" cx="%s" cy="%s" r="%d" class="mcw-center-wash-purple"/>`, num(model.CenterX), num(model.CenterY), svgCenterPanelRadius)
+	b.WriteString(`</g>`)
+}
+
+func renderCenterRim(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s">`, escapeAttr(groupID(model.Groups.CenterRim, "center-rim")))
+	fmt.Fprintf(b, `<circle id="center-disc-rim" cx="%s" cy="%s" r="238" class="mcw-center-rim"/>`, num(model.CenterX), num(model.CenterY))
+	fmt.Fprintf(b, `<ellipse id="center-disc-glass-highlight" cx="%s" cy="414" rx="124" ry="34" class="mcw-center-glass-highlight"/>`, num(model.CenterX))
+	b.WriteString(`</g>`)
+}
+
+func renderContestedFrontLine(b *strings.Builder, model RenderModel) {
+	fmt.Fprintf(b, `<g id="%s" class="mcw-contested-front-line" transform="rotate(%s 512 512)">`, escapeAttr(groupID(model.Groups.ContestedFrontLine, "contested-front-line")), num(model.SeamAngleDeg-270))
+	b.WriteString(`<circle id="contest-top-core" cx="512" cy="92" r="8"/>`)
+	b.WriteString(`<circle id="contest-top-purple-glow" cx="512" cy="92" r="34"/>`)
+	b.WriteString(`<line id="contest-top-vertical-beam" x1="512" y1="100" x2="512" y2="270"/>`)
+	b.WriteString(`<circle id="contest-bottom-seam" cx="512" cy="932" r="5"/>`)
+	b.WriteString(`</g>`)
+}
+
+func renderTextLayer(b *strings.Builder, model RenderModel) {
 	fmt.Fprintf(b, `<g id="%s" class="overlayhud-labels">`, escapeAttr(groupID(model.Groups.TextLayer, "text-layer")))
 	fmt.Fprintf(b, `<g id="hud-timer-text"><text id="text-time" x="%s" y="506" text-anchor="middle" class="overlayhud-timer-text mcw-time">%s</text></g>`, num(model.CenterX), escapeText(model.Center.PrimaryText))
 	fmt.Fprintf(b, `<g id="hud-state-label"><text id="text-state" x="%s" y="570" text-anchor="middle" class="overlayhud-state-label mcw-state-label">%s</text></g>`, num(model.CenterX), escapeText(model.Center.StateLabel))

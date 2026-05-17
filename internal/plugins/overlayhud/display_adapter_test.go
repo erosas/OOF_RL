@@ -54,6 +54,29 @@ func TestDisplayAdapterRendersNoDataHTMLAndSVG(t *testing.T) {
 	}
 }
 
+func TestDisplayAdapterHTMLIncludesMomentumControlWheelStylingHooks(t *testing.T) {
+	adapter := NewDisplayAdapter(activeMomentumProvider(time.Unix(100, 0)))
+	html, ok := adapter.RenderHTML(time.Unix(101, 0))
+	if !ok {
+		t.Fatal("RenderHTML should be available")
+	}
+
+	for _, want := range []string{
+		`--mcw-blue-core: #38b2f6`,
+		`.mcw-state-blue-control .mcw-segment-blue`,
+		`.mcw-state-volatile .mcw-segment-cap`,
+		`@keyframes mcw-contest-flicker`,
+		`@keyframes mcw-energy-streak`,
+		`@media (prefers-reduced-motion: reduce)`,
+		`id="outer-aura-blue"`,
+		`id="center-disc-blue-wash"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("RenderHTML missing styling hook %q: %s", want, html)
+		}
+	}
+}
+
 func TestDisplayAdapterRendersActiveHTMLAndSVG(t *testing.T) {
 	adapter := NewDisplayAdapter(activeMomentumProvider(time.Unix(100, 0)))
 	now := time.Unix(101, 0)
