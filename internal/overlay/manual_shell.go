@@ -21,10 +21,18 @@ type ManualShellOptions struct {
 	Visible bool
 }
 
+// ManualShell is a narrowly owned native shell handle for request-driven
+// visibility control. It deliberately does not own hotkeys, polling, settings,
+// or plugin lifecycle semantics.
+type ManualShell struct {
+	webview webview2.WebView
+	hwnd    windows.HWND
+}
+
 // StartManualShell creates a native overlay WebView shell for a specific URL.
 // It is request-driven only: no F9 listener, autostart behavior, render loop, or
 // plugin lifecycle ownership is installed here.
-func StartManualShell(url string, cfg *config.Config, opts ManualShellOptions) webview2.WebView {
+func StartManualShell(url string, cfg *config.Config, opts ManualShellOptions) *ManualShell {
 	url = strings.TrimSpace(url)
 	if url == "" || cfg == nil {
 		return nil
@@ -50,5 +58,27 @@ func StartManualShell(url string, cfg *config.Config, opts ManualShellOptions) w
 		procShowWindow.Call(uintptr(hwnd), swShowNA)
 	}
 	SetWindowIcon(uintptr(hwnd))
-	return ov
+	return &ManualShell{webview: ov, hwnd: hwnd}
+}
+
+func (s *ManualShell) Show() {
+	if s == nil || s.webview == nil || s.hwnd == 0 {
+		return
+	}
+	s.webview.Dispatch(func() {
+		procShowWindow.Call(uintptr(s.hwnd), swShowNA)
+	})
+}
+
+func (s *ManualShell) Hide() {
+	if s == nil || s.webview == nil || s.hwnd == 0 {
+		return
+	}
+	s.webview.Dispatch(func() {
+		procShowWindow.Call(uintptr(s.hwnd), swHide)
+	})
+}
+
+func (s *ManualShell) Dormant() {
+	s.Hide()
 }
