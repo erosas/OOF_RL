@@ -62,6 +62,9 @@ func (c *Config) LogPath() string { return filepath.Join(c.DataDir, "oof_rl.log"
 // CapturesDir returns the directory for raw packet captures.
 func (c *Config) CapturesDir() string { return filepath.Join(c.DataDir, "captures") }
 
+// PluginsDir returns the directory where WASM plugin binaries and assets are loaded from.
+func (c *Config) PluginsDir() string { return filepath.Join(c.DataDir, "plugins") }
+
 func Defaults() Config {
 	dataDir := defaultDataDir()
 	return Config{

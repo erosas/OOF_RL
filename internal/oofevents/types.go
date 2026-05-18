@@ -1,6 +1,9 @@
 package oofevents
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Certainty describes how confident we are in an event's truth.
 type Certainty int
@@ -67,6 +70,13 @@ type EventDeclaration struct {
 	Type        string
 	Certainty   Certainty
 	Description string
+}
+
+// RawEvent wraps an arbitrary JSON payload published by a WASM plugin.
+// Native plugins can subscribe to a WASM plugin's event type and receive this.
+type RawEvent struct {
+	Base
+	Payload json.RawMessage `json:"payload"`
 }
 
 // Subscription is returned by Subscribe calls. Cancel must be called on shutdown.
