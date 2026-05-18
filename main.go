@@ -92,6 +92,10 @@ func main() {
 	if err := srv.LoadPlugins(); err != nil {
 		log.Fatalf("plugin load: %v", err)
 	}
+	log.Printf("[core] wasm plugins dir: %s", cfg.PluginsDir())
+	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
+		log.Fatalf("wasm plugin load: %v", err)
+	}
 	srv.Register(mux)
 	mux.Handle("/debug/pprof/", http.DefaultServeMux)
 	if err := statsviz.Register(mux); err != nil {

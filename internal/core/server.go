@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
+	"OOF_RL/internal/wasmhost"
 )
 
 var upgrader = websocket.Upgrader{
@@ -70,15 +73,70 @@ func (s *Server) Momentum() momentum.SnapshotProvider {
 
 func (s *Server) Config() *config.Config { return s.cfg }
 
-// InitPlugins calls Init on every registered plugin after all plugins are registered.
-// Must be called before the RL client starts delivering events.
+// InitPlugins sorts plugins by their declared dependencies, then calls Init on
+// each in dependency order. Must be called before the RL client delivers events.
 func (s *Server) InitPlugins() error {
+	sorted, err := topoSort(s.plugins)
+	if err != nil {
+		return fmt.Errorf("plugin dependency: %w", err)
+	}
+	s.plugins = sorted
 	for _, p := range s.plugins {
 		if err := p.Init(s.bus.ForPlugin(p.ID()), s, s.db); err != nil {
 			return fmt.Errorf("plugin %s Init: %w", p.ID(), err)
 		}
 	}
 	return nil
+}
+
+// topoSort returns plugins in dependency order (required plugins first).
+// Returns an error if a required plugin is not loaded or a cycle is detected.
+func topoSort(plugins []plugin.Plugin) ([]plugin.Plugin, error) {
+	byID := make(map[string]plugin.Plugin, len(plugins))
+	for _, p := range plugins {
+		byID[p.ID()] = p
+	}
+
+	// dependants[X] = list of plugin IDs that require X
+	dependants := make(map[string][]string)
+	inDegree := make(map[string]int, len(plugins))
+	for _, p := range plugins {
+		if _, seen := inDegree[p.ID()]; !seen {
+			inDegree[p.ID()] = 0
+		}
+		for _, req := range p.Requires() {
+			if _, ok := byID[req]; !ok {
+				return nil, fmt.Errorf("plugin %q requires unknown plugin %q", p.ID(), req)
+			}
+			inDegree[p.ID()]++
+			dependants[req] = append(dependants[req], p.ID())
+		}
+	}
+
+	queue := make([]plugin.Plugin, 0, len(plugins))
+	for _, p := range plugins {
+		if inDegree[p.ID()] == 0 {
+			queue = append(queue, p)
+		}
+	}
+
+	sorted := make([]plugin.Plugin, 0, len(plugins))
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		sorted = append(sorted, p)
+		for _, depID := range dependants[p.ID()] {
+			inDegree[depID]--
+			if inDegree[depID] == 0 {
+				queue = append(queue, byID[depID])
+			}
+		}
+	}
+
+	if len(sorted) != len(plugins) {
+		return nil, fmt.Errorf("circular dependency detected")
+	}
+	return sorted, nil
 }
 
 // ShutdownPlugins calls Shutdown on every registered plugin in reverse order.
@@ -127,6 +185,32 @@ func (s *Server) LoadPlugins() error {
 			log.Printf("[core] warning: plugin ID mismatch for %q: got %q", id, p.ID())
 		}
 		s.Use(p)
+	}
+	return nil
+}
+
+// LoadWASMPlugins scans dir for *.wasm files and registers each as a plugin.
+// Missing or empty dir is silently ignored.
+func (s *Server) LoadWASMPlugins(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("wasm plugins dir: %w", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".wasm") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		p, err := wasmhost.Load(path)
+		if err != nil {
+			log.Printf("[core] wasm load %s: %v", e.Name(), err)
+			continue
+		}
+		s.Use(p)
+		log.Printf("[core] loaded wasm plugin %q from %s", p.ID(), e.Name())
 	}
 	return nil
 }
