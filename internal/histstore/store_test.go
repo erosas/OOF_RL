@@ -346,3 +346,82 @@ func TestMatchBotCounts(t *testing.T) {
 		t.Errorf("human match count: got %d, want 0", counts[m2])
 	}
 }
+
+func TestUpdateMatchPlaylist(t *testing.T) {
+	s := newTestStore(t)
+	id, _ := s.UpsertMatch("guid-pl", "DFH Stadium", time.Now())
+
+	if err := s.UpdateMatchPlaylist(id, 3); err != nil {
+		t.Fatalf("UpdateMatchPlaylist: %v", err)
+	}
+	m, err := s.MatchByID(id)
+	if err != nil {
+		t.Fatalf("MatchByID: %v", err)
+	}
+	if m == nil || m.PlaylistType == nil || *m.PlaylistType != 3 {
+		t.Errorf("expected PlaylistType=3, got %v", m)
+	}
+}
+
+func TestMatchByIDNotFound(t *testing.T) {
+	s := newTestStore(t)
+	m, err := s.MatchByID(9999)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if m != nil {
+		t.Errorf("expected nil for missing ID, got %+v", m)
+	}
+}
+
+func TestMatchByIDWithAllNullableFields(t *testing.T) {
+	s := newTestStore(t)
+	id, _ := s.UpsertMatch("guid-nullable", "Champions Field", time.Now())
+	s.EndMatch(id, 0, false, false, false)
+	s.UpdateTeamScores(id, 2, 1)
+	s.UpdateMatchPlaylist(id, 5)
+
+	m, err := s.MatchByID(id)
+	if err != nil {
+		t.Fatalf("MatchByID: %v", err)
+	}
+	if m == nil {
+		t.Fatal("expected match, got nil")
+	}
+	if m.TeamScore0 == nil || *m.TeamScore0 != 2 {
+		t.Errorf("TeamScore0: got %v, want 2", m.TeamScore0)
+	}
+	if m.TeamScore1 == nil || *m.TeamScore1 != 1 {
+		t.Errorf("TeamScore1: got %v, want 1", m.TeamScore1)
+	}
+	if m.PlaylistType == nil || *m.PlaylistType != 5 {
+		t.Errorf("PlaylistType: got %v, want 5", m.PlaylistType)
+	}
+}
+
+func TestInsertAndFetchStatfeedEvent(t *testing.T) {
+	s := newTestStore(t)
+	s.UpsertPlayer("pid1", "Alice")
+	matchID, _ := s.UpsertMatch("guid-sf", "Utopia Coliseum", time.Now())
+
+	if err := s.InsertStatfeedEvent(matchID, "pid1", "Alice", 0, "Save", "", ""); err != nil {
+		t.Fatalf("InsertStatfeedEvent: %v", err)
+	}
+	if err := s.InsertStatfeedEvent(matchID, "pid1", "Alice", 0, "Demo", "pid2", "Bob"); err != nil {
+		t.Fatalf("InsertStatfeedEvent with target: %v", err)
+	}
+
+	evts, err := s.MatchStatfeedEvents(matchID)
+	if err != nil {
+		t.Fatalf("MatchStatfeedEvents: %v", err)
+	}
+	if len(evts) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(evts))
+	}
+	if evts[0].EventType != "Save" || evts[0].PlayerName != "Alice" {
+		t.Errorf("first event: type=%q name=%q", evts[0].EventType, evts[0].PlayerName)
+	}
+	if evts[1].EventType != "Demo" || evts[1].TargetName != "Bob" {
+		t.Errorf("second event: type=%q target=%q", evts[1].EventType, evts[1].TargetName)
+	}
+}

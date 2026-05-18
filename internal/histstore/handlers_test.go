@@ -134,3 +134,47 @@ func TestHandleMatchDetail(t *testing.T) {
 		t.Error("expected goals key in response")
 	}
 }
+
+func TestHandleMatchesWithTeamScores(t *testing.T) {
+	mux, s := newHandlerMux(t)
+	s.UpsertPlayer("pid1", "Alice")
+	matchID, _ := s.UpsertMatch("guid-scores", "DFH Stadium", time.Now())
+	s.UpsertPlayerMatchStats(matchID, "pid1", 0, 100, 2, 3, 0, 1, 0, 0, 0)
+	s.EndMatch(matchID, 0, false, false, false)
+	s.UpdateTeamScores(matchID, 2, 1)
+
+	w := hget(mux, "/api/matches")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d", w.Code)
+	}
+	var matches []map[string]any
+	json.Unmarshal(w.Body.Bytes(), &matches)
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+	if int(matches[0]["team0_goals"].(float64)) != 2 {
+		t.Errorf("team0_goals: got %v, want 2", matches[0]["team0_goals"])
+	}
+	if int(matches[0]["team1_goals"].(float64)) != 1 {
+		t.Errorf("team1_goals: got %v, want 1", matches[0]["team1_goals"])
+	}
+}
+
+func TestHandleMatchDetailWithStatfeed(t *testing.T) {
+	mux, s := newHandlerMux(t)
+	s.UpsertPlayer("pid1", "Alice")
+	matchID, _ := s.UpsertMatch("guid-sf-detail", "Beckwith Park", time.Now())
+	s.UpsertPlayerMatchStats(matchID, "pid1", 0, 200, 1, 2, 0, 0, 0, 0, 0)
+	s.InsertStatfeedEvent(matchID, "pid1", "Alice", 0, "EpicSave", "", "")
+
+	w := hget(mux, "/api/matches/"+strconv.FormatInt(matchID, 10))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d", w.Code)
+	}
+	var detail map[string]any
+	json.Unmarshal(w.Body.Bytes(), &detail)
+	evts, ok := detail["events"].([]any)
+	if !ok || len(evts) != 1 {
+		t.Errorf("expected 1 statfeed event in response, got %v", detail["events"])
+	}
+}

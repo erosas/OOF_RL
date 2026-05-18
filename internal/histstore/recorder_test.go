@@ -363,3 +363,221 @@ func TestRecorderSubscribeAndStop(t *testing.T) {
 		t.Fatalf("Stop should clear subscriptions, got %d", len(r.subs))
 	}
 }
+
+func TestOnMatchStartedSetsGUID(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.onMatchStarted(oofevents.NewMatchStarted("guid-started"))
+	if r.matchGuid != "guid-started" {
+		t.Fatalf("expected matchGuid=guid-started, got %q", r.matchGuid)
+	}
+}
+
+func TestOnMatchStartedIgnoresEmptyGUID(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.onMatchStarted(oofevents.NewMatchStarted(""))
+	if r.matchGuid != "" {
+		t.Fatalf("expected matchGuid empty, got %q", r.matchGuid)
+	}
+}
+
+func TestOnGoalScored(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-goal", "DFH Stadium", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+		player("steam|bob|1", "Bob", 1, 50),
+	}, 1, 0, 100)))
+
+	r.onGoalScored(oofevents.NewGoalScored("guid-goal", "Alice", 0, "Bob", 1, -1, 95.5, 45.0, 10.0, 20.0, 30.0, 0))
+
+	goals, err := s.MatchGoals(r.matchID)
+	if err != nil {
+		t.Fatalf("MatchGoals: %v", err)
+	}
+	if len(goals) != 1 {
+		t.Fatalf("expected 1 goal, got %d", len(goals))
+	}
+	if goals[0].ScorerName != "Alice" {
+		t.Errorf("scorer: got %q, want Alice", goals[0].ScorerName)
+	}
+	if goals[0].AssisterName != "Bob" {
+		t.Errorf("assister: got %q, want Bob", goals[0].AssisterName)
+	}
+	if goals[0].GoalSpeed != 95.5 {
+		t.Errorf("speed: got %f, want 95.5", goals[0].GoalSpeed)
+	}
+}
+
+func TestOnGoalScoredIgnoresEmptyScorer(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-empty-scorer", "Mannfield", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 50)))
+
+	r.onGoalScored(oofevents.NewGoalScored("guid-empty-scorer", "", 0, "", -1, -1, 85.0, 30.0, 0, 0, 0, 0))
+
+	goals, _ := s.MatchGoals(r.matchID)
+	if len(goals) != 0 {
+		t.Errorf("empty-scorer goal should be filtered, got %d goals", len(goals))
+	}
+}
+
+func TestOnBallHit(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.cfg.Storage.BallHitEvents = true
+	r.onStateUpdated(translateUpdateState(updateState("guid-ballhit", "Aquadome", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+
+	r.onBallHit(oofevents.NewBallHit("guid-ballhit", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+}
+
+func TestOnBallHitSkippedWhenDisabled(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-bh-off", "Aquadome", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+
+	r.onBallHit(oofevents.NewBallHit("guid-bh-off", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+}
+
+func TestOnStatFeed(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-statfeed", "Wasteland", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 90)))
+
+	r.onStatFeed(oofevents.NewStatFeed("guid-statfeed", "Save", "Alice", "steam|alice|0", 0, 0, "", "", -1))
+
+	evts, err := s.MatchStatfeedEvents(r.matchID)
+	if err != nil {
+		t.Fatalf("MatchStatfeedEvents: %v", err)
+	}
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 statfeed event, got %d", len(evts))
+	}
+	if evts[0].EventType != "Save" {
+		t.Errorf("EventType: got %q, want Save", evts[0].EventType)
+	}
+	if evts[0].PlayerName != "Alice" {
+		t.Errorf("PlayerName: got %q, want Alice", evts[0].PlayerName)
+	}
+}
+
+func TestOnStatFeedWithSecondaryTarget(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-sf2", "Wasteland", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+		player("steam|bob|1", "Bob", 1, 50),
+	}, 0, 0, 90)))
+
+	r.onStatFeed(oofevents.NewStatFeed("guid-sf2", "Demo", "Alice", "steam|alice|0", 0, 0, "Bob", "steam|bob|1", 1))
+
+	evts, _ := s.MatchStatfeedEvents(r.matchID)
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 statfeed event, got %d", len(evts))
+	}
+	if evts[0].TargetName != "Bob" {
+		t.Errorf("TargetName: got %q, want Bob", evts[0].TargetName)
+	}
+}
+
+func TestOnGoalScoredBeforeMatchIsIgnored(t *testing.T) {
+	r, s := newTestRecorder(t)
+	// no state update — matchID stays 0
+	r.onGoalScored(oofevents.NewGoalScored("guid-no-match", "Alice", 0, "", -1, -1, 85.0, 30.0, 0, 0, 0, 0))
+
+	// no match in DB, so MatchGoals on id 0 returns nothing
+	goals, _ := s.MatchGoals(0)
+	if len(goals) != 0 {
+		t.Errorf("goal before match should be ignored, got %d goals", len(goals))
+	}
+}
+
+func TestOnBallHitBeforeMatchIsIgnored(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.cfg.Storage.BallHitEvents = true
+	// matchID == 0 with events enabled — should not panic or write anything
+	r.onBallHit(oofevents.NewBallHit("guid-no-match", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+}
+
+func TestOnStatFeedEmptyEventNameIgnored(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-sf-empty", "Wasteland", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 90)))
+
+	r.onStatFeed(oofevents.NewStatFeed("guid-sf-empty", "", "Alice", "steam|alice|0", 0, 0, "", "", -1))
+
+	evts, _ := s.MatchStatfeedEvents(r.matchID)
+	if len(evts) != 0 {
+		t.Errorf("empty EventName should be ignored, got %d events", len(evts))
+	}
+}
+
+func TestOnGoalScoredStaleGUIDIgnored(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-active", "DFH Stadium", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+
+	r.onGoalScored(oofevents.NewGoalScored("guid-stale", "Alice", 0, "", -1, -1, 85.0, 30.0, 0, 0, 0, 0))
+
+	goals, _ := s.MatchGoals(r.matchID)
+	if len(goals) != 0 {
+		t.Errorf("goal from stale GUID should be ignored, got %d goals", len(goals))
+	}
+}
+
+func TestOnBallHitStaleGUIDIgnored(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.cfg.Storage.BallHitEvents = true
+	r.onStateUpdated(translateUpdateState(updateState("guid-active", "DFH Stadium", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+
+	// ball hit from a different guid — should be ignored
+	r.onBallHit(oofevents.NewBallHit("guid-stale", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+}
+
+func TestOnStatFeedStaleGUIDIgnored(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-active", "Wasteland", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 90)))
+
+	r.onStatFeed(oofevents.NewStatFeed("guid-stale", "Save", "Alice", "steam|alice|0", 0, 0, "", "", -1))
+
+	evts, _ := s.MatchStatfeedEvents(r.matchID)
+	if len(evts) != 0 {
+		t.Errorf("statfeed from stale GUID should be ignored, got %d events", len(evts))
+	}
+}
+
+func TestOnClockUpdatedBeforeMatchDoesNothing(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-x", 30, false))
+	if r.lastTimeSeconds != 0 {
+		t.Errorf("clock should not update before match starts, got %d", r.lastTimeSeconds)
+	}
+}
+
+func TestOnClockUpdatedStaleGUIDIgnored(t *testing.T) {
+	r, _ := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-active", "DFH Stadium", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+	before := r.lastTimeSeconds
+
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-stale", 999, false))
+
+	if r.lastTimeSeconds != before {
+		t.Errorf("stale GUID clock should not update lastTimeSeconds: got %d, want %d", r.lastTimeSeconds, before)
+	}
+}
+
+func TestResolvePlayerIDEmptyNameReturnsEmpty(t *testing.T) {
+	got := resolvePlayerID("some-guid", "Unknown|0|0", 0, "")
+	if got != "" {
+		t.Errorf("expected empty string for unknown ID with empty name, got %q", got)
+	}
+}
