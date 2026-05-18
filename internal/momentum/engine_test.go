@@ -2,6 +2,7 @@ package momentum
 
 import (
 	"testing"
+	"time"
 
 	"OOF_RL/internal/oofevents"
 )
@@ -119,6 +120,98 @@ func TestEpicSaveAddsMoreSignalThanRegularSave(t *testing.T) {
 	}
 }
 
+func TestSaveSplitsDefensiveControlAndAttackingPressure(t *testing.T) {
+	state := NewEngine(Config{Decay: 1}).ApplyGameAction(oofevents.NewGameAction(
+		"match-1", oofevents.ActionSave, oofevents.TeamBlue, "pid-a", "Alice",
+	))
+
+	blue := state.Teams[oofevents.TeamBlue]
+	orange := state.Teams[oofevents.TeamOrange]
+	if blue.EventDerivedControl <= 0 {
+		t.Fatalf("defending team should receive control signal on save: blue=%+v", blue)
+	}
+	if orange.Pressure <= 0 {
+		t.Fatalf("attacking team should retain forced-pressure signal on save: orange=%+v", orange)
+	}
+	if orange.Pressure <= blue.Pressure {
+		t.Fatalf("save pressure should describe attacking pressure, got blue=%+v orange=%+v", blue, orange)
+	}
+}
+
+func TestDemoBeforeShotAddsPressureBonus(t *testing.T) {
+	base := NewEngine(Config{Decay: 1})
+	baseShot := at(oofevents.NewGameAction("match-1", oofevents.ActionShot, oofevents.TeamBlue, "pid-a", "Alice"), time.Unix(100, 0))
+	withoutDemo := base.ApplyGameAction(baseShot).Teams[oofevents.TeamBlue]
+
+	with := NewEngine(Config{Decay: 1})
+	with.ApplyGameAction(at(oofevents.NewGameAction("match-1", oofevents.ActionDemo, oofevents.TeamBlue, "pid-a", "Alice", oofevents.WithVictim("pid-b")), time.Unix(99, 0)))
+	withDemo := with.ApplyGameAction(baseShot).Teams[oofevents.TeamBlue]
+
+	if withDemo.Pressure <= withoutDemo.Pressure {
+		t.Fatalf("demo before shot should increase pressure: without=%+v with=%+v", withoutDemo, withDemo)
+	}
+}
+
+func TestDemoBeforeGoalAddsPressureBonus(t *testing.T) {
+	base := NewEngine(Config{Decay: 1})
+	goal := at(oofevents.NewGameAction("match-1", oofevents.ActionGoal, oofevents.TeamOrange, "pid-b", "Bob"), time.Unix(100, 0))
+	withoutDemo := base.ApplyGameAction(goal).Teams[oofevents.TeamOrange]
+
+	with := NewEngine(Config{Decay: 1})
+	with.ApplyGameAction(at(oofevents.NewGameAction("match-1", oofevents.ActionDemo, oofevents.TeamOrange, "pid-b", "Bob", oofevents.WithVictim("pid-a")), time.Unix(96, 0)))
+	withDemo := with.ApplyGameAction(goal).Teams[oofevents.TeamOrange]
+
+	if withDemo.Pressure <= withoutDemo.Pressure {
+		t.Fatalf("demo before goal should increase pressure: without=%+v with=%+v", withoutDemo, withDemo)
+	}
+}
+
+func TestSameTeamBallHitChainAddsControl(t *testing.T) {
+	engine := NewEngine(Config{Decay: 1})
+	first := at(oofevents.NewGameAction("match-1", oofevents.ActionBallHit, oofevents.TeamBlue, "pid-a", "Alice"), time.Unix(100, 0))
+	second := at(oofevents.NewGameAction("match-1", oofevents.ActionBallHit, oofevents.TeamBlue, "pid-a", "Alice"), time.Unix(102, 0))
+
+	afterFirst := engine.ApplyGameAction(first).Teams[oofevents.TeamBlue]
+	afterSecond := engine.ApplyGameAction(second).Teams[oofevents.TeamBlue]
+
+	if afterSecond.EventDerivedControl <= afterFirst.EventDerivedControl*2 {
+		t.Fatalf("same-team touch chain should add bonus control: first=%+v second=%+v", afterFirst, afterSecond)
+	}
+}
+
+func TestAlternatingBallHitsAddVolatilityAndReducePreviousControl(t *testing.T) {
+	engine := NewEngine(Config{Decay: 1})
+	engine.ApplyGameAction(at(oofevents.NewGameAction("match-1", oofevents.ActionBallHit, oofevents.TeamBlue, "pid-a", "Alice"), time.Unix(100, 0)))
+	state := engine.ApplyGameAction(at(oofevents.NewGameAction("match-1", oofevents.ActionBallHit, oofevents.TeamOrange, "pid-b", "Bob"), time.Unix(101, 0)))
+
+	blue := state.Teams[oofevents.TeamBlue]
+	orange := state.Teams[oofevents.TeamOrange]
+	if orange.Volatility <= DefaultConfig().BallHitPressure {
+		t.Fatalf("alternating touches should add volatility: orange=%+v", orange)
+	}
+	if blue.EventDerivedControl >= DefaultConfig().BallHitControl {
+		t.Fatalf("opponent touch should reduce previous team control: blue=%+v", blue)
+	}
+}
+
+func TestConfigExposesEventWeights(t *testing.T) {
+	cfg := Config{
+		Decay:        1,
+		ShotControl:  0.01,
+		ShotPressure: 0.50,
+	}
+	state := NewEngine(cfg).ApplyGameAction(oofevents.NewGameAction(
+		"match-1", oofevents.ActionShot, oofevents.TeamBlue, "pid-a", "Alice",
+	))
+
+	if got := state.Teams[oofevents.TeamBlue].Pressure; got != 0.50 {
+		t.Fatalf("shot pressure = %f, want configured 0.50", got)
+	}
+	if got := state.Teams[oofevents.TeamBlue].EventDerivedControl; got != 0.01 {
+		t.Fatalf("shot control = %f, want configured 0.01", got)
+	}
+}
+
 func TestUnsupportedActionAndTeamAreIgnored(t *testing.T) {
 	engine := NewEngine(Config{Decay: 1})
 
@@ -197,4 +290,9 @@ func assertBounded(t *testing.T, value float64) {
 	if value < 0 || value > 1 {
 		t.Fatalf("value %f outside [0, 1]", value)
 	}
+}
+
+func at(event oofevents.GameActionEvent, t time.Time) oofevents.GameActionEvent {
+	event.Base.At = t
+	return event
 }
