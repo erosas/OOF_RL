@@ -1,4 +1,4 @@
-﻿// Package wasmhost loads .wasm plugin files and exposes each one as a
+// Package wasmhost loads .wasm plugin files and exposes each one as a
 // plugin.Plugin so the server can treat them identically to compiled plugins.
 package wasmhost
 
