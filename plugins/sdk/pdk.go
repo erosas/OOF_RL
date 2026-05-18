@@ -2,7 +2,10 @@
 
 package sdk
 
-import "unsafe"
+import (
+	"encoding/json"
+	"unsafe"
+)
 
 // host_log is exported by the host into every plugin module.
 //
@@ -13,6 +16,36 @@ func hostLog(level uint32, ptr uint32, length uint32)
 //
 //go:wasmimport env host_publish_event
 func hostPublishEvent(certainty, typePtr, typeLen, payloadPtr, payloadLen uint32)
+
+// host_db_exec executes a SQL statement (INSERT/UPDATE/DELETE) with JSON-encoded args.
+// Returns rows affected as int64 encoded in result[0], or -1 on error.
+//
+//go:wasmimport env host_db_exec
+func hostDBExec(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32
+
+// host_db_query executes a SQL query and writes the JSON result rows to outPtr.
+// Returns the number of bytes written, or 0 on error.
+//
+//go:wasmimport env host_db_query
+func hostDBQuery(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32
+
+// host_http_fetch performs an outbound HTTP request from a JSON-encoded HTTPFetchRequest.
+// Writes a JSON-encoded HTTPFetchResult to outPtr. Returns bytes written, 0 on error.
+//
+//go:wasmimport env host_http_fetch
+func hostHTTPFetch(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
+// host_broadcast_ws sends a raw byte message to all connected WebSocket clients.
+//
+//go:wasmimport env host_broadcast_ws
+func hostBroadcastWS(ptr, length uint32)
+
+// host_get_config looks up a config key (by ptr/len) and writes the value string to outPtr.
+// Returns bytes written, or 0 if the key is unknown.
+//
+//go:wasmimport env host_get_config
+func hostGetConfig(keyPtr, keyLen, outPtr, outMax uint32) uint32
+
 
 // Log writes msg to the host's logger.
 func Log(msg string) {
@@ -72,6 +105,113 @@ func PublishEvent(c Certainty, eventType string, payload []byte) {
 		return
 	}
 	hostPublishEvent(uint32(c), ptrOf(tb), uint32(len(tb)), ptrOf(payload), uint32(len(payload)))
+}
+
+// DBExec executes a SQL statement with the given args and returns rows affected.
+// args is passed as a JSON array of strings. Returns -1 on error.
+func DBExec(sql string, args []string) int64 {
+	argsJSON := encodeArgs(args)
+	outBuf := make([]byte, 32)
+	out := ptrOf(outBuf)
+	sqlB := []byte(sql)
+	n := hostDBExec(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, uint32(len(outBuf)))
+	if n == 0 {
+		return -1
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return -1
+	}
+	var result int64
+	if err := json.Unmarshal(data, &result); err != nil {
+		return -1
+	}
+	return result
+}
+
+// DBQuery executes a SQL query with the given args and returns the result rows
+// as a slice of maps (column→value). Returns nil on error.
+func DBQuery(sql string, args []string) []map[string]any {
+	argsJSON := encodeArgs(args)
+	outBuf := make([]byte, 256*1024) // 256 KB max result
+	out := ptrOf(outBuf)
+	sqlB := []byte(sql)
+	n := hostDBQuery(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, uint32(len(outBuf)))
+	if n == 0 {
+		return nil
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return nil
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return nil
+	}
+	return rows
+}
+
+// HTTPFetch performs an outbound HTTP request and returns the result.
+// On network or serialization error, the returned HTTPFetchResult.Error is non-empty.
+func HTTPFetch(req HTTPFetchRequest) HTTPFetchResult {
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		return HTTPFetchResult{Error: "marshal request: " + err.Error()}
+	}
+	outBuf := make([]byte, 256*1024)
+	out := ptrOf(outBuf)
+	n := hostHTTPFetch(ptrOf(reqJSON), uint32(len(reqJSON)), out, uint32(len(outBuf)))
+	if n == 0 {
+		return HTTPFetchResult{Error: "fetch failed"}
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return HTTPFetchResult{Error: "memory read failed"}
+	}
+	var result HTTPFetchResult
+	json.Unmarshal(data, &result)
+	return result
+}
+
+// BroadcastWS sends msg to all connected WebSocket clients.
+func BroadcastWS(msg []byte) {
+	if len(msg) == 0 {
+		return
+	}
+	hostBroadcastWS(ptrOf(msg), uint32(len(msg)))
+}
+
+// GetConfig returns the value of a config key, or "" if unknown.
+func GetConfig(key string) string {
+	outBuf := make([]byte, 4096)
+	out := ptrOf(outBuf)
+	kb := []byte(key)
+	n := hostGetConfig(ptrOf(kb), uint32(len(kb)), out, uint32(len(outBuf)))
+	if n == 0 {
+		return ""
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return ""
+	}
+	return string(data)
+}
+
+
+// encodeArgs marshals a string slice as a compact JSON array.
+func encodeArgs(args []string) []byte {
+	if len(args) == 0 {
+		return []byte("[]")
+	}
+	b, _ := json.Marshal(args)
+	return b
+}
+
+func readMem(ptr, n uint32) ([]byte, bool) {
+	if n == 0 {
+		return nil, false
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), n), true
 }
 
 func ptrOf(b []byte) uint32 {
