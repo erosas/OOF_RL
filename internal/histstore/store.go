@@ -1,92 +1,95 @@
-package history
+package histstore
 
 import (
 	"database/sql"
 	"time"
+
+	"OOF_RL/internal/db"
 )
 
-// store owns all DB operations for the history plugin.
-type store struct {
+// Store owns all DB operations for match history.
+type Store struct {
 	conn *sql.DB
 }
 
-// --- Models ---
-
-type Player struct {
-	PrimaryID string    `json:"PrimaryID"`
-	Name      string    `json:"Name"`
-	LastSeen  time.Time `json:"LastSeen"`
+func NewStore(database *db.DB) *Store {
+	return &Store{conn: database.Conn()}
 }
 
-type Match struct {
-	ID            int64
-	MatchGUID     string
-	Arena         string
-	StartedAt     time.Time
-	EndedAt       string
-	WinnerTeamNum int
-	Overtime      bool
-	Incomplete    bool
-	Forfeit       bool
-	PlaylistType  *int
-	TeamScore0    *int
-	TeamScore1    *int
+// --- Players ---
+
+func (s *Store) UpsertPlayer(primaryID, name string) error {
+	_, err := s.conn.Exec(`
+		INSERT INTO hist_players(primary_id, name, last_seen) VALUES(?,?,?)
+		ON CONFLICT(primary_id) DO UPDATE SET name=excluded.name, last_seen=excluded.last_seen`,
+		primaryID, name, time.Now())
+	return err
 }
 
-type PlayerMatchStats struct {
-	PrimaryID  string
-	Name       string
-	TeamNum    int
-	Score      int
-	Goals      int
-	Shots      int
-	Assists    int
-	Saves      int
-	Touches    int
-	CarTouches int
-	Demos      int
+func (s *Store) AllPlayers() ([]Player, error) {
+	rows, err := s.conn.Query(`SELECT primary_id, name, last_seen FROM hist_players ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Player
+	for rows.Next() {
+		var p Player
+		if err := rows.Scan(&p.PrimaryID, &p.Name, &p.LastSeen); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
-type GoalEvent struct {
-	ID           int64
-	ScorerID     string
-	ScorerName   string
-	AssisterID   string
-	AssisterName string
-	GoalSpeed    float64
-	GoalTime     float64
-	ImpactX      float64
-	ImpactY      float64
-	ImpactZ      float64
-	ScoredAt     time.Time
+// --- Matches ---
+
+func (s *Store) UpsertMatch(matchGUID, arena string, startedAt time.Time) (int64, error) {
+	var guid interface{} = matchGUID
+	if matchGUID == "" {
+		guid = nil
+	}
+	res, err := s.conn.Exec(`
+		INSERT INTO hist_matches(match_guid, arena, started_at) VALUES(?,?,?)
+		ON CONFLICT(match_guid) DO UPDATE SET arena=CASE WHEN excluded.arena!='' THEN excluded.arena ELSE arena END
+		RETURNING id`,
+		guid, arena, startedAt)
+	if err != nil {
+		res2, err2 := s.conn.Exec(`INSERT OR IGNORE INTO hist_matches(match_guid, arena, started_at) VALUES(?,?,?)`,
+			guid, arena, startedAt)
+		if err2 != nil {
+			return 0, err2
+		}
+		id, _ := res2.LastInsertId()
+		if id == 0 {
+			var found int64
+			_ = s.conn.QueryRow(`SELECT id FROM hist_matches WHERE match_guid=?`, matchGUID).Scan(&found)
+			return found, nil
+		}
+		return id, nil
+	}
+	return res.LastInsertId()
 }
 
-type StatfeedEvent struct {
-	ID         int64     `json:"id"`
-	PlayerID   string    `json:"player_id"`
-	PlayerName string    `json:"player_name"`
-	TeamNum    int       `json:"team_num"`
-	EventType  string    `json:"event_type"`
-	TargetID   string    `json:"target_id"`
-	TargetName string    `json:"target_name"`
-	OccurredAt time.Time `json:"occurred_at"`
+func (s *Store) UpdateMatchPlaylist(matchID int64, playlistType int) error {
+	_, err := s.conn.Exec(`UPDATE hist_matches SET playlist_type=? WHERE id=?`, playlistType, matchID)
+	return err
 }
 
-type PlayerAggregate struct {
-	PrimaryID string
-	Name      string
-	Matches   int
-	Goals     int
-	Shots     int
-	Assists   int
-	Saves     int
-	Demos     int
-	Touches   int
+func (s *Store) EndMatch(matchID int64, winnerTeamNum int, overtime, incomplete, forfeit bool) error {
+	_, err := s.conn.Exec(`
+		UPDATE hist_matches SET ended_at=?, winner_team_num=?, overtime=?, incomplete=?, forfeit=? WHERE id=?`,
+		time.Now(), winnerTeamNum, overtime, incomplete, forfeit, matchID)
+	return err
 }
 
-// --- Single match lookup ---
+func (s *Store) UpdateTeamScores(matchID int64, score0, score1 int) error {
+	_, err := s.conn.Exec(`UPDATE hist_matches SET team_score_0=?, team_score_1=? WHERE id=?`, score0, score1, matchID)
+	return err
+}
 
-func (s *store) matchByID(id int64) (*Match, error) {
+func (s *Store) MatchByID(id int64) (*Match, error) {
 	var m Match
 	var pt, ts0, ts1 sql.NullInt64
 	err := s.conn.QueryRow(`
@@ -117,80 +120,7 @@ func (s *store) matchByID(id int64) (*Match, error) {
 	return &m, nil
 }
 
-// --- Players ---
-
-func (s *store) upsertPlayer(primaryID, name string) error {
-	_, err := s.conn.Exec(`
-		INSERT INTO hist_players(primary_id, name, last_seen) VALUES(?,?,?)
-		ON CONFLICT(primary_id) DO UPDATE SET name=excluded.name, last_seen=excluded.last_seen`,
-		primaryID, name, time.Now())
-	return err
-}
-
-func (s *store) allPlayers() ([]Player, error) {
-	rows, err := s.conn.Query(`SELECT primary_id, name, last_seen FROM hist_players ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Player
-	for rows.Next() {
-		var p Player
-		if err := rows.Scan(&p.PrimaryID, &p.Name, &p.LastSeen); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
-}
-
-// --- Matches ---
-
-func (s *store) upsertMatch(matchGUID, arena string, startedAt time.Time) (int64, error) {
-	var guid interface{} = matchGUID
-	if matchGUID == "" {
-		guid = nil
-	}
-	res, err := s.conn.Exec(`
-		INSERT INTO hist_matches(match_guid, arena, started_at) VALUES(?,?,?)
-		ON CONFLICT(match_guid) DO UPDATE SET arena=CASE WHEN excluded.arena!='' THEN excluded.arena ELSE arena END
-		RETURNING id`,
-		guid, arena, startedAt)
-	if err != nil {
-		res2, err2 := s.conn.Exec(`INSERT OR IGNORE INTO hist_matches(match_guid, arena, started_at) VALUES(?,?,?)`,
-			guid, arena, startedAt)
-		if err2 != nil {
-			return 0, err2
-		}
-		id, _ := res2.LastInsertId()
-		if id == 0 {
-			var found int64
-			_ = s.conn.QueryRow(`SELECT id FROM hist_matches WHERE match_guid=?`, matchGUID).Scan(&found)
-			return found, nil
-		}
-		return id, nil
-	}
-	return res.LastInsertId()
-}
-
-func (s *store) updateMatchPlaylist(matchID int64, playlistType int) error {
-	_, err := s.conn.Exec(`UPDATE hist_matches SET playlist_type=? WHERE id=?`, playlistType, matchID)
-	return err
-}
-
-func (s *store) endMatch(matchID int64, winnerTeamNum int, overtime, incomplete, forfeit bool) error {
-	_, err := s.conn.Exec(`
-		UPDATE hist_matches SET ended_at=?, winner_team_num=?, overtime=?, incomplete=?, forfeit=? WHERE id=?`,
-		time.Now(), winnerTeamNum, overtime, incomplete, forfeit, matchID)
-	return err
-}
-
-func (s *store) updateTeamScores(matchID int64, score0, score1 int) error {
-	_, err := s.conn.Exec(`UPDATE hist_matches SET team_score_0=?, team_score_1=? WHERE id=?`, score0, score1, matchID)
-	return err
-}
-
-func (s *store) matches(playerID string) ([]Match, error) {
+func (s *Store) Matches(playerID string) ([]Match, error) {
 	query := `
 		SELECT m.id, COALESCE(m.match_guid,''), COALESCE(m.arena,''), m.started_at,
 		       COALESCE(m.ended_at,''), COALESCE(m.winner_team_num,-1), m.overtime,
@@ -232,7 +162,21 @@ func (s *store) matches(playerID string) ([]Match, error) {
 	return out, rows.Err()
 }
 
-func (s *store) matchPlayers(matchID int64) ([]PlayerMatchStats, error) {
+// --- Player match stats ---
+
+func (s *Store) UpsertPlayerMatchStats(matchID int64, primaryID string, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos int) error {
+	_, err := s.conn.Exec(`
+		INSERT INTO hist_player_match_stats(match_id,primary_id,team_num,score,goals,shots,assists,saves,touches,car_touches,demos)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(match_id,primary_id) DO UPDATE SET
+			team_num=excluded.team_num, score=excluded.score, goals=excluded.goals,
+			shots=excluded.shots, assists=excluded.assists, saves=excluded.saves,
+			touches=excluded.touches, car_touches=excluded.car_touches, demos=excluded.demos`,
+		matchID, primaryID, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos)
+	return err
+}
+
+func (s *Store) MatchPlayers(matchID int64) ([]PlayerMatchStats, error) {
 	rows, err := s.conn.Query(`
 		SELECT s.primary_id, p.name, s.team_num, s.score, s.goals, s.shots,
 		       s.assists, s.saves, s.touches, s.car_touches, s.demos
@@ -246,17 +190,17 @@ func (s *store) matchPlayers(matchID int64) ([]PlayerMatchStats, error) {
 	defer rows.Close()
 	var out []PlayerMatchStats
 	for rows.Next() {
-		var s PlayerMatchStats
-		if err := rows.Scan(&s.PrimaryID, &s.Name, &s.TeamNum, &s.Score,
-			&s.Goals, &s.Shots, &s.Assists, &s.Saves, &s.Touches, &s.CarTouches, &s.Demos); err != nil {
+		var p PlayerMatchStats
+		if err := rows.Scan(&p.PrimaryID, &p.Name, &p.TeamNum, &p.Score,
+			&p.Goals, &p.Shots, &p.Assists, &p.Saves, &p.Touches, &p.CarTouches, &p.Demos); err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		out = append(out, p)
 	}
 	return out, rows.Err()
 }
 
-func (s *store) matchPlayerCounts() (map[int64]int, error) {
+func (s *Store) MatchPlayerCounts() (map[int64]int, error) {
 	rows, err := s.conn.Query(`SELECT match_id, COUNT(*) FROM hist_player_match_stats GROUP BY match_id`)
 	if err != nil {
 		return nil, err
@@ -274,7 +218,7 @@ func (s *store) matchPlayerCounts() (map[int64]int, error) {
 	return out, rows.Err()
 }
 
-func (s *store) matchBotCounts() (map[int64]int, error) {
+func (s *Store) MatchBotCounts() (map[int64]int, error) {
 	rows, err := s.conn.Query(`
 		SELECT match_id, COUNT(*)
 		FROM hist_player_match_stats
@@ -296,21 +240,7 @@ func (s *store) matchBotCounts() (map[int64]int, error) {
 	return out, rows.Err()
 }
 
-// --- Player match stats ---
-
-func (s *store) upsertPlayerMatchStats(matchID int64, primaryID string, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos int) error {
-	_, err := s.conn.Exec(`
-		INSERT INTO hist_player_match_stats(match_id,primary_id,team_num,score,goals,shots,assists,saves,touches,car_touches,demos)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(match_id,primary_id) DO UPDATE SET
-			team_num=excluded.team_num, score=excluded.score, goals=excluded.goals,
-			shots=excluded.shots, assists=excluded.assists, saves=excluded.saves,
-			touches=excluded.touches, car_touches=excluded.car_touches, demos=excluded.demos`,
-		matchID, primaryID, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos)
-	return err
-}
-
-func (s *store) playerAggregate(primaryID string) (*PlayerAggregate, error) {
+func (s *Store) PlayerAggregate(primaryID string) (*PlayerAggregate, error) {
 	var a PlayerAggregate
 	err := s.conn.QueryRow(`
 		SELECT p.name,
@@ -330,7 +260,7 @@ func (s *store) playerAggregate(primaryID string) (*PlayerAggregate, error) {
 	return &a, nil
 }
 
-func (s *store) allTeamGoals() (map[int64][2]int, error) {
+func (s *Store) AllTeamGoals() (map[int64][2]int, error) {
 	rows, err := s.conn.Query(`
 		SELECT match_id, team_num, SUM(goals)
 		FROM hist_player_match_stats
@@ -359,7 +289,7 @@ func (s *store) allTeamGoals() (map[int64][2]int, error) {
 
 // --- Goal events ---
 
-func (s *store) insertGoal(matchID int64, scorerID, scorerName, assisterID, assisterName, lastTouchID string, speed, goalTime, ix, iy, iz float64) error {
+func (s *Store) InsertGoal(matchID int64, scorerID, scorerName, assisterID, assisterName, lastTouchID string, speed, goalTime, ix, iy, iz float64) error {
 	var as, lt interface{}
 	if assisterID != "" {
 		as = assisterID
@@ -374,7 +304,7 @@ func (s *store) insertGoal(matchID int64, scorerID, scorerName, assisterID, assi
 	return err
 }
 
-func (s *store) matchGoals(matchID int64) ([]GoalEvent, error) {
+func (s *Store) MatchGoals(matchID int64) ([]GoalEvent, error) {
 	rows, err := s.conn.Query(`
 		SELECT g.id, COALESCE(g.scorer_id,''),
 		       COALESCE(NULLIF(g.scorer_name,''), sp.name, ''),
@@ -406,7 +336,7 @@ func (s *store) matchGoals(matchID int64) ([]GoalEvent, error) {
 
 // --- Ball hits ---
 
-func (s *store) insertBallHit(matchID int64, playerID string, pre, post, x, y, z float64) error {
+func (s *Store) InsertBallHit(matchID int64, playerID string, pre, post, x, y, z float64) error {
 	_, err := s.conn.Exec(`
 		INSERT INTO hist_ball_hit_events(match_id,player_id,pre_hit_speed,post_hit_speed,loc_x,loc_y,loc_z,hit_at)
 		VALUES(?,?,?,?,?,?,?,?)`,
@@ -416,7 +346,7 @@ func (s *store) insertBallHit(matchID int64, playerID string, pre, post, x, y, z
 
 // --- Tick snapshots ---
 
-func (s *store) insertTick(matchID int64, raw string) error {
+func (s *Store) InsertTick(matchID int64, raw string) error {
 	_, err := s.conn.Exec(`
 		INSERT INTO hist_tick_snapshots(match_id,captured_at,raw_json) VALUES(?,?,?)`,
 		matchID, time.Now(), raw)
@@ -425,7 +355,7 @@ func (s *store) insertTick(matchID int64, raw string) error {
 
 // --- Statfeed events ---
 
-func (s *store) insertStatfeedEvent(matchID int64, playerID, playerName string, teamNum int, eventType, targetID, targetName string) error {
+func (s *Store) InsertStatfeedEvent(matchID int64, playerID, playerName string, teamNum int, eventType, targetID, targetName string) error {
 	_, err := s.conn.Exec(`
 		INSERT INTO hist_statfeed_events(match_id,player_id,player_name,team_num,event_type,target_id,target_name,occurred_at)
 		VALUES(?,?,?,?,?,?,?,?)`,
@@ -433,7 +363,7 @@ func (s *store) insertStatfeedEvent(matchID int64, playerID, playerName string, 
 	return err
 }
 
-func (s *store) matchStatfeedEvents(matchID int64) ([]StatfeedEvent, error) {
+func (s *Store) MatchStatfeedEvents(matchID int64) ([]StatfeedEvent, error) {
 	rows, err := s.conn.Query(`
 		SELECT id, player_id, player_name, team_num, event_type, target_id, target_name, occurred_at
 		FROM hist_statfeed_events

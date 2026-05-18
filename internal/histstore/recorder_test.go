@@ -1,4 +1,4 @@
-package history
+package histstore
 
 import (
 	"path/filepath"
@@ -10,19 +10,22 @@ import (
 	"OOF_RL/internal/oofevents"
 )
 
-func newTestPlugin(t *testing.T) *Plugin {
+func newTestRecorder(t *testing.T) (*Recorder, *Store) {
 	t.Helper()
 	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
+	if err := Migrate(database); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
 	t.Cleanup(func() { database.Close() })
 	cfg := config.Defaults()
-	return New(&cfg, database)
+	s := NewStore(database)
+	r := NewRecorder(s, &cfg)
+	return r, s
 }
 
-// translateUpdateState converts a raw RL UpdateStateData to a StateUpdatedEvent
-// so tests can call plugin handlers directly (synchronous, no bus needed).
 func translateUpdateState(d events.UpdateStateData) oofevents.StateUpdatedEvent {
 	players := make([]oofevents.PlayerSnapshot, len(d.Players))
 	for i, p := range d.Players {
@@ -96,11 +99,11 @@ func player(primaryID, name string, teamNum, score int) events.Player {
 	}
 }
 
-func matchByGUID(t *testing.T, p *Plugin, guid string) Match {
+func matchByGUID(t *testing.T, s *Store, guid string) Match {
 	t.Helper()
-	matches, err := p.store.matches("")
+	matches, err := s.Matches("")
 	if err != nil {
-		t.Fatalf("matches: %v", err)
+		t.Fatalf("Matches: %v", err)
 	}
 	for _, m := range matches {
 		if m.MatchGUID == guid {
@@ -111,11 +114,11 @@ func matchByGUID(t *testing.T, p *Plugin, guid string) Match {
 	return Match{}
 }
 
-func playerIDsForMatch(t *testing.T, p *Plugin, matchID int64) map[string]bool {
+func playerIDsForMatch(t *testing.T, s *Store, matchID int64) map[string]bool {
 	t.Helper()
-	players, err := p.store.matchPlayers(matchID)
+	players, err := s.MatchPlayers(matchID)
 	if err != nil {
-		t.Fatalf("matchPlayers: %v", err)
+		t.Fatalf("MatchPlayers: %v", err)
 	}
 	out := map[string]bool{}
 	for _, pl := range players {
@@ -124,43 +127,43 @@ func playerIDsForMatch(t *testing.T, p *Plugin, matchID int64) map[string]bool {
 	return out
 }
 
-func matchCount(t *testing.T, p *Plugin) int {
+func matchCount(t *testing.T, s *Store) int {
 	t.Helper()
-	matches, err := p.store.matches("")
+	matches, err := s.Matches("")
 	if err != nil {
-		t.Fatalf("matches: %v", err)
+		t.Fatalf("Matches: %v", err)
 	}
 	return len(matches)
 }
 
 func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
 		player("stale-blue", "Stale Blue", 0, 111),
 		player("stale-orange", "Stale Orange", 1, 222),
 	}, 1, 2, 120)))
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-b", "Paname_Dusk_P", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-b", "Paname_Dusk_P", []events.Player{
 		player("current-blue", "Current Blue", 0, 333),
 		player("current-orange", "Current Orange", 1, 444),
 	}, 3, 4, 0)))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
 
-	oldMatch := matchByGUID(t, p, "guid-a")
+	oldMatch := matchByGUID(t, s, "guid-a")
 	if !oldMatch.Incomplete {
 		t.Fatalf("old match should be marked incomplete when a new guid appears")
 	}
-	oldPlayers := playerIDsForMatch(t, p, oldMatch.ID)
+	oldPlayers := playerIDsForMatch(t, s, oldMatch.ID)
 	if !oldPlayers["stale-blue"] || !oldPlayers["stale-orange"] {
 		t.Fatalf("old match should keep its own players, got %v", oldPlayers)
 	}
 
-	newMatch := matchByGUID(t, p, "guid-b")
+	newMatch := matchByGUID(t, s, "guid-b")
 	if newMatch.Incomplete {
 		t.Fatalf("new match should complete normally")
 	}
-	newPlayers := playerIDsForMatch(t, p, newMatch.ID)
+	newPlayers := playerIDsForMatch(t, s, newMatch.ID)
 	if len(newPlayers) != 2 || !newPlayers["current-blue"] || !newPlayers["current-orange"] {
 		t.Fatalf("new match should contain only current players, got %v", newPlayers)
 	}
@@ -170,46 +173,46 @@ func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
 }
 
 func TestStaleMatchEndedDoesNotFlushActiveMatch(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-a", "DFH Stadium", []events.Player{
 		player("a-player", "A Player", 0, 100),
 	}, 1, 0, 10)))
-	p.onStateUpdated(translateUpdateState(updateState("guid-b", "Mannfield", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-b", "Mannfield", []events.Player{
 		player("b-player", "B Player", 1, 200),
 	}, 0, 1, 0)))
 
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-a", 0))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-a", 0))
 
-	if p.matchGuid != "guid-b" || p.matchID == 0 {
-		t.Fatalf("stale MatchEnded should not reset active match, guid=%q id=%d", p.matchGuid, p.matchID)
+	if r.matchGuid != "guid-b" || r.matchID == 0 {
+		t.Fatalf("stale MatchEnded should not reset active match, guid=%q id=%d", r.matchGuid, r.matchID)
 	}
 
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
-	newMatch := matchByGUID(t, p, "guid-b")
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-b", 1))
+	newMatch := matchByGUID(t, s, "guid-b")
 	if newMatch.Incomplete || newMatch.WinnerTeamNum != 1 {
 		t.Fatalf("active match should complete after its own MatchEnded: %+v", newMatch)
 	}
 }
 
 func TestUpdateStateReplacesCurrentRosterSnapshot(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
 		player("real-blue", "Real Blue", 0, 100),
 		player("real-orange", "Real Orange", 1, 200),
 		player("stale-blue", "Stale Blue", 0, 300),
 		player("stale-orange", "Stale Orange", 1, 400),
 	}, 1, 1, 120)))
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-roster", "Utopia Coliseum", []events.Player{
 		player("real-blue", "Real Blue", 0, 500),
 		player("real-orange", "Real Orange", 1, 600),
 	}, 2, 3, 0)))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-roster", 1))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-roster", 1))
 
-	match := matchByGUID(t, p, "guid-roster")
-	players := playerIDsForMatch(t, p, match.ID)
+	match := matchByGUID(t, s, "guid-roster")
+	players := playerIDsForMatch(t, s, match.ID)
 	if len(players) != 2 || !players["real-blue"] || !players["real-orange"] {
 		t.Fatalf("match should contain only the latest roster snapshot, got %v", players)
 	}
@@ -219,166 +222,144 @@ func TestUpdateStateReplacesCurrentRosterSnapshot(t *testing.T) {
 }
 
 func TestLatePartialRosterDoesNotShrinkCompletedMatch(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-overtime", "Utopia Coliseum", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-overtime", "Utopia Coliseum", []events.Player{
 		player("blue-one", "Blue One", 0, 100),
 		player("blue-two", "Blue Two", 0, 200),
 		player("orange-one", "Orange One", 1, 300),
 		player("orange-two", "Orange Two", 1, 400),
 	}, 4, 3, 0)))
 
-	p.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-overtime", "Utopia Coliseum", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-overtime", "Utopia Coliseum", []events.Player{
 		player("blue-one", "Blue One", 0, 500),
 		player("blue-two", "Blue Two", 0, 600),
 	}, 4, 3, 0, true)))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-overtime", 0))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-overtime", 0))
 
-	match := matchByGUID(t, p, "guid-overtime")
-	players := playerIDsForMatch(t, p, match.ID)
+	match := matchByGUID(t, s, "guid-overtime")
+	players := playerIDsForMatch(t, s, match.ID)
 	if len(players) != 4 {
 		t.Fatalf("late partial roster should not shrink full match roster, got %v", players)
 	}
 }
 
 func TestTerminalUpdateAfterMatchEndedDoesNotReopenMatch(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 	players := []events.Player{
 		player("steam|player|0", "Mr Mung Beans", 0, 118),
 		player("Unknown|0|0", "Sultan", 1, 34),
 	}
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-real", "Wasteland", players, 1, 0, 12)))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-real", 0))
+	r.onStateUpdated(translateUpdateState(updateState("guid-real", "Wasteland", players, 1, 0, 12)))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-real", 0))
 
-	p.onStateUpdated(translateUpdateState(terminalUpdateState("guid-real", "Wasteland", players, 1, 0)))
-	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
-	p.onStateUpdated(translateUpdateState(terminalUpdateState("guid-postgame", "Wasteland", players, 1, 0)))
-	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
+	r.onStateUpdated(translateUpdateState(terminalUpdateState("guid-real", "Wasteland", players, 1, 0)))
+	r.onMatchDestroyed(oofevents.NewMatchDestroyed())
+	r.onStateUpdated(translateUpdateState(terminalUpdateState("guid-postgame", "Wasteland", players, 1, 0)))
+	r.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
-	if got := matchCount(t, p); got != 1 {
+	if got := matchCount(t, s); got != 1 {
 		t.Fatalf("terminal post-match updates should not create duplicate matches, got %d", got)
 	}
-	match := matchByGUID(t, p, "guid-real")
+	match := matchByGUID(t, s, "guid-real")
 	if match.Incomplete || match.WinnerTeamNum != 0 {
 		t.Fatalf("completed match should stay completed after terminal updates: %+v", match)
 	}
 }
 
 func TestMatchEndedNearZeroClockIsNotForfeit(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-full-time", "TrainStation", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-full-time", "TrainStation", []events.Player{
 		player("blue-one", "Blue One", 0, 200),
 		player("orange-one", "Orange One", 1, 100),
 	}, 2, 1, 173)))
-	p.onClockUpdated(oofevents.NewClockUpdated("guid-full-time", 4, false))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-full-time", 0))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-full-time", 4, false))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-full-time", 0))
 
-	match := matchByGUID(t, p, "guid-full-time")
+	match := matchByGUID(t, s, "guid-full-time")
 	if match.Forfeit {
 		t.Fatalf("near-zero full-time match should not be marked forfeit: %+v", match)
 	}
 }
 
-func TestHistoryInitWithBusWiresSubscriptions(t *testing.T) {
-	bus := oofevents.New()
-	if err := bus.Start(); err != nil {
-		t.Fatalf("bus.Start: %v", err)
-	}
-	t.Cleanup(bus.Stop)
-
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-
-	cfg := config.Defaults()
-	p := &Plugin{}
-	if err := p.Init(bus.ForPlugin("history"), &fakeReg{cfg: &cfg}, database); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if len(p.Subs) != 8 {
-		t.Fatalf("Init should register 8 subscriptions, got %d", len(p.Subs))
-	}
-}
-
-func TestHistoryInitNilBusNoSubscriptions(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-
-	cfg := config.Defaults()
-	p := &Plugin{}
-	if err := p.Init(nil, &fakeReg{cfg: &cfg}, database); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if len(p.Subs) != 0 {
-		t.Fatalf("nil bus should register no subscriptions, got %d", len(p.Subs))
-	}
-}
-
 func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-forfeit", "TrainStation", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-forfeit", "TrainStation", []events.Player{
 		player("blue-one", "Blue One", 0, 200),
 		player("orange-one", "Orange One", 1, 100),
 	}, 2, 1, 173)))
-	p.onClockUpdated(oofevents.NewClockUpdated("guid-forfeit", 173, false))
-	p.onMatchEnded(oofevents.NewMatchEnded("guid-forfeit", 0))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-forfeit", 173, false))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-forfeit", 0))
 
-	match := matchByGUID(t, p, "guid-forfeit")
+	match := matchByGUID(t, s, "guid-forfeit")
 	if !match.Forfeit {
-		t.Fatalf("early match end should still be marked forfeit: %+v", match)
+		t.Fatalf("early match end should be marked forfeit: %+v", match)
 	}
 }
 
 func TestUnknownBotIDsAreScopedToMatchAndShortcut(t *testing.T) {
-	p := newTestPlugin(t)
+	r, s := newTestRecorder(t)
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-gerwin", "Wasteland", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-gerwin", "Wasteland", []events.Player{
 		player("steam|player|0", "Mr Mung Beans", 0, 100),
 		player("Unknown|0|0", "Gerwin", 1, 200),
 	}, 1, 0, 0)))
-	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
+	r.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
-	p.onStateUpdated(translateUpdateState(updateState("guid-khan", "Wasteland", []events.Player{
+	r.onStateUpdated(translateUpdateState(updateState("guid-khan", "Wasteland", []events.Player{
 		player("steam|player|0", "Mr Mung Beans", 0, 100),
 		player("Unknown|0|0", "Khan", 1, 200),
 	}, 1, 0, 0)))
-	p.onMatchDestroyed(oofevents.NewMatchDestroyed())
+	r.onMatchDestroyed(oofevents.NewMatchDestroyed())
 
-	gerwinMatch := matchByGUID(t, p, "guid-gerwin")
-	gerwinPlayers, err := p.store.matchPlayers(gerwinMatch.ID)
+	gerwinMatch := matchByGUID(t, s, "guid-gerwin")
+	gerwinPlayers, err := s.MatchPlayers(gerwinMatch.ID)
 	if err != nil {
-		t.Fatalf("matchPlayers gerwin: %v", err)
+		t.Fatalf("MatchPlayers gerwin: %v", err)
 	}
-	khanMatch := matchByGUID(t, p, "guid-khan")
-	khanPlayers, err := p.store.matchPlayers(khanMatch.ID)
+	khanMatch := matchByGUID(t, s, "guid-khan")
+	khanPlayers, err := s.MatchPlayers(khanMatch.ID)
 	if err != nil {
-		t.Fatalf("matchPlayers khan: %v", err)
+		t.Fatalf("MatchPlayers khan: %v", err)
 	}
 
-	if !hasHistoryPlayer(gerwinPlayers, "bot:guid-gerwin:0", "Gerwin") {
+	if !hasPlayer(gerwinPlayers, "bot:guid-gerwin:0", "Gerwin") {
 		t.Fatalf("Gerwin bot should be match-scoped, got %+v", gerwinPlayers)
 	}
-	if !hasHistoryPlayer(khanPlayers, "bot:guid-khan:0", "Khan") {
+	if !hasPlayer(khanPlayers, "bot:guid-khan:0", "Khan") {
 		t.Fatalf("Khan bot should be match-scoped, got %+v", khanPlayers)
 	}
-	if hasHistoryPlayer(gerwinPlayers, "bot:guid-khan:0", "Khan") {
+	if hasPlayer(gerwinPlayers, "bot:guid-khan:0", "Khan") {
 		t.Fatalf("Gerwin match should not be renamed to Khan, got %+v", gerwinPlayers)
 	}
 }
 
-func hasHistoryPlayer(players []PlayerMatchStats, primaryID, name string) bool {
+func hasPlayer(players []PlayerMatchStats, primaryID, name string) bool {
 	for _, pl := range players {
 		if pl.PrimaryID == primaryID && pl.Name == name {
 			return true
 		}
 	}
 	return false
+}
+
+func TestRecorderSubscribeAndStop(t *testing.T) {
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+
+	r, _ := newTestRecorder(t)
+	r.Subscribe(bus.ForPlugin("histstore"))
+	if len(r.subs) != 8 {
+		t.Fatalf("Subscribe should register 8 subscriptions, got %d", len(r.subs))
+	}
+	r.Stop()
+	if len(r.subs) != 0 {
+		t.Fatalf("Stop should clear subscriptions, got %d", len(r.subs))
+	}
 }

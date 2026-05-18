@@ -19,6 +19,7 @@ import (
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
+	"OOF_RL/internal/histstore"
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
@@ -34,24 +35,26 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	cfg         *config.Config
-	cfgPath     string
-	db          *db.DB
-	hub         *hub.Hub
-	fs          http.Handler
-	reconnect   func()
-	mmrProvider mmr.Provider
-	plugins     []plugin.Plugin
-	bus         oofevents.Bus
-	translator  *rlevents.Translator
-	momentum    *momentum.Service
-	momentumW   *momentum.Wiring
+	cfg          *config.Config
+	cfgPath      string
+	db           *db.DB
+	hub          *hub.Hub
+	fs           http.Handler
+	reconnect    func()
+	mmrProvider  mmr.Provider
+	plugins      []plugin.Plugin
+	bus          oofevents.Bus
+	translator   *rlevents.Translator
+	momentum     *momentum.Service
+	momentumW    *momentum.Wiring
+	histStore    *histstore.Store
+	histRecorder *histstore.Recorder
 }
 
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
 	momentumService := momentum.NewService(momentum.DefaultConfig())
-	return &Server{
+	s := &Server{
 		cfgPath:     cfgPath,
 		cfg:         cfg,
 		db:          database,
@@ -64,6 +67,14 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		momentum:    momentumService,
 		momentumW:   momentum.NewWiring(bus.ForPlugin("momentum"), momentumService),
 	}
+	if database != nil {
+		if err := histstore.Migrate(database); err != nil {
+			log.Printf("[core] histstore migrate: %v", err)
+		}
+		s.histStore = histstore.NewStore(database)
+		s.histRecorder = histstore.NewRecorder(s.histStore, cfg)
+	}
+	return s
 }
 
 // Momentum returns the read-only app-owned Momentum snapshot provider.
@@ -76,6 +87,9 @@ func (s *Server) Config() *config.Config { return s.cfg }
 // InitPlugins sorts plugins by their declared dependencies, then calls Init on
 // each in dependency order. Must be called before the RL client delivers events.
 func (s *Server) InitPlugins() error {
+	if s.histRecorder != nil {
+		s.histRecorder.Subscribe(s.bus.ForPlugin("history"))
+	}
 	sorted, err := topoSort(s.plugins)
 	if err != nil {
 		return fmt.Errorf("plugin dependency: %w", err)
@@ -139,13 +153,17 @@ func topoSort(plugins []plugin.Plugin) ([]plugin.Plugin, error) {
 	return sorted, nil
 }
 
-// ShutdownPlugins calls Shutdown on every registered plugin in reverse order.
+// ShutdownPlugins calls Shutdown on every registered plugin in reverse order,
+// then stops the history recorder.
 func (s *Server) ShutdownPlugins() {
 	for i := len(s.plugins) - 1; i >= 0; i-- {
 		p := s.plugins[i]
 		if err := p.Shutdown(); err != nil {
 			log.Printf("[core] plugin %s Shutdown: %v", p.ID(), err)
 		}
+	}
+	if s.histRecorder != nil {
+		s.histRecorder.Stop()
 	}
 }
 
@@ -223,6 +241,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/config/ini", s.handleINI)
 	mux.HandleFunc("/api/nav", s.handleNav)
 	mux.HandleFunc("/api/plugins/", s.handlePluginView)
+	if s.histStore != nil {
+		mux.HandleFunc("/api/players", s.histStore.HandlePlayers)
+		mux.HandleFunc("/api/matches", s.histStore.HandleMatches)
+		mux.HandleFunc("/api/matches/", s.histStore.HandleMatchDetail)
+	}
 	mux.HandleFunc("/api/settings/schema", s.handleSettingsSchema)
 	mux.HandleFunc("/api/settings", s.handleSettings)
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
