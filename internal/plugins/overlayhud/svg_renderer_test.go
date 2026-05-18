@@ -9,7 +9,7 @@ import (
 func TestRenderSVGIncludesFixedViewBox(t *testing.T) {
 	svg := RenderSVG(testRenderModel())
 
-	if !strings.Contains(svg, `viewBox="0 0 320 320"`) {
+	if !strings.Contains(svg, `viewBox="0 0 1024 1024"`) {
 		t.Fatalf("svg missing fixed viewBox: %s", svg)
 	}
 }
@@ -18,26 +18,36 @@ func TestRenderSVGIncludesExpectedGroupsAndClasses(t *testing.T) {
 	svg := RenderSVG(testRenderModel())
 
 	for _, want := range []string{
-		`id="hud-root"`,
-		`id="hud-background"`,
+		`id="momentum-wheel-root"`,
+		`id="background"`,
+		`id="outer-aura"`,
+		`id="outer-energy-streaks"`,
+		`id="outer-sparks"`,
+		`id="outer-mechanical-frame"`,
+		`id="segment-ring-underlay"`,
+		`id="segment-ring-active"`,
+		`id="segment-ring-blue-active"`,
+		`id="segment-ring-orange-active"`,
+		`id="segment-ring-neutral-caps"`,
+		`id="segment-ring-bevels"`,
+		`id="inner-tick-ring"`,
+		`id="inner-tick-ring-muted"`,
+		`id="center-disc"`,
+		`id="center-color-washes"`,
+		`id="center-texture"`,
+		`id="center-rim"`,
+		`id="contested-front-line"`,
+		`id="text-layer"`,
+		`id="oof-badge"`,
+		`id="debug-overlays"`,
 		`id="hud-confidence-track"`,
-		`id="hud-momentum-arcs"`,
-		`id="hud-momentum-track"`,
-		`id="hud-momentum-blue"`,
-		`id="hud-momentum-orange"`,
 		`id="hud-confidence-ring"`,
-		`id="hud-volatility-track"`,
-		`id="hud-volatility-segments"`,
-		`id="hud-center-panel"`,
 		`id="hud-timer-text"`,
 		`id="hud-state-label"`,
 		`id="hud-confidence-label"`,
-		`id="hud-labels"`,
 		`id="hud-status-overlay"`,
 		`class="overlayhud-render-model mcw-state-blue-pressure is-state-blue-pressure is-active has-data is-stale"`,
 		`data-state="blue-pressure"`,
-		`class="overlayhud-arc-blue"`,
-		`class="overlayhud-arc-orange"`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Fatalf("svg missing %q: %s", want, svg)
@@ -55,14 +65,25 @@ func TestRenderSVGIncludesInactiveNoDataClasses(t *testing.T) {
 	}
 }
 
-func TestRenderSVGIncludesTwentyFourVolatilitySegments(t *testing.T) {
+func TestRenderSVGIncludesNinetySixWheelSegments(t *testing.T) {
 	svg := RenderSVG(testRenderModel())
 
-	if got := strings.Count(svg, `data-segment="`); got != 24 {
-		t.Fatalf("volatility segment count = %d, want 24", got)
+	if got := strings.Count(svg, `class="mcw-segment mcw-segment-inactive"`); got != 96 {
+		t.Fatalf("inactive segment count = %d, want 96", got)
 	}
-	if !strings.Contains(svg, `data-segment="0"`) || !strings.Contains(svg, `data-segment="23"`) {
-		t.Fatalf("svg missing first or last volatility segment: %s", svg)
+	if !strings.Contains(svg, `data-segment="0"`) || !strings.Contains(svg, `data-segment="95"`) {
+		t.Fatalf("svg missing expected segment data attributes: %s", svg)
+	}
+}
+
+func TestRenderSVGIncludesOneHundredTwentyTicks(t *testing.T) {
+	svg := RenderSVG(testRenderModel())
+
+	if got := strings.Count(svg, `class="mcw-tick `); got != 120 {
+		t.Fatalf("tick count = %d, want 120", got)
+	}
+	if !strings.Contains(svg, `data-tick="0"`) || !strings.Contains(svg, `data-tick="119"`) {
+		t.Fatalf("svg missing first or last tick: %s", svg)
 	}
 }
 
@@ -88,50 +109,6 @@ func TestRenderSVGFullConfidenceRingIsNonDegenerate(t *testing.T) {
 	svg := RenderSVG(model)
 
 	assertFullCirclePath(t, svg, `class="overlayhud-confidence is-high"`)
-}
-
-func TestRenderSVGFullBlueArcIsNonDegenerate(t *testing.T) {
-	model := testRenderModel()
-	model.BlueArc = ArcModel{
-		Share:     1,
-		StartDeg:  -90,
-		EndDeg:    270,
-		SweepDeg:  360,
-		ClassName: "overlayhud-arc-blue",
-	}
-	model.OrangeArc = ArcModel{
-		Share:     0,
-		StartDeg:  270,
-		EndDeg:    270,
-		SweepDeg:  0,
-		ClassName: "overlayhud-arc-orange",
-	}
-
-	svg := RenderSVG(model)
-
-	assertFullCirclePath(t, svg, `class="overlayhud-arc-blue"`)
-}
-
-func TestRenderSVGFullOrangeArcIsNonDegenerate(t *testing.T) {
-	model := testRenderModel()
-	model.BlueArc = ArcModel{
-		Share:     0,
-		StartDeg:  -90,
-		EndDeg:    -90,
-		SweepDeg:  0,
-		ClassName: "overlayhud-arc-blue",
-	}
-	model.OrangeArc = ArcModel{
-		Share:     1,
-		StartDeg:  -90,
-		EndDeg:    270,
-		SweepDeg:  360,
-		ClassName: "overlayhud-arc-orange",
-	}
-
-	svg := RenderSVG(model)
-
-	assertFullCirclePath(t, svg, `class="overlayhud-arc-orange"`)
 }
 
 func TestRenderSVGEscapesUnsafeText(t *testing.T) {

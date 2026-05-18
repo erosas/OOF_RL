@@ -9,13 +9,13 @@ import (
 func TestBuildRenderModelUsesSpecGeometry(t *testing.T) {
 	model := buildRenderModel(ViewModel{})
 
-	if model.ViewBox != "0 0 320 320" {
-		t.Fatalf("ViewBox = %q, want 0 0 320 320", model.ViewBox)
+	if model.ViewBox != "0 0 1024 1024" {
+		t.Fatalf("ViewBox = %q, want 0 0 1024 1024", model.ViewBox)
 	}
-	if model.CenterX != 160 || model.CenterY != 160 {
-		t.Fatalf("center = %f,%f, want 160,160", model.CenterX, model.CenterY)
+	if model.CenterX != 512 || model.CenterY != 512 {
+		t.Fatalf("center = %f,%f, want 512,512", model.CenterX, model.CenterY)
 	}
-	if model.Groups.Root != "hud-root" || model.Groups.StateOverlay != "hud-status-overlay" {
+	if model.Groups.Root != "momentum-wheel-root" || model.Groups.SegmentActive != "segment-ring-active" || model.Groups.InnerTickRing != "inner-tick-ring" {
 		t.Fatalf("unexpected groups: %+v", model.Groups)
 	}
 }
@@ -135,41 +135,49 @@ func TestBuildRenderModelClampsConfidence(t *testing.T) {
 	}
 }
 
-func TestBuildRenderModelCreatesVolatilitySegments(t *testing.T) {
+func TestBuildRenderModelCreatesMomentumControlWheelSegments(t *testing.T) {
 	model := buildRenderModel(ViewModel{Volatility: 0.50})
 
-	if len(model.Volatility) != 24 {
-		t.Fatalf("volatility segments = %d, want 24", len(model.Volatility))
+	if len(model.Segments) != 96 {
+		t.Fatalf("segments = %d, want 96", len(model.Segments))
 	}
-
-	active := 0
-	for _, segment := range model.Volatility {
-		if segment.Active {
-			active++
-			if segment.Intensity != 0.50 {
-				t.Fatalf("active segment intensity = %f, want 0.50", segment.Intensity)
-			}
+	for i, segment := range model.Segments {
+		if segment.Index != i {
+			t.Fatalf("segment index = %d, want %d", segment.Index, i)
 		}
-		if !almostEqual(segment.EndDeg-segment.StartDeg, 11) {
-			t.Fatalf("segment %d span = %f, want 11", segment.Index, segment.EndDeg-segment.StartDeg)
+		if !almostEqual(segment.AngleDeg, float64(i)*3.75) {
+			t.Fatalf("segment %d angle = %f, want %f", i, segment.AngleDeg, float64(i)*3.75)
 		}
-	}
-	if active != 12 {
-		t.Fatalf("active segments = %d, want 12", active)
+		if segment.Owner != "blue" && segment.Owner != "orange" {
+			t.Fatalf("segment %d owner = %q, want blue/orange", i, segment.Owner)
+		}
 	}
 }
 
-func TestBuildRenderModelScalesVolatilityActivation(t *testing.T) {
-	model := buildRenderModel(ViewModel{Volatility: 0.01})
+func TestBuildRenderModelCreatesMomentumControlWheelTicks(t *testing.T) {
+	model := buildRenderModel(ViewModel{})
 
-	active := 0
-	for _, segment := range model.Volatility {
-		if segment.Active {
-			active++
+	if len(model.Ticks) != 120 {
+		t.Fatalf("ticks = %d, want 120", len(model.Ticks))
+	}
+	for i, tick := range model.Ticks {
+		if tick.Index != i {
+			t.Fatalf("tick index = %d, want %d", tick.Index, i)
+		}
+		if !almostEqual(tick.AngleDeg, float64(i)*3) {
+			t.Fatalf("tick %d angle = %f, want %f", i, tick.AngleDeg, float64(i)*3)
 		}
 	}
-	if active != 1 {
-		t.Fatalf("active segments = %d, want 1 for non-zero volatility", active)
+}
+
+func TestBuildRenderModelAssignsSegmentOwnersFromOldWheelOrigin(t *testing.T) {
+	model := buildRenderModel(ViewModel{BlueShare: 0.50, OrangeShare: 0.50})
+
+	if model.Segments[0].Owner != "orange" {
+		t.Fatalf("segment 0 owner = %q, want orange for old 180deg blue origin", model.Segments[0].Owner)
+	}
+	if model.Segments[48].Owner != "blue" {
+		t.Fatalf("segment 48 owner = %q, want blue at 180deg origin", model.Segments[48].Owner)
 	}
 }
 

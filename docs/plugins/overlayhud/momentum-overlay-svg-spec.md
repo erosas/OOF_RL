@@ -26,58 +26,71 @@ Momentum Engine -> SnapshotProvider -> overlayhud.ViewModel -> SVG/display contr
 
 ## Component Geometry
 
-The renderer should use a fixed SVG coordinate system so layout and animation do
-not shift between states.
+The early rebuilt renderer used a simplified `0 0 320 320` arc wheel as
+validation scaffolding while the Momentum runtime, preview route, and native
+surface were rebuilt. That geometry is not the parity target.
 
-- SVG `viewBox`: `0 0 320 320`
-- Nominal rendered size: `320px x 320px`
+The renderer should now target the old PR #47 `MomentumControlWheel` geometry so
+layout and future CSS/motion parity have stable hooks.
+
+- SVG `viewBox`: `0 0 1024 1024`
+- Nominal authored size: `1024px x 1024px`
 - Minimum readable rendered size: `220px x 220px`
-- Center point: `160,160`
-- Outer visual radius: `150`
-- Safe content radius: `132`
-- Center timer region radius: `64`
-- Ring stroke cap: `round`
-- Ring stroke joins: `round`
-- Text baseline should be centered and must not overlap the outer rings.
+- Center point: `512,512`
+- Outer frame radius: `410`
+- Segment ring radius: `365`
+- Inner tick ring: `258..274`
+- Center disc radius: `230`
+- Inner rim radius: `238`
+- Segment count: `96`
+- Tick count: `120`
+- Text baseline should be centered and must not overlap the segment ring.
 
 The SVG root should remain square. Responsive scaling may change rendered pixel
-size, but it must preserve the `1:1` aspect ratio and the `0 0 320 320`
+size, but it must preserve the `1:1` aspect ratio and the `0 0 1024 1024`
 coordinate system.
 
 ## Component Dimensions
 
 | Element | Geometry |
 | --- | --- |
-| Outer confidence ring | radius `146`, stroke `8` |
-| Momentum share ring | radius `132`, stroke `18` |
-| Volatility tick ring | radius `108`, stroke `6` |
-| Center timer region | radius `64` |
-| State label row | centered at `y=188` |
-| Timer row | centered at `y=154` |
-| Confidence caption row | centered at `y=214` |
+| Outer mechanical frame | radius `410` |
+| Segment pill ring | `96` rounded rects, `x=505`, `y=108`, `width=14`, `height=108`, rotated around `512,512` |
+| Segment bevels | `96` thin rounded rects, `x=507.5`, `y=113`, `width=3`, `height=42`, rotated around `512,512` |
+| Inner tick ring | `120` radial lines from radius `258` to `274` |
+| Center disc | radius `230` |
+| Timer row | centered near `y=506` |
+| State label row | centered near `y=570` |
+| Status overlay row | centered below state label when needed |
 
 Timer text should remain the most readable element. Other labels must shrink,
 hide, or simplify before the timer becomes cramped.
 
 ## Layer Order
 
-Future SVG output should use this back-to-front order:
+Future SVG output should use this back-to-front order, matching the old
+MomentumControlWheel layer manifest where practical:
 
-1. `hud-root`
-2. `hud-background`
-3. `hud-grid-guides` hidden in production
-4. `hud-confidence-track`
-5. `hud-confidence-ring`
-6. `hud-momentum-track`
-7. `hud-momentum-blue`
-8. `hud-momentum-orange`
-9. `hud-volatility-track`
-10. `hud-volatility-segments`
-11. `hud-center-panel`
-12. `hud-timer-text`
-13. `hud-state-label`
-14. `hud-confidence-label`
-15. `hud-status-overlay`
+1. `momentum-wheel-root`
+2. `defs`
+3. `background`
+4. `outer-aura`
+5. `outer-energy-streaks`
+6. `outer-sparks`
+7. `outer-mechanical-frame`
+8. `segment-ring-underlay`
+9. `segment-ring-active`
+10. `segment-ring-bevels`
+11. `inner-tick-ring`
+12. `center-disc`
+13. `center-color-washes`
+14. `center-texture`
+15. `center-rim`
+16. `contested-front-line`
+17. `text-layer`
+18. `oof-badge`
+19. `debug-overlays`
+20. `hud-status-overlay`
 
 The status overlay is only for inactive, stale, and no-data states. It should not
 cover the timer when a timer is available.
@@ -87,19 +100,33 @@ cover the timer when a timer is available.
 Use stable group names so future tests, screenshots, and debug tools can target
 specific layers:
 
-- `g#hud-root`
-- `g#hud-background`
-- `g#hud-confidence-track`
-- `g#hud-confidence-ring`
-- `g#hud-momentum-track`
-- `g#hud-momentum-blue`
-- `g#hud-momentum-orange`
-- `g#hud-volatility-track`
-- `g#hud-volatility-segments`
-- `g#hud-center-panel`
-- `g#hud-timer-text`
-- `g#hud-state-label`
-- `g#hud-confidence-label`
+- `svg#momentum-control-wheel`
+- `g#momentum-wheel-root`
+- `g#background`
+- `g#outer-aura`
+- `g#outer-energy-streaks`
+- `g#outer-sparks`
+- `g#outer-mechanical-frame`
+- `g#segment-ring-underlay`
+- `g#segment-ring-active`
+- `g#segment-ring-blue-active`
+- `g#segment-ring-orange-active`
+- `g#segment-ring-neutral-caps`
+- `g#segment-ring-bevels`
+- `g#inner-tick-ring`
+- `g#inner-tick-ring-base`
+- `g#inner-tick-ring-blue`
+- `g#inner-tick-ring-orange`
+- `g#inner-tick-ring-muted`
+- `g#inner-crosshair-lines`
+- `g#center-disc`
+- `g#center-color-washes`
+- `g#center-texture`
+- `g#center-rim`
+- `g#contested-front-line`
+- `g#text-layer`
+- `g#oof-badge`
+- `g#debug-overlays`
 - `g#hud-status-overlay`
 
 Dynamic child nodes should use `data-state`, `data-team`, or `data-segment`
@@ -107,36 +134,37 @@ attributes instead of changing group IDs.
 
 ## Arc And Ring Geometry
 
-Momentum share is represented as a two-team circular ring.
+Momentum share is represented as individual pill segments, not a stroked arc.
 
-- Blue starts at the top center, angle `-90deg`.
-- Orange follows blue clockwise.
-- `BlueShare` and `OrangeShare` should be clamped to `0..1`.
+- Segment count: `96`
+- Segment angle step: `3.75deg`
+- Segment rect: `x=505`, `y=108`, `width=14`, `height=108`, `rx=999`, `ry=999`
+- Rotation origin: `512,512`
+- Segment angle: `index * 3.75`
+- Blue ownership begins at `180deg` and fills clockwise by `BlueShare * 360`.
+- Orange owns the remaining visible territory.
 - If shares do not sum to `1`, the renderer should normalize them for display.
 - If both shares are unavailable, render the neutral `0.5 / 0.5` state.
-- Use a minimum visible arc of `4deg` only for non-zero values that would
-  otherwise disappear.
 - Do not inflate a true zero share into a visible team advantage.
 
-The confidence ring is a single progress ring around the outside. It should use
-`ViewModel.Confidence`, clamped to `0..1`.
-
-The volatility ring is a segmented inner ring. It should use
-`ViewModel.Volatility`, clamped to `0..1`.
+Volatility affects seam/cap emphasis and later motion/styling, but this geometry
+PR only needs stable segment/tick primitives. Full visual volatility styling is
+deferred to PR #78.
 
 ## Segment Count Rules
 
-Volatility should use discrete segments so high volatility is visible without
-requiring heavy animation.
+The old MomentumControlWheel uses fixed-count geometry:
 
-- Segment count: `24`
-- Segment gap: `4deg`
-- Segment active threshold: `ceil(Volatility * 24)`
-- Active segments should fill clockwise from `-90deg`.
-- Low volatility may show zero active segments.
-- Reduced-motion mode must not animate segment activation.
+- Momentum pill segments: `96`
+- Inner tick marks: `120`
+- Tick angle step: `3deg`
+- Tick line: radial line from radius `258` to `274`
+- Crosshair lines:
+  - vertical `512,268 -> 512,756`
+  - horizontal `268,512 -> 756,512`
 
-Segment count should remain constant across states to avoid layout churn.
+Segment and tick counts should remain constant across states to avoid layout
+churn.
 
 ## Center Timer And State Label Rules
 
@@ -152,9 +180,14 @@ Text rules:
 - Timer fallback: `--:--`.
 - State labels must use safe terms only:
   - `NO DATA`
+  - `NEUTRAL`
   - `BLUE PRESSURE`
   - `ORANGE PRESSURE`
-  - `SHIFTING`
+  - `BLUE CONTROL`
+  - `ORANGE CONTROL`
+  - `VOLATILE`
+  - `STALE`
+  - `INACTIVE`
 - Do not use possession, rotation, predicted win, tactical advantage, or ball
   control language.
 - The renderer should prefer smaller text over overlap.
@@ -310,7 +343,8 @@ overlayhud.ViewModel{
     IsStale: false,
     BlueShare: 0.52,
     OrangeShare: 0.48,
-    StateLabel: "SHIFTING",
+    DisplayState: "neutral",
+    StateLabel: "NEUTRAL",
     Confidence: 0.42,
     Volatility: 0.38,
 }
@@ -325,7 +359,8 @@ overlayhud.ViewModel{
     IsStale: false,
     BlueShare: 0.72,
     OrangeShare: 0.28,
-    StateLabel: "BLUE PRESSURE",
+    DisplayState: "blue-control",
+    StateLabel: "BLUE CONTROL",
     Confidence: 0.76,
     Volatility: 0.24,
 }
@@ -340,7 +375,8 @@ overlayhud.ViewModel{
     IsStale: false,
     BlueShare: 0.31,
     OrangeShare: 0.69,
-    StateLabel: "ORANGE PRESSURE",
+    DisplayState: "volatile",
+    StateLabel: "VOLATILE",
     Confidence: 0.67,
     Volatility: 0.86,
 }
@@ -355,7 +391,8 @@ overlayhud.ViewModel{
     IsStale: true,
     BlueShare: 0.64,
     OrangeShare: 0.36,
-    StateLabel: "BLUE PRESSURE",
+    DisplayState: "stale",
+    StateLabel: "STALE",
     Confidence: 0.51,
     Volatility: 0.17,
 }
@@ -363,22 +400,20 @@ overlayhud.ViewModel{
 
 ## Future Implementation Phases
 
-1. Add package-level SVG rendering helpers that accept `overlayhud.ViewModel`
-   and return static display markup or a render model.
-2. Add fixture-based renderer tests using the states above.
-3. Add minimal Overlay HUD runtime registration only when visible behavior
-   exists.
-4. Add a narrow snapshot delivery path if the renderer needs one.
-5. Add reduced-motion and performance-mode integration.
-6. Add Overlay Lab or visual controls in a separate frontend-only PR, if still
+1. Restore MomentumControlWheel geometry: `1024` viewBox, `96` pill segments,
+   `120` ticks, and old group IDs/classes.
+2. Restore CSS/token/motion parity: aura layers, seam effects, sparks,
+   pressure/control/volatile/dominant styling, reduced-motion behavior.
+3. Add in-game visual validation screenshots and performance notes.
+4. Add Overlay Lab or visual controls in a separate frontend-only PR, if still
    needed.
 
 ## Acceptance Criteria
 
-- Spec is documentation only.
+- Spec documents the MomentumControlWheel geometry target.
 - Spec preserves the architecture chain from Momentum Engine to future renderer.
-- Spec defines exact SVG geometry, dimensions, layer order, group names, arc
-  rules, segment rules, display tokens, and fixture states.
+- Spec defines exact SVG geometry, dimensions, layer order, group names, segment
+  rules, tick rules, display tokens, and fixture states.
 - Spec uses safe Momentum terminology.
 - Spec documents stale, no-data, inactive, confidence, and volatility display
   behavior.

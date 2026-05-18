@@ -37,7 +37,7 @@ func TestDisplayAdapterRendersNoDataHTMLAndSVG(t *testing.T) {
 
 	for _, output := range []string{svg, html} {
 		for _, want := range []string{
-			`viewBox="0 0 320 320"`,
+			`viewBox="0 0 1024 1024"`,
 			`mcw-state-no-data`,
 			`is-inactive`,
 			`has-no-data`,
@@ -73,7 +73,7 @@ func TestDisplayAdapterRendersActiveHTMLAndSVG(t *testing.T) {
 			`is-active`,
 			`has-data`,
 			`>BLUE CONTROL</text>`,
-			`id="hud-momentum-blue"`,
+			`id="segment-ring-blue-active"`,
 		} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("output missing %q: %s", want, output)
@@ -143,7 +143,7 @@ func TestPreviewRouteUsesDisplayAdapterOutput(t *testing.T) {
 	body := w.Body.String()
 	for _, want := range []string{
 		"<!doctype html>",
-		`viewBox="0 0 320 320"`,
+		`viewBox="0 0 1024 1024"`,
 		`>BLUE CONTROL</text>`,
 	} {
 		if !strings.Contains(body, want) {
