@@ -3,6 +3,8 @@ package wasmhost
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -136,5 +138,91 @@ func TestPlugin_EventQueue_DropsWhenFull(t *testing.T) {
 
 	if dropped != extra {
 		t.Errorf("want %d drops, got %d", extra, dropped)
+	}
+}
+
+// TestPlugin_Getters exercises the trivial getter methods that read from meta.
+func TestPlugin_Getters(t *testing.T) {
+	p := &Plugin{
+		meta: sdk.PluginMeta{
+			ID:       "test-plugin",
+			Requires: []string{"dep-a"},
+			DeclaredEvents: []sdk.DeclaredEvent{
+				{Type: "test.fired", Certainty: sdk.Authoritative, Description: "desc"},
+			},
+			NavTab: sdk.NavTabMeta{ID: "test-tab", Label: "Test", Order: 3},
+		},
+	}
+
+	if got := p.ID(); got != "test-plugin" {
+		t.Errorf("ID: got %q", got)
+	}
+	if got := p.DBPrefix(); got != "" {
+		t.Errorf("DBPrefix: got %q, want empty", got)
+	}
+	if got := p.Requires(); len(got) != 1 || got[0] != "dep-a" {
+		t.Errorf("Requires: got %v", got)
+	}
+	decl := p.DeclaredEvents()
+	if len(decl) != 1 || decl[0].Type != "test.fired" {
+		t.Errorf("DeclaredEvents: got %v", decl)
+	}
+	nt := p.NavTab()
+	if nt.ID != "test-tab" || nt.Label != "Test" || nt.Order != 3 {
+		t.Errorf("NavTab: got %+v", nt)
+	}
+	if p.SettingsSchema() != nil {
+		t.Error("SettingsSchema: want nil")
+	}
+	if err := p.ApplySettings(nil); err != nil {
+		t.Errorf("ApplySettings: got %v", err)
+	}
+}
+
+// TestPlugin_Assets tests the Assets() getter for both the nil and non-nil cases.
+func TestPlugin_Assets(t *testing.T) {
+	t.Run("empty assetsDir returns nil", func(t *testing.T) {
+		p := &Plugin{}
+		if p.Assets() != nil {
+			t.Error("want nil for empty assetsDir")
+		}
+	})
+	t.Run("existing assetsDir returns fs.FS", func(t *testing.T) {
+		dir := t.TempDir()
+		p := &Plugin{assetsDir: dir}
+		if p.Assets() == nil {
+			t.Error("want non-nil fs.FS for existing dir")
+		}
+	})
+}
+
+// TestPlugin_Routes_NoHandler verifies that routes are registered on the mux
+// and that requests without fnHandleHTTP get a 501 Not Implemented.
+func TestPlugin_Routes_NoHandler(t *testing.T) {
+	p := &Plugin{
+		meta: sdk.PluginMeta{Routes: []string{"/api/wasm-test"}},
+	}
+	mux := http.NewServeMux()
+	p.Routes(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/wasm-test", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("serveHTTP without handler: got %d, want 501", w.Code)
+	}
+}
+
+// TestPlugin_HostPublishEvent_NilBus ensures the nil-bus guard does not panic.
+func TestPlugin_HostPublishEvent_NilBus(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "no-bus"}}
+	p.hostPublishEvent(context.Background(), nil, 0, 0, 0, 0, 0)
+}
+
+// TestPlugin_Shutdown_NilEventCh verifies Shutdown is safe when Init was never called.
+func TestPlugin_Shutdown_NilEventCh(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "no-init"}}
+	if err := p.Shutdown(); err != nil {
+		t.Errorf("Shutdown: %v", err)
 	}
 }

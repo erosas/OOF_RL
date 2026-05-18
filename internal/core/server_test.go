@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -351,5 +352,164 @@ func TestPostSettingsBadJSON(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+// --- InitPlugins / ShutdownPlugins / Get ---
+
+func TestInitPluginsAndShutdownPlugins(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.LoadPlugins(); err != nil {
+		t.Fatalf("LoadPlugins: %v", err)
+	}
+	if err := srv.InitPlugins(); err != nil {
+		t.Fatalf("InitPlugins: %v", err)
+	}
+	srv.ShutdownPlugins()
+}
+
+func TestServerGet(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.LoadPlugins(); err != nil {
+		t.Fatalf("LoadPlugins: %v", err)
+	}
+	if _, ok := srv.Get("history"); !ok {
+		t.Error("Get(history): want found")
+	}
+	if _, ok := srv.Get("nonexistent-plugin"); ok {
+		t.Error("Get(nonexistent-plugin): want not found")
+	}
+}
+
+// --- LoadWASMPlugins ---
+
+func TestLoadWASMPlugins_MissingDir(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.LoadWASMPlugins(filepath.Join(t.TempDir(), "nonexistent")); err != nil {
+		t.Fatalf("want nil for missing dir, got: %v", err)
+	}
+}
+
+func TestLoadWASMPlugins_EmptyDir(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if err := srv.LoadWASMPlugins(t.TempDir()); err != nil {
+		t.Fatalf("LoadWASMPlugins empty dir: %v", err)
+	}
+	if len(srv.List()) != 0 {
+		t.Errorf("expected 0 plugins, got %d", len(srv.List()))
+	}
+}
+
+func TestLoadWASMPlugins_InvalidWasm(t *testing.T) {
+	srv, _ := newTestServer(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bad.wasm"), []byte("not wasm"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Bad WASM is logged and skipped; no error is returned to the caller.
+	if err := srv.LoadWASMPlugins(dir); err != nil {
+		t.Fatalf("want nil (bad wasm skipped), got: %v", err)
+	}
+	if len(srv.List()) != 0 {
+		t.Errorf("expected 0 plugins, got %d", len(srv.List()))
+	}
+}
+
+// --- /api/plugins/<id>/view ---
+
+func TestHandlePluginView_MissingID(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := get(mux, "/api/plugins/")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("missing id: got %d, want 400", w.Code)
+	}
+}
+
+func TestHandlePluginView_NotFound(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := get(mux, "/api/plugins/nonexistent-xyz/view")
+	if w.Code != http.StatusNotFound {
+		t.Errorf("not found: got %d, want 404", w.Code)
+	}
+}
+
+func TestHandlePluginView_Success(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := get(mux, "/api/plugins/history/view")
+	if w.Code != http.StatusOK {
+		t.Errorf("history view: got %d, want 200", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Errorf("content-type: got %q, want text/html", ct)
+	}
+}
+
+// --- /api/data-dir ---
+
+func TestHandleDataDir(t *testing.T) {
+	mux, cfg := newTestMux(t)
+	w := get(mux, "/api/data-dir")
+	if w.Code != http.StatusOK {
+		t.Fatalf("handleDataDir: got %d, want 200", w.Code)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if resp["path"] != cfg.DataDir {
+		t.Errorf("path: got %q, want %q", resp["path"], cfg.DataDir)
+	}
+}
+
+// --- /ws ---
+
+func TestHandleWS_NonUpgradable(t *testing.T) {
+	mux, _ := newTestMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	// Gorilla's Upgrade writes its own error when the request is not upgradable;
+	// we just verify no panic and that the WebSocket upgrade did not succeed (no 101).
+	if w.Code == http.StatusSwitchingProtocols {
+		t.Error("did not expect 101 Switching Protocols for a plain HTTP request")
+	}
+}
+
+// --- /api/db/open-folder ---
+
+func TestHandleDBOpenFolder_MethodNotAllowed(t *testing.T) {
+	mux, _ := newTestMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/db/open-folder", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("handleDBOpenFolder POST: got %d, want 405", w.Code)
+	}
+}
+
+// --- applyCoreSettings (via /api/settings) ---
+
+func TestApplyCoreSettings(t *testing.T) {
+	mux, cfg := newTestMux(t)
+	w := postJSON(mux, "/api/settings", map[string]string{
+		"storage.ball_hit_events":    "true",
+		"storage.tick_snapshots":     "true",
+		"storage.tick_snapshot_rate": "30.5",
+		"storage.raw_packets":        "true",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
+	}
+	if !cfg.Storage.BallHitEvents {
+		t.Error("BallHitEvents: want true")
+	}
+	if !cfg.Storage.TickSnapshots {
+		t.Error("TickSnapshots: want true")
+	}
+	if cfg.Storage.TickSnapshotRate != 30.5 {
+		t.Errorf("TickSnapshotRate: got %v, want 30.5", cfg.Storage.TickSnapshotRate)
+	}
+	if !cfg.Storage.RawPackets {
+		t.Error("RawPackets: want true")
 	}
 }
