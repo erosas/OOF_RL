@@ -42,7 +42,7 @@ func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	}
 	t.Cleanup(bus.Stop)
 	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
-	srv.Use(history.New(&cfg, database))
+	srv.Use(history.New())
 	srv.Use(ballchasing.New(&cfg, database, h))
 
 	mux := http.NewServeMux()
