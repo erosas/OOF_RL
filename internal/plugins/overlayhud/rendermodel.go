@@ -33,6 +33,8 @@ type RenderModel struct {
 
 	DisplayState string
 	StateClasses []string
+	StyleVars    string
+	SeamAngleDeg float64
 
 	MatchActive bool
 	HasData     bool
@@ -109,6 +111,7 @@ func buildRenderModel(vm ViewModel) RenderModel {
 	confidence := clamp01(vm.Confidence)
 	volatility := clamp01(vm.Volatility)
 	displayState := renderDisplayState(vm)
+	seamAngle := calculateSeamAngle(blueShare, orangeShare)
 
 	return RenderModel{
 		ViewBox: renderViewBox,
@@ -134,6 +137,8 @@ func buildRenderModel(vm ViewModel) RenderModel {
 
 		DisplayState: displayState,
 		StateClasses: stateClasses(vm, displayState),
+		StyleVars:    renderStyleVars(blueShare, orangeShare, confidence, volatility, displayState),
+		SeamAngleDeg: seamAngle,
 
 		MatchActive: vm.MatchActive,
 		HasData:     vm.HasData,
@@ -293,8 +298,68 @@ func confidenceClass(confidence float64) string {
 	}
 }
 
+func renderStyleVars(blueShare, orangeShare, confidence, volatility float64, displayState string) string {
+	bluePressure := clamp01(blueShare)
+	orangePressure := clamp01(orangeShare)
+	volatility = clamp01(volatility)
+	confidence = clamp01(confidence)
+
+	blueWash, orangeWash, purpleWash := 0.12, 0.12, 0.04
+	blueAura, orangeAura, contestAura := 0.11, 0.11, 0.14
+	stateIntensity := 0.35
+
+	switch displayState {
+	case displayStateBluePressure:
+		blueWash, orangeWash, purpleWash = 0.18, 0.06, 0.06
+		blueAura, orangeAura, contestAura = 0.30, 0.05, 0.26
+		stateIntensity = 1
+	case displayStateOrangePressure:
+		blueWash, orangeWash, purpleWash = 0.06, 0.18, 0.06
+		blueAura, orangeAura, contestAura = 0.05, 0.30, 0.26
+		stateIntensity = 1
+	case displayStateBlueControl:
+		blueWash, orangeWash, purpleWash = 0.28, 0.04, 0.05
+		blueAura, orangeAura, contestAura = 0.42, 0.03, 0.20
+		stateIntensity = 1.12
+	case displayStateOrangeControl:
+		blueWash, orangeWash, purpleWash = 0.04, 0.28, 0.05
+		blueAura, orangeAura, contestAura = 0.03, 0.42, 0.20
+		stateIntensity = 1.12
+	case displayStateVolatile:
+		blueWash, orangeWash, purpleWash = 0.12, 0.12, 0.24
+		blueAura, orangeAura, contestAura = 0.16, 0.16, 0.64
+		stateIntensity = 1.25
+	case displayStateNoData, displayStateStale, displayStateInactive:
+		blueWash, orangeWash, purpleWash = 0.04, 0.04, 0.02
+		blueAura, orangeAura, contestAura = 0.04, 0.04, 0.05
+		stateIntensity = 0.25
+	}
+
+	return "--mcw-blue-pressure:" + styleNum(bluePressure) +
+		";--mcw-orange-pressure:" + styleNum(orangePressure) +
+		";--mcw-confidence:" + styleNum(confidence) +
+		";--mcw-volatility:" + styleNum(volatility) +
+		";--mcw-state-intensity:" + styleNum(stateIntensity) +
+		";--mcw-center-blue-wash:" + styleNum(blueWash) +
+		";--mcw-center-orange-wash:" + styleNum(orangeWash) +
+		";--mcw-center-purple-wash:" + styleNum(purpleWash) +
+		";--mcw-blue-aura-opacity:" + styleNum(blueAura) +
+		";--mcw-orange-aura-opacity:" + styleNum(orangeAura) +
+		";--mcw-contest-aura-opacity:" + styleNum(contestAura) +
+		";--mcw-seam-intensity:" + styleNum(0.34+volatility*0.56) +
+		";"
+}
+
+func styleNum(value float64) string {
+	if value < 0 {
+		value = 0
+	}
+	return num(value)
+}
+
 func stateClasses(vm ViewModel, displayState string) []string {
 	classes := []string{
+		"momentum-control-wheel-svg",
 		"overlayhud-render-model",
 		"mcw-state-" + displayState,
 		"is-state-" + displayState,

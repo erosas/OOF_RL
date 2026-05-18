@@ -61,6 +61,40 @@ func TestBuildRenderModelUsesNeutralNoDataState(t *testing.T) {
 	}
 }
 
+func TestBuildRenderModelAddsMomentumControlWheelRootClassAndStyleVars(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		MatchActive:  true,
+		HasData:      true,
+		BlueShare:    0.72,
+		OrangeShare:  0.28,
+		DisplayState: displayStateBlueControl,
+		StateLabel:   "BLUE CONTROL",
+		Confidence:   0.76,
+		Volatility:   0.24,
+	})
+
+	for _, className := range []string{"momentum-control-wheel-svg", "mcw-state-blue-control", "is-state-blue-control"} {
+		if !hasStateClass(model.StateClasses, className) {
+			t.Fatalf("StateClasses = %v, want %s", model.StateClasses, className)
+		}
+	}
+	for _, want := range []string{
+		"--mcw-blue-pressure:0.720",
+		"--mcw-orange-pressure:0.280",
+		"--mcw-confidence:0.760",
+		"--mcw-volatility:0.240",
+		"--mcw-center-blue-wash:0.280",
+		"--mcw-blue-aura-opacity:0.420",
+	} {
+		if !strings.Contains(model.StyleVars, want) {
+			t.Fatalf("StyleVars = %q, want %q", model.StyleVars, want)
+		}
+	}
+	if !almostEqual(model.SeamAngleDeg, 79.2) {
+		t.Fatalf("SeamAngleDeg = %f, want 79.2", model.SeamAngleDeg)
+	}
+}
+
 func TestBuildRenderModelAddsStaleAndInactiveClasses(t *testing.T) {
 	model := buildRenderModel(ViewModel{
 		HasData:    true,

@@ -46,8 +46,10 @@ func TestRenderSVGIncludesExpectedGroupsAndClasses(t *testing.T) {
 		`id="hud-state-label"`,
 		`id="hud-confidence-label"`,
 		`id="hud-status-overlay"`,
-		`class="overlayhud-render-model mcw-state-blue-pressure is-state-blue-pressure is-active has-data is-stale"`,
+		`id="momentum-control-wheel"`,
+		`class="momentum-control-wheel-svg overlayhud-render-model mcw-state-blue-pressure is-state-blue-pressure is-active has-data is-stale"`,
 		`data-state="blue-pressure"`,
+		`data-seam-angle="72.000"`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Fatalf("svg missing %q: %s", want, svg)
@@ -60,8 +62,32 @@ func TestRenderSVGIncludesInactiveNoDataClasses(t *testing.T) {
 
 	svg := RenderSVG(model)
 
-	if !strings.Contains(svg, `class="overlayhud-render-model mcw-state-no-data is-state-no-data is-inactive has-no-data"`) {
+	if !strings.Contains(svg, `class="momentum-control-wheel-svg overlayhud-render-model mcw-state-no-data is-state-no-data is-inactive has-no-data"`) {
 		t.Fatalf("svg missing inactive/no-data classes: %s", svg)
+	}
+}
+
+func TestRenderSVGIncludesMomentumControlWheelResponseHooks(t *testing.T) {
+	svg := RenderSVG(testRenderModel())
+
+	for _, want := range []string{
+		`<defs>`,
+		`id="mcw-soft-blur"`,
+		`id="outer-aura-blue"`,
+		`id="outer-aura-orange"`,
+		`id="outer-aura-purple-contest"`,
+		`id="center-disc-blue-wash"`,
+		`id="center-disc-orange-wash"`,
+		`id="center-disc-purple-contest-wash"`,
+		`id="contest-top-core"`,
+		`id="contest-top-purple-glow"`,
+		`--mcw-blue-pressure:0.700`,
+		`--mcw-orange-pressure:0.300`,
+		`--mcw-volatility:0.500`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Fatalf("svg missing response hook %q: %s", want, svg)
+		}
 	}
 }
 
