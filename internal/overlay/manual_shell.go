@@ -4,6 +4,8 @@ package overlay
 
 import (
 	"strings"
+	"sync"
+	"time"
 
 	webview2 "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
@@ -12,6 +14,26 @@ import (
 )
 
 const defaultManualShellTitle = "OOF Overlay"
+
+var (
+	uiDispatcherMu sync.RWMutex
+	uiDispatcher   func(func())
+)
+
+// SetUIDispatcher configures the app WebView dispatch function used by manual
+// shells. Manual shell creation remains request-driven, but WebView2 windows
+// must be created on the UI thread that owns the running message loop.
+func SetUIDispatcher(dispatch func(func())) {
+	uiDispatcherMu.Lock()
+	defer uiDispatcherMu.Unlock()
+	uiDispatcher = dispatch
+}
+
+func currentUIDispatcher() func(func()) {
+	uiDispatcherMu.RLock()
+	defer uiDispatcherMu.RUnlock()
+	return uiDispatcher
+}
 
 // ManualShellOptions configure an explicitly launched overlay shell. This path
 // intentionally avoids hotkey polling, persistence bindings, and lifecycle
@@ -38,6 +60,23 @@ func StartManualShell(url string, cfg *config.Config, opts ManualShellOptions) *
 		return nil
 	}
 
+	if dispatch := currentUIDispatcher(); dispatch != nil {
+		result := make(chan *ManualShell, 1)
+		dispatch(func() {
+			result <- startManualShellOnCurrentThread(url, cfg, opts)
+		})
+		select {
+		case shell := <-result:
+			return shell
+		case <-time.After(2 * time.Second):
+			return nil
+		}
+	}
+
+	return startManualShellOnCurrentThread(url, cfg, opts)
+}
+
+func startManualShellOnCurrentThread(url string, cfg *config.Config, opts ManualShellOptions) *ManualShell {
 	ov := webview2.NewWithOptions(webview2.WebViewOptions{Debug: false})
 	if ov == nil {
 		return nil

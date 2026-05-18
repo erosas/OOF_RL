@@ -28,6 +28,7 @@ type RenderModel struct {
 
 	Center CenterModel
 
+	DisplayState string
 	StateClasses []string
 
 	MatchActive bool
@@ -81,6 +82,7 @@ func buildRenderModel(vm ViewModel) RenderModel {
 
 	confidence := clamp01(vm.Confidence)
 	volatility := clamp01(vm.Volatility)
+	displayState := renderDisplayState(vm)
 
 	return RenderModel{
 		ViewBox: renderViewBox,
@@ -103,7 +105,8 @@ func buildRenderModel(vm ViewModel) RenderModel {
 			StateLabel:  vm.StateLabel,
 		},
 
-		StateClasses: stateClasses(vm),
+		DisplayState: displayState,
+		StateClasses: stateClasses(vm, displayState),
 
 		MatchActive: vm.MatchActive,
 		HasData:     vm.HasData,
@@ -196,8 +199,12 @@ func confidenceClass(confidence float64) string {
 	}
 }
 
-func stateClasses(vm ViewModel) []string {
-	classes := []string{"overlayhud-render-model"}
+func stateClasses(vm ViewModel, displayState string) []string {
+	classes := []string{
+		"overlayhud-render-model",
+		"mcw-state-" + displayState,
+		"is-state-" + displayState,
+	}
 	if vm.MatchActive {
 		classes = append(classes, "is-active")
 	} else {
@@ -212,4 +219,34 @@ func stateClasses(vm ViewModel) []string {
 		classes = append(classes, "is-stale")
 	}
 	return classes
+}
+
+func renderDisplayState(vm ViewModel) string {
+	if vm.DisplayState != "" {
+		return vm.DisplayState
+	}
+	return displayStateFromLabel(vm.StateLabel)
+}
+
+func displayStateFromLabel(label string) string {
+	switch label {
+	case "BLUE PRESSURE":
+		return displayStateBluePressure
+	case "ORANGE PRESSURE":
+		return displayStateOrangePressure
+	case "BLUE CONTROL":
+		return displayStateBlueControl
+	case "ORANGE CONTROL":
+		return displayStateOrangeControl
+	case "VOLATILE":
+		return displayStateVolatile
+	case "STALE":
+		return displayStateStale
+	case "NO DATA":
+		return displayStateNoData
+	case "INACTIVE":
+		return displayStateInactive
+	default:
+		return displayStateNeutral
+	}
 }

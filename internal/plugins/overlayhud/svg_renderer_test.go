@@ -34,7 +34,8 @@ func TestRenderSVGIncludesExpectedGroupsAndClasses(t *testing.T) {
 		`id="hud-confidence-label"`,
 		`id="hud-labels"`,
 		`id="hud-status-overlay"`,
-		`class="overlayhud-render-model is-active has-data is-stale"`,
+		`class="overlayhud-render-model mcw-state-blue-pressure is-state-blue-pressure is-active has-data is-stale"`,
+		`data-state="blue-pressure"`,
 		`class="overlayhud-arc-blue"`,
 		`class="overlayhud-arc-orange"`,
 	} {
@@ -49,7 +50,7 @@ func TestRenderSVGIncludesInactiveNoDataClasses(t *testing.T) {
 
 	svg := RenderSVG(model)
 
-	if !strings.Contains(svg, `class="overlayhud-render-model is-inactive has-no-data"`) {
+	if !strings.Contains(svg, `class="overlayhud-render-model mcw-state-no-data is-state-no-data is-inactive has-no-data"`) {
 		t.Fatalf("svg missing inactive/no-data classes: %s", svg)
 	}
 }
@@ -175,14 +176,15 @@ func TestRenderSVGDeterministicForSameRenderModel(t *testing.T) {
 
 func testRenderModel() RenderModel {
 	return buildRenderModel(ViewModel{
-		MatchActive: true,
-		HasData:     true,
-		IsStale:     true,
-		BlueShare:   0.70,
-		OrangeShare: 0.30,
-		StateLabel:  "BLUE PRESSURE",
-		Confidence:  0.75,
-		Volatility:  0.50,
+		MatchActive:  true,
+		HasData:      true,
+		IsStale:      true,
+		BlueShare:    0.70,
+		OrangeShare:  0.30,
+		DisplayState: displayStateBluePressure,
+		StateLabel:   "BLUE PRESSURE",
+		Confidence:   0.75,
+		Volatility:   0.50,
 	})
 }
 

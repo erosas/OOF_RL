@@ -125,6 +125,8 @@ func main() {
 		log.Fatal("failed to create webview (is WebView2 runtime installed?)")
 	}
 	defer w.Destroy()
+	overlay.SetUIDispatcher(w.Dispatch)
+	defer overlay.SetUIDispatcher(nil)
 	w.SetTitle("OOF RL")
 	w.SetSize(1280, 800, webview2.HintNone)
 	w.Navigate(url)

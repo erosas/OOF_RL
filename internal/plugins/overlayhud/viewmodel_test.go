@@ -16,12 +16,12 @@ func TestMapMomentumViewModelWithBluePressure(t *testing.T) {
 		Sequence:  3,
 		Teams: map[oofevents.Team]momentum.TeamSignal{
 			oofevents.TeamBlue: {
-				MomentumInfluence: 0.60,
+				MomentumInfluence: 0.62,
 				Confidence:        0.70,
 				Volatility:        0.20,
 			},
 			oofevents.TeamOrange: {
-				MomentumInfluence: 0.20,
+				MomentumInfluence: 0.38,
 				Confidence:        0.50,
 				Volatility:        0.10,
 			},
@@ -36,6 +36,9 @@ func TestMapMomentumViewModelWithBluePressure(t *testing.T) {
 	}
 	if vm.StateLabel != "BLUE PRESSURE" {
 		t.Fatalf("StateLabel = %q, want BLUE PRESSURE", vm.StateLabel)
+	}
+	if vm.DisplayState != displayStateBluePressure {
+		t.Fatalf("DisplayState = %q, want %q", vm.DisplayState, displayStateBluePressure)
 	}
 	if vm.BlueShare <= vm.OrangeShare {
 		t.Fatalf("expected blue share to lead, got %+v", vm)
@@ -61,6 +64,9 @@ func TestMapMomentumViewModelHandlesEmptyState(t *testing.T) {
 	if vm.StateLabel != "NO DATA" {
 		t.Fatalf("StateLabel = %q, want NO DATA", vm.StateLabel)
 	}
+	if vm.DisplayState != displayStateNoData {
+		t.Fatalf("DisplayState = %q, want %q", vm.DisplayState, displayStateNoData)
+	}
 }
 
 func TestMapMomentumViewModelMarksStaleState(t *testing.T) {
@@ -79,8 +85,75 @@ func TestMapMomentumViewModelMarksStaleState(t *testing.T) {
 	if !vm.IsStale {
 		t.Fatalf("expected stale view model, got %+v", vm)
 	}
-	if vm.StateLabel != "SHIFTING" {
-		t.Fatalf("StateLabel = %q, want SHIFTING", vm.StateLabel)
+	if vm.StateLabel != "STALE" {
+		t.Fatalf("StateLabel = %q, want STALE", vm.StateLabel)
+	}
+	if vm.DisplayState != displayStateStale {
+		t.Fatalf("DisplayState = %q, want %q", vm.DisplayState, displayStateStale)
+	}
+}
+
+func TestMapMomentumViewModelMapsControlStates(t *testing.T) {
+	now := time.Unix(100, 0)
+	tests := []struct {
+		name      string
+		blue      float64
+		orange    float64
+		wantState string
+		wantLabel string
+	}{
+		{name: "blue control", blue: 0.72, orange: 0.28, wantState: displayStateBlueControl, wantLabel: "BLUE CONTROL"},
+		{name: "orange control", blue: 0.28, orange: 0.72, wantState: displayStateOrangeControl, wantLabel: "ORANGE CONTROL"},
+		{name: "neutral", blue: 0.52, orange: 0.48, wantState: displayStateNeutral, wantLabel: "NEUTRAL"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm := mapMomentumViewModel(momentum.MomentumState{
+				Sequence: 1,
+				Teams: map[oofevents.Team]momentum.TeamSignal{
+					oofevents.TeamBlue:   {MomentumInfluence: tt.blue, Confidence: 0.7},
+					oofevents.TeamOrange: {MomentumInfluence: tt.orange, Confidence: 0.7},
+				},
+				LastEvent: momentum.EventSignal{OccurredAt: now},
+			}, momentum.ServiceStatus{Active: true}, now)
+
+			if vm.DisplayState != tt.wantState || vm.StateLabel != tt.wantLabel {
+				t.Fatalf("state = %q label = %q, want %q/%q", vm.DisplayState, vm.StateLabel, tt.wantState, tt.wantLabel)
+			}
+		})
+	}
+}
+
+func TestMapMomentumViewModelMapsVolatileLowConfidenceState(t *testing.T) {
+	now := time.Unix(100, 0)
+	vm := mapMomentumViewModel(momentum.MomentumState{
+		Sequence: 1,
+		Teams: map[oofevents.Team]momentum.TeamSignal{
+			oofevents.TeamBlue:   {MomentumInfluence: 0.55, Confidence: 0.14, Volatility: 0.85},
+			oofevents.TeamOrange: {MomentumInfluence: 0.45, Confidence: 0.14, Volatility: 0.85},
+		},
+		LastEvent: momentum.EventSignal{OccurredAt: now},
+	}, momentum.ServiceStatus{Active: true}, now)
+
+	if vm.DisplayState != displayStateVolatile || vm.StateLabel != "VOLATILE" {
+		t.Fatalf("state = %q label = %q, want volatile/VOLATILE", vm.DisplayState, vm.StateLabel)
+	}
+}
+
+func TestMapMomentumViewModelMapsInactiveState(t *testing.T) {
+	now := time.Unix(100, 0)
+	vm := mapMomentumViewModel(momentum.MomentumState{
+		Sequence: 1,
+		Teams: map[oofevents.Team]momentum.TeamSignal{
+			oofevents.TeamBlue:   {MomentumInfluence: 0.62, Confidence: 0.7},
+			oofevents.TeamOrange: {MomentumInfluence: 0.38, Confidence: 0.7},
+		},
+		LastEvent: momentum.EventSignal{OccurredAt: now},
+	}, momentum.ServiceStatus{Active: false}, now)
+
+	if vm.DisplayState != displayStateInactive || vm.StateLabel != "INACTIVE" {
+		t.Fatalf("state = %q label = %q, want inactive/INACTIVE", vm.DisplayState, vm.StateLabel)
 	}
 }
 

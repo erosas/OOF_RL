@@ -56,6 +56,7 @@ func (p *Plugin) Requires() []string { return nil }
 func (p *Plugin) NavTab() plugin.NavTab { return plugin.NavTab{} }
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc(previewRoutePath, p.handlePreview)
+	mux.HandleFunc(previewSVGRoutePath, p.handlePreviewSVG)
 	mux.HandleFunc(launchRoutePath, p.handleLaunch)
 	mux.HandleFunc(controlRoutePath, p.handleControl)
 }
