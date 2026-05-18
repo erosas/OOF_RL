@@ -1,4 +1,4 @@
-// Package wasmhost loads .wasm plugin files and exposes each one as a
+﻿// Package wasmhost loads .wasm plugin files and exposes each one as a
 // plugin.Plugin so the server can treat them identically to compiled plugins.
 package wasmhost
 
@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -23,8 +24,13 @@ import (
 	"OOF_RL/internal/plugin"
 )
 
-const metaBufSize = 4 * 1024  // 4 KB — more than enough for metadata JSON
-const respBufSize = 64 * 1024 // 64 KB — max HTTP response size
+const metaBufSize = 4 * 1024  // 4 KB â€” more than enough for metadata JSON
+const respBufSize = 64 * 1024 // 64 KB â€” max HTTP response size
+
+type eventMsg struct {
+	eventType string
+	payload   []byte
+}
 
 // Plugin wraps a compiled WASM module and implements plugin.Plugin.
 type Plugin struct {
@@ -43,6 +49,9 @@ type Plugin struct {
 	fnOnEvent    api.Function
 	fnHandleHTTP api.Function
 	fnShutdown   api.Function
+
+	eventCh chan eventMsg
+	wg      sync.WaitGroup
 }
 
 // Load reads the .wasm file at path and returns an initialised Plugin.
@@ -72,8 +81,8 @@ func loadBytes(wasmBytes []byte) (*Plugin, error) {
 
 	p := &Plugin{ctx: ctx, runtime: r}
 
-	// Register host-provided functions. All imports must be declared before
-	// the guest module is compiled/instantiated.
+	// Register host-provided functions. Instantiation resolves imports, so
+	// the host module must exist before InstantiateModule is called.
 	if _, err := r.NewHostModuleBuilder("env").
 		NewFunctionBuilder().WithFunc(p.hostLog).Export("host_log").
 		NewFunctionBuilder().WithFunc(p.hostPublishEvent).Export("host_publish_event").
@@ -91,7 +100,7 @@ func loadBytes(wasmBytes []byte) (*Plugin, error) {
 	// Plugins must be built with -buildmode=c-shared (WASI reactor).
 	// _initialize fully starts the Go runtime; _start would exit the module
 	// after main() returns, preventing subsequent exported-function calls.
-	// Omit WithStdout/WithStderr — plugin logging goes through host_log.
+	// Omit WithStdout/WithStderr â€” plugin logging goes through host_log.
 	mod, err := r.InstantiateModule(ctx, compiled,
 		wazero.NewModuleConfig().
 			WithStartFunctions("_initialize").
@@ -152,7 +161,6 @@ func (p *Plugin) NavTab() plugin.NavTab {
 
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	for _, route := range p.meta.Routes {
-		route := route
 		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
 			p.serveHTTP(w, r)
 		})
@@ -169,11 +177,11 @@ func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) erro
 
 	if p.fnInit != nil {
 		cfgJSON := []byte("{}")
-		cfgPtr, err := p.writeGuest(cfgJSON)
+		cfgPtr, cfgSize, err := p.writeGuest(cfgJSON)
 		if err != nil {
 			return fmt.Errorf("wasm:%s plugin_init write: %w", p.meta.ID, err)
 		}
-		defer p.free(cfgPtr, uint32(len(cfgJSON)))
+		defer p.free(cfgPtr, cfgSize)
 		res, err := p.fnInit.Call(p.ctx, api.EncodeU32(cfgPtr), api.EncodeU32(uint32(len(cfgJSON))))
 		if err != nil {
 			return fmt.Errorf("wasm:%s plugin_init: %w", p.meta.ID, err)
@@ -183,22 +191,41 @@ func (p *Plugin) Init(bus oofevents.PluginBus, _ plugin.Registry, _ *db.DB) erro
 		}
 	}
 
+	// Worker goroutine: dequeues events and calls into WASM off the bus dispatch goroutine.
+	// The bus requires subscribers to be non-blocking; WASM calls can take arbitrary time.
+	p.eventCh = make(chan eventMsg, 64)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		for msg := range p.eventCh {
+			p.dispatchEvent(msg.eventType, msg.payload)
+		}
+	}()
+
 	for _, eventType := range p.meta.Events {
-		eventType := eventType
 		p.AddSub(bus.Subscribe(eventType, func(e oofevents.OOFEvent) {
-			payload, err := json.Marshal(e)
+			// Unwrap strips the stampedEvent wrapper so the guest sees flat JSON fields.
+			payload, err := json.Marshal(oofevents.Unwrap(e))
 			if err != nil {
 				log.Printf("[wasm:%s] marshal event %s: %v", p.meta.ID, eventType, err)
 				return
 			}
-			p.dispatchEvent(eventType, payload)
+			select {
+			case p.eventCh <- eventMsg{eventType, payload}:
+			default:
+				log.Printf("[wasm:%s] event queue full, dropping %s", p.meta.ID, eventType)
+			}
 		}))
 	}
 	return nil
 }
 
 func (p *Plugin) Shutdown() error {
-	p.BasePlugin.Shutdown()
+	p.BasePlugin.Shutdown() // unsubscribes all; no new events will be enqueued after this
+	if p.eventCh != nil {
+		close(p.eventCh)
+		p.wg.Wait()
+	}
 	if p.fnShutdown != nil {
 		if _, err := p.fnShutdown.Call(p.ctx); err != nil {
 			log.Printf("[wasm:%s] shutdown: %v", p.meta.ID, err)
@@ -249,19 +276,19 @@ func (p *Plugin) dispatchEvent(eventType string, payload []byte) {
 		return
 	}
 
-	typePtr, err := p.writeGuest([]byte(eventType))
+	typePtr, typeSize, err := p.writeGuest([]byte(eventType))
 	if err != nil {
 		log.Printf("[wasm:%s] write event type: %v", p.meta.ID, err)
 		return
 	}
-	defer p.free(typePtr, uint32(len(eventType)))
+	defer p.free(typePtr, typeSize)
 
-	payloadPtr, err := p.writeGuest(payload)
+	payloadPtr, payloadSize, err := p.writeGuest(payload)
 	if err != nil {
 		log.Printf("[wasm:%s] write event payload: %v", p.meta.ID, err)
 		return
 	}
-	defer p.free(payloadPtr, uint32(len(payload)))
+	defer p.free(payloadPtr, payloadSize)
 
 	if _, err := p.fnOnEvent.Call(p.ctx,
 		api.EncodeU32(typePtr), api.EncodeU32(uint32(len(eventType))),
@@ -280,12 +307,12 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	req := sdk.HTTPRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery}
 	reqJSON, _ := json.Marshal(req)
 
-	reqPtr, err := p.writeGuest(reqJSON)
+	reqPtr, reqSize, err := p.writeGuest(reqJSON)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	defer p.free(reqPtr, uint32(len(reqJSON)))
+	defer p.free(reqPtr, reqSize)
 
 	outPtr, err := p.malloc(respBufSize)
 	if err != nil {
@@ -360,12 +387,16 @@ func (p *Plugin) hostPublishEvent(_ context.Context, m api.Module, certainty, ty
 	}
 }
 
+// hostLog is called by the guest via the "host_log" import and writes to the host's logger.
 func (p *Plugin) hostLog(_ context.Context, m api.Module, _, ptr, length uint32) {
 	data, _ := m.Memory().Read(ptr, length)
 	log.Printf("[wasm:%s] %s", p.meta.ID, data)
 }
 
 func (p *Plugin) malloc(size uint32) (uint32, error) {
+	if p.fnMalloc == nil {
+		return 0, fmt.Errorf("plugin missing required malloc export")
+	}
 	res, err := p.fnMalloc.Call(p.ctx, api.EncodeU32(size))
 	if err != nil {
 		return 0, err
@@ -379,14 +410,15 @@ func (p *Plugin) free(ptr, size uint32) {
 	}
 }
 
-func (p *Plugin) writeGuest(data []byte) (uint32, error) {
-	ptr, err := p.malloc(uint32(len(data)))
+func (p *Plugin) writeGuest(data []byte) (ptr, size uint32, err error) {
+	size = uint32(len(data))
+	ptr, err = p.malloc(size)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if !p.mod.Memory().Write(ptr, data) {
-		p.free(ptr, uint32(len(data)))
-		return 0, fmt.Errorf("memory write failed")
+		p.free(ptr, size)
+		return 0, 0, fmt.Errorf("memory write failed")
 	}
-	return ptr, nil
+	return ptr, size, nil
 }

@@ -9,6 +9,8 @@ import "unsafe"
 //go:wasmimport env host_log
 func hostLog(level uint32, ptr uint32, length uint32)
 
+// host_publish_event is provided by the host and pushes an event onto the bus.
+//
 //go:wasmimport env host_publish_event
 func hostPublishEvent(certainty, typePtr, typeLen, payloadPtr, payloadLen uint32)
 
