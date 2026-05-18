@@ -70,9 +70,9 @@ func renderBackground(b *strings.Builder, model RenderModel) {
 
 func renderAura(b *strings.Builder, model RenderModel) {
 	fmt.Fprintf(b, `<g id="%s" class="mcw-aura-layer">`, escapeAttr(groupID(model.Groups.OuterAura, "outer-aura")))
-	fmt.Fprintf(b, `<path id="outer-aura-blue" class="mcw-aura mcw-aura-blue" d="%s"/>`, escapeAttr(arcPath(model.CenterX, model.CenterY, 436, 180, 180+model.BlueArc.Share*renderFullSweepDeg)))
-	fmt.Fprintf(b, `<path id="outer-aura-orange" class="mcw-aura mcw-aura-orange" d="%s"/>`, escapeAttr(arcPath(model.CenterX, model.CenterY, 436, 180+model.BlueArc.Share*renderFullSweepDeg, 540)))
-	x, y := pointOnCircle(model.CenterX, model.CenterY, 428, model.SeamAngleDeg)
+	fmt.Fprintf(b, `<path id="outer-aura-blue" class="mcw-aura mcw-aura-blue" d="%s"/>`, escapeAttr(wheelArcPath(model.CenterX, model.CenterY, 436, 180, 180+model.BlueArc.Share*renderFullSweepDeg)))
+	fmt.Fprintf(b, `<path id="outer-aura-orange" class="mcw-aura mcw-aura-orange" d="%s"/>`, escapeAttr(wheelArcPath(model.CenterX, model.CenterY, 436, 180+model.BlueArc.Share*renderFullSweepDeg, 540)))
+	x, y := pointOnWheel(model.CenterX, model.CenterY, 428, model.SeamAngleDeg)
 	fmt.Fprintf(b, `<circle id="outer-aura-purple-contest" class="mcw-aura mcw-aura-contest" cx="%s" cy="%s" r="34"/>`, num(x), num(y))
 	b.WriteString(`</g>`)
 }
@@ -215,7 +215,7 @@ func renderCenterRim(b *strings.Builder, model RenderModel) {
 }
 
 func renderContestedFrontLine(b *strings.Builder, model RenderModel) {
-	fmt.Fprintf(b, `<g id="%s" class="mcw-contested-front-line" transform="rotate(%s 512 512)">`, escapeAttr(groupID(model.Groups.ContestedFrontLine, "contested-front-line")), num(model.SeamAngleDeg-270))
+	fmt.Fprintf(b, `<g id="%s" class="mcw-contested-front-line" transform="rotate(%s 512 512)">`, escapeAttr(groupID(model.Groups.ContestedFrontLine, "contested-front-line")), num(model.SeamAngleDeg))
 	b.WriteString(`<circle id="contest-top-core" cx="512" cy="92" r="8"/>`)
 	b.WriteString(`<circle id="contest-top-purple-glow" cx="512" cy="92" r="34"/>`)
 	b.WriteString(`<line id="contest-top-vertical-beam" x1="512" y1="100" x2="512" y2="270"/>`)
@@ -283,9 +283,21 @@ func arcPath(centerX, centerY float64, radius int, startDeg, endDeg float64) str
 	)
 }
 
+func wheelArcPath(centerX, centerY float64, radius int, startDeg, endDeg float64) string {
+	return arcPath(centerX, centerY, radius, wheelAngleToMathAngle(startDeg), wheelAngleToMathAngle(endDeg))
+}
+
 func pointOnCircle(centerX, centerY float64, radius int, deg float64) (float64, float64) {
 	rad := deg * math.Pi / 180
 	return centerX + float64(radius)*math.Cos(rad), centerY + float64(radius)*math.Sin(rad)
+}
+
+func pointOnWheel(centerX, centerY float64, radius int, deg float64) (float64, float64) {
+	return pointOnCircle(centerX, centerY, radius, wheelAngleToMathAngle(deg))
+}
+
+func wheelAngleToMathAngle(deg float64) float64 {
+	return deg - 90
 }
 
 func groupID(value, fallback string) string {

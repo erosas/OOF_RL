@@ -91,6 +91,64 @@ func TestRenderSVGIncludesMomentumControlWheelResponseHooks(t *testing.T) {
 	}
 }
 
+func TestRenderSVGUsesMomentumControlWheelSeamOrientation(t *testing.T) {
+	tests := []struct {
+		name             string
+		blueShare        float64
+		orangeShare      float64
+		wantSeamAngle    string
+		wantContestPoint string
+		wantTransform    string
+	}{
+		{
+			name:             "neutral seam starts at 12 oclock",
+			blueShare:        0.50,
+			orangeShare:      0.50,
+			wantSeamAngle:    `data-seam-angle="0.000"`,
+			wantContestPoint: `<circle id="outer-aura-purple-contest" class="mcw-aura mcw-aura-contest" cx="512.000" cy="84.000" r="34"/>`,
+			wantTransform:    `transform="rotate(0.000 512 512)"`,
+		},
+		{
+			name:             "blue control seam follows clockwise split",
+			blueShare:        0.70,
+			orangeShare:      0.30,
+			wantSeamAngle:    `data-seam-angle="72.000"`,
+			wantContestPoint: `<circle id="outer-aura-purple-contest" class="mcw-aura mcw-aura-contest" cx="919.052" cy="379.741" r="34"/>`,
+			wantTransform:    `transform="rotate(72.000 512 512)"`,
+		},
+		{
+			name:             "orange control seam follows clockwise split",
+			blueShare:        0.30,
+			orangeShare:      0.70,
+			wantSeamAngle:    `data-seam-angle="288.000"`,
+			wantContestPoint: `<circle id="outer-aura-purple-contest" class="mcw-aura mcw-aura-contest" cx="104.948" cy="379.741" r="34"/>`,
+			wantTransform:    `transform="rotate(288.000 512 512)"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := buildRenderModel(ViewModel{
+				MatchActive:  true,
+				HasData:      true,
+				BlueShare:    tt.blueShare,
+				OrangeShare:  tt.orangeShare,
+				DisplayState: displayStateBlueControl,
+				StateLabel:   "BLUE CONTROL",
+				Confidence:   0.75,
+				Volatility:   0.25,
+			})
+
+			svg := RenderSVG(model)
+			for _, want := range []string{tt.wantSeamAngle, tt.wantContestPoint, tt.wantTransform} {
+				if !strings.Contains(svg, want) {
+					t.Fatalf("svg missing seam parity marker %q: %s", want, svg)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderSVGIncludesNinetySixWheelSegments(t *testing.T) {
 	svg := RenderSVG(testRenderModel())
 
