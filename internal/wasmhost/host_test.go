@@ -24,7 +24,7 @@ func writeTempWasm(t *testing.T, data []byte) string {
 }
 
 func TestLoad_MissingFile(t *testing.T) {
-	_, err := wasmhost.Load("nonexistent_plugin.wasm")
+	_, err := wasmhost.Load("nonexistent_plugin.wasm", nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -32,7 +32,7 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_InvalidWasmBytes(t *testing.T) {
 	path := writeTempWasm(t, []byte("this is not a wasm binary"))
-	_, err := wasmhost.Load(path)
+	_, err := wasmhost.Load(path, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid WASM bytes")
 	}
@@ -40,7 +40,7 @@ func TestLoad_InvalidWasmBytes(t *testing.T) {
 
 func TestLoad_MissingPluginMetadataExport(t *testing.T) {
 	path := writeTempWasm(t, emptyWasm)
-	_, err := wasmhost.Load(path)
+	_, err := wasmhost.Load(path, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error: empty WASM has no plugin_metadata export")
 	}

@@ -222,7 +222,7 @@ func (s *Server) LoadWASMPlugins(dir string) error {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		p, err := wasmhost.Load(path)
+		p, err := wasmhost.Load(path, s.db, s.hub, s.cfg)
 		if err != nil {
 			log.Printf("[core] wasm load %s: %v", e.Name(), err)
 			continue

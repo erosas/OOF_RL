@@ -8,7 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
+
+	"OOF_RL/internal/config"
 	"OOF_RL/internal/oofevents"
+	"OOF_RL/internal/plugin"
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
@@ -224,5 +229,123 @@ func TestPlugin_Shutdown_NilEventCh(t *testing.T) {
 	p := &Plugin{meta: sdk.PluginMeta{ID: "no-init"}}
 	if err := p.Shutdown(); err != nil {
 		t.Errorf("Shutdown: %v", err)
+	}
+}
+
+// newMemModule compiles and instantiates a minimal WASM module with one page of
+// memory. Used to provide a real api.Module for host-import tests that need to
+// read/write guest memory without standing up a full plugin binary.
+func newMemModule(t *testing.T) api.Module {
+	t.Helper()
+	// Minimal WASM: magic + version + memory section (1 page min) + memory export.
+	wasmBytes := []byte{
+		0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // magic + version
+		0x05, 0x03, 0x01, 0x00, 0x01, // memory section: 1 page (64 KB)
+		0x07, 0x0a, 0x01, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, // export "memory"
+	}
+	ctx := context.Background()
+	r := wazero.NewRuntime(ctx)
+	compiled, err := r.CompileModule(ctx, wasmBytes)
+	if err != nil {
+		r.Close(ctx)
+		t.Fatalf("compile mem module: %v", err)
+	}
+	mod, err := r.InstantiateModule(ctx, compiled, wazero.NewModuleConfig().WithName(""))
+	if err != nil {
+		r.Close(ctx)
+		t.Fatalf("instantiate mem module: %v", err)
+	}
+	t.Cleanup(func() {
+		mod.Close(ctx)
+		r.Close(ctx)
+	})
+	return mod
+}
+
+// TestHostDBExec_NilDB verifies the nil database guard returns 0.
+func TestHostDBExec_NilDB(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: nil}
+	got := p.hostDBExec(context.Background(), nil, 0, 0, 0, 0, 0, 0)
+	if got != 0 {
+		t.Errorf("want 0, got %d", got)
+	}
+}
+
+// TestHostDBQuery_NilDB verifies the nil database guard returns 0.
+func TestHostDBQuery_NilDB(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: nil}
+	got := p.hostDBQuery(context.Background(), nil, 0, 0, 0, 0, 0, 0)
+	if got != 0 {
+		t.Errorf("want 0, got %d", got)
+	}
+}
+
+// TestHostBroadcastWS_NilHub verifies the nil hub guard does not panic.
+func TestHostBroadcastWS_NilHub(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, hub: nil}
+	p.hostBroadcastWS(context.Background(), nil, 0, 0) // must not panic
+}
+
+// TestHostGetConfig_NilCfg verifies nil config returns 0.
+func TestHostGetConfig_NilCfg(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: nil}
+	got := p.hostGetConfig(context.Background(), nil, 0, 0, 0, 0)
+	if got != 0 {
+		t.Errorf("want 0, got %d", got)
+	}
+}
+
+// TestHostGetConfig_WithCfg verifies a known config key is written to the output buffer.
+func TestHostGetConfig_WithCfg(t *testing.T) {
+	cfg := &config.Config{BallchasingAPIKey: "test-key-123"}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: cfg}
+	mod := newMemModule(t)
+	ctx := context.Background()
+
+	key := []byte("ballchasing_api_key")
+	if !mod.Memory().Write(0, key) {
+		t.Fatal("write key to memory")
+	}
+	outOffset := uint32(64)
+	n := p.hostGetConfig(ctx, mod, 0, uint32(len(key)), outOffset, 128)
+	if n == 0 {
+		t.Fatal("hostGetConfig returned 0")
+	}
+	data, ok := mod.Memory().Read(outOffset, n)
+	if !ok {
+		t.Fatal("read result from memory")
+	}
+	if string(data) != "test-key-123" {
+		t.Errorf("got %q, want %q", string(data), "test-key-123")
+	}
+}
+
+// TestSettingsSchema_WithSettings verifies the SettingSchema→plugin.Setting mapping.
+func TestSettingsSchema_WithSettings(t *testing.T) {
+	p := &Plugin{
+		meta: sdk.PluginMeta{
+			Settings: []sdk.SettingSchema{
+				{Key: "api_key", Description: "My API key", Secret: true},
+				{Key: "mode", Description: "Mode flag", Secret: false},
+			},
+		},
+	}
+	schema := p.SettingsSchema()
+	if len(schema) != 2 {
+		t.Fatalf("want 2 settings, got %d", len(schema))
+	}
+	if schema[0].Key != "api_key" || schema[0].Type != plugin.SettingTypePassword {
+		t.Errorf("first setting: got key=%q type=%q", schema[0].Key, schema[0].Type)
+	}
+	if schema[1].Key != "mode" || schema[1].Type != plugin.SettingTypeText {
+		t.Errorf("second setting: got key=%q type=%q", schema[1].Key, schema[1].Type)
+	}
+}
+
+// TestApplySettings_NilFn verifies ApplySettings is a no-op when the WASM export is absent.
+func TestApplySettings_NilFn(t *testing.T) {
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
+	if err := p.ApplySettings(map[string]string{"k": "v"}); err != nil {
+		t.Errorf("ApplySettings with nil fn: %v", err)
 	}
 }

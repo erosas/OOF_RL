@@ -19,21 +19,21 @@ type StorageSettings struct {
 }
 
 type Config struct {
-	AppPort                int             `toml:"app_port"                  json:"app_port"`
-	DataDir                string          `toml:"data_dir"                  json:"data_dir"`
-	RLInstallPath          string          `toml:"rl_install_path"           json:"rl_install_path"`
-	TrackerCacheTTLMinutes int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
-	BallchasingAPIKey             string          `toml:"ballchasing_api_key"              json:"-"`
-	BallchasingDeleteAfterUpload  bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
-	OverlayHotkey          string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
-	OverlayX               int             `toml:"overlay_x"                 json:"overlay_x"`
-	OverlayY               int             `toml:"overlay_y"                 json:"overlay_y"`
-	OverlayWidth           int             `toml:"overlay_width"             json:"overlay_width"`
-	OverlayHeight          int             `toml:"overlay_height"            json:"overlay_height"`
-	OverlayOpacity         float64         `toml:"overlay_opacity"           json:"overlay_opacity"`
-	OverlayHoldMode        bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
-	Storage                StorageSettings `toml:"storage"                   json:"storage"`
-	DisabledPlugins        []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
+	AppPort                      int             `toml:"app_port"                  json:"app_port"`
+	DataDir                      string          `toml:"data_dir"                  json:"data_dir"`
+	RLInstallPath                string          `toml:"rl_install_path"           json:"rl_install_path"`
+	TrackerCacheTTLMinutes       int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
+	BallchasingAPIKey            string          `toml:"ballchasing_api_key"              json:"-"`
+	BallchasingDeleteAfterUpload bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
+	OverlayHotkey                string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
+	OverlayX                     int             `toml:"overlay_x"                 json:"overlay_x"`
+	OverlayY                     int             `toml:"overlay_y"                 json:"overlay_y"`
+	OverlayWidth                 int             `toml:"overlay_width"             json:"overlay_width"`
+	OverlayHeight                int             `toml:"overlay_height"            json:"overlay_height"`
+	OverlayOpacity               float64         `toml:"overlay_opacity"           json:"overlay_opacity"`
+	OverlayHoldMode              bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
+	Storage                      StorageSettings `toml:"storage"                   json:"storage"`
+	DisabledPlugins              []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
 }
 
 // defaultDataDir returns %LOCALAPPDATA%\OOF_RL — the Windows standard for
@@ -111,6 +111,22 @@ func Load(path string) (Config, error) {
 		cfg.OverlayHeight = 620
 	}
 	return cfg, err
+}
+
+// Lookup returns a config field value by its settings key as a string.
+// Returns empty string for unknown keys.
+func (c *Config) Lookup(key string) string {
+	switch key {
+	case "ballchasing_api_key":
+		return c.BallchasingAPIKey
+	case "ballchasing_delete_after_upload":
+		if c.BallchasingDeleteAfterUpload {
+			return "true"
+		}
+		return "false"
+	default:
+		return ""
+	}
 }
 
 func Save(path string, cfg Config) error {
