@@ -6,6 +6,7 @@ use (
 	./plugins/live
 	./plugins/ballchasing
 	./plugins/ranks
+	./plugins/session
 )
 
 replace github.com/erosas/oof-plugin-sdk v0.0.0 => ./plugins/sdk
