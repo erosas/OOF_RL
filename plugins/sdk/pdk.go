@@ -18,7 +18,7 @@ func hostLog(level uint32, ptr uint32, length uint32)
 func hostPublishEvent(certainty, typePtr, typeLen, payloadPtr, payloadLen uint32)
 
 // host_db_exec executes a SQL statement (INSERT/UPDATE/DELETE) with JSON-encoded args.
-// Returns rows affected as int64 encoded in result[0], or -1 on error.
+// Writes the rows-affected int64 as JSON to outPtr. Returns bytes written, or 0 on error.
 //
 //go:wasmimport env host_db_exec
 func hostDBExec(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32
@@ -46,6 +46,23 @@ func hostBroadcastWS(ptr, length uint32)
 //go:wasmimport env host_get_config
 func hostGetConfig(keyPtr, keyLen, outPtr, outMax uint32) uint32
 
+// host_scan_dir lists the host's replay directory.
+// Writes a JSON []DirEntry to outPtr. Returns bytes written, 0 on error.
+//
+//go:wasmimport env host_scan_dir
+func hostScanDir(outPtr, outMax uint32) uint32
+
+// host_read_file reads a single file from the replay directory by basename.
+// Returns bytes written to outPtr, or 0 if the file is missing or too large.
+//
+//go:wasmimport env host_read_file
+func hostReadFile(namePtr, nameLen, outPtr, outMax uint32) uint32
+
+// host_delete_file deletes a file from the replay directory by basename.
+// Returns 1 on success, 0 on failure.
+//
+//go:wasmimport env host_delete_file
+func hostDeleteFile(namePtr, nameLen uint32) uint32
 
 // Log writes msg to the host's logger.
 func Log(msg string) {
@@ -110,6 +127,9 @@ func PublishEvent(c Certainty, eventType string, payload []byte) {
 // DBExec executes a SQL statement with the given args and returns rows affected.
 // args is passed as a JSON array of strings. Returns -1 on error.
 func DBExec(sql string, args []string) int64 {
+	if len(sql) == 0 {
+		return -1
+	}
 	argsJSON := encodeArgs(args)
 	outBuf := make([]byte, 32)
 	out := ptrOf(outBuf)
@@ -132,6 +152,9 @@ func DBExec(sql string, args []string) int64 {
 // DBQuery executes a SQL query with the given args and returns the result rows
 // as a slice of maps (column→value). Returns nil on error.
 func DBQuery(sql string, args []string) []map[string]any {
+	if len(sql) == 0 {
+		return nil
+	}
 	argsJSON := encodeArgs(args)
 	outBuf := make([]byte, 256*1024) // 256 KB max result
 	out := ptrOf(outBuf)
@@ -169,7 +192,9 @@ func HTTPFetch(req HTTPFetchRequest) HTTPFetchResult {
 		return HTTPFetchResult{Error: "memory read failed"}
 	}
 	var result HTTPFetchResult
-	json.Unmarshal(data, &result)
+	if err := json.Unmarshal(data, &result); err != nil {
+		return HTTPFetchResult{Error: "unmarshal response: " + err.Error()}
+	}
 	return result
 }
 
@@ -181,8 +206,11 @@ func BroadcastWS(msg []byte) {
 	hostBroadcastWS(ptrOf(msg), uint32(len(msg)))
 }
 
-// GetConfig returns the value of a config key, or "" if unknown.
+// GetConfig returns the value of a config key, or "" if unknown or empty.
 func GetConfig(key string) string {
+	if len(key) == 0 {
+		return ""
+	}
 	outBuf := make([]byte, 4096)
 	out := ptrOf(outBuf)
 	kb := []byte(key)
@@ -197,6 +225,52 @@ func GetConfig(key string) string {
 	return string(data)
 }
 
+// ScanDir lists all entries in the host's replay directory.
+// Returns nil on error or when the directory is not configured.
+func ScanDir() []DirEntry {
+	outBuf := make([]byte, 256*1024)
+	out := ptrOf(outBuf)
+	n := hostScanDir(out, uint32(len(outBuf)))
+	if n == 0 {
+		return nil
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return nil
+	}
+	var entries []DirEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil
+	}
+	return entries
+}
+
+// ReadFile reads a file from the host's replay directory by basename.
+// Returns nil if the file is not found or exceeds the 4 MB read limit.
+func ReadFile(name string) []byte {
+	const maxSize = 4 * 1024 * 1024 // 4 MB max — covers all real replay files
+	outBuf := make([]byte, maxSize)
+	out := ptrOf(outBuf)
+	nb := []byte(name)
+	n := hostReadFile(ptrOf(nb), uint32(len(nb)), out, uint32(len(outBuf)))
+	if n == 0 {
+		return nil
+	}
+	data, ok := readMem(out, n)
+	if !ok {
+		return nil
+	}
+	result := make([]byte, n)
+	copy(result, data)
+	return result
+}
+
+// DeleteFile removes a file from the host's replay directory by basename.
+// Returns true on success.
+func DeleteFile(name string) bool {
+	nb := []byte(name)
+	return hostDeleteFile(ptrOf(nb), uint32(len(nb))) == 1
+}
 
 // encodeArgs marshals a string slice as a compact JSON array.
 func encodeArgs(args []string) []byte {

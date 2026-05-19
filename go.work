@@ -4,6 +4,7 @@ use (
 	.
 	./plugins/sdk
 	./plugins/live
+	./plugins/ballchasing
 )
 
 replace github.com/erosas/oof-plugin-sdk v0.0.0 => ./plugins/sdk

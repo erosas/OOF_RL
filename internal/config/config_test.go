@@ -204,3 +204,55 @@ func TestReadINIFileNotFound(t *testing.T) {
 		t.Error("expected error when INI file does not exist")
 	}
 }
+
+func TestConfigLookup(t *testing.T) {
+	cfg := Config{BallchasingAPIKey: "abc", BallchasingDeleteAfterUpload: true}
+	if got := cfg.Lookup("ballchasing_api_key"); got != "abc" {
+		t.Errorf("api_key: got %q, want %q", got, "abc")
+	}
+	if got := cfg.Lookup("ballchasing_delete_after_upload"); got != "true" {
+		t.Errorf("delete_after_upload true: got %q", got)
+	}
+	cfg.BallchasingDeleteAfterUpload = false
+	if got := cfg.Lookup("ballchasing_delete_after_upload"); got != "false" {
+		t.Errorf("delete_after_upload false: got %q", got)
+	}
+	if got := cfg.Lookup("replay_dir"); got != DetectReplayDir() {
+		t.Errorf("replay_dir: got %q, want %q", got, DetectReplayDir())
+	}
+	if got := cfg.Lookup("unknown_key"); got != "" {
+		t.Errorf("unknown_key: got %q, want empty", got)
+	}
+}
+
+func TestConfigSet(t *testing.T) {
+	cfg := Config{}
+	cfg.Set("ballchasing_api_key", "mykey")
+	if cfg.BallchasingAPIKey != "mykey" {
+		t.Errorf("api_key: got %q", cfg.BallchasingAPIKey)
+	}
+	cfg.Set("ballchasing_delete_after_upload", "true")
+	if !cfg.BallchasingDeleteAfterUpload {
+		t.Error("delete_after_upload should be true")
+	}
+	cfg.Set("ballchasing_delete_after_upload", "false")
+	if cfg.BallchasingDeleteAfterUpload {
+		t.Error("delete_after_upload should be false")
+	}
+	cfg.Set("ballchasing_delete_after_upload", "1")
+	if !cfg.BallchasingDeleteAfterUpload {
+		t.Error("delete_after_upload '1' should be true")
+	}
+	cfg.Set("unknown_key", "val") // must not panic
+}
+
+func TestDetectReplayDir_NoEnv(t *testing.T) {
+	t.Setenv("USERPROFILE", "")
+	t.Setenv("OneDriveConsumer", "")
+	t.Setenv("OneDrive", "")
+	dir := DetectReplayDir()
+	// With no env vars the function returns "" (no candidates to check).
+	if dir != "" {
+		t.Logf("DetectReplayDir returned %q (may be valid on this machine)", dir)
+	}
+}

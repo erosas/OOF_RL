@@ -18,7 +18,6 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
-	"OOF_RL/internal/plugins/ballchasing"
 	"OOF_RL/internal/plugins/history"
 )
 
@@ -43,7 +42,6 @@ func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	t.Cleanup(bus.Stop)
 	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
 	srv.Use(history.New())
-	srv.Use(ballchasing.New(&cfg, database, h))
 
 	mux := http.NewServeMux()
 	srv.Register(mux)
@@ -286,8 +284,8 @@ func TestGetNav(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if len(tabs) < 2 {
-		t.Errorf("expected at least 2 tabs, got %d", len(tabs))
+	if len(tabs) < 1 {
+		t.Errorf("expected at least 1 tab, got %d", len(tabs))
 	}
 }
 

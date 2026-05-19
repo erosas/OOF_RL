@@ -30,12 +30,21 @@ type SettingSchema struct {
 	Secret      bool   `json:"secret,omitempty"` // hint to UI: render as password field
 }
 
+// DirEntry is one item returned by ScanDir (the host's replay directory scanner).
+type DirEntry struct {
+	Name    string `json:"name"`
+	IsDir   bool   `json:"is_dir"`
+	Size    int64  `json:"size"`
+	ModTime string `json:"mod_time"` // RFC3339
+}
+
 // HTTPFetchRequest describes an outbound HTTP request sent via host_http_fetch.
 type HTTPFetchRequest struct {
-	Method  string            `json:"method"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Body    string            `json:"body,omitempty"`
+	Method    string            `json:"method"`
+	URL       string            `json:"url"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Body      string            `json:"body,omitempty"`
+	BodyBytes []byte            `json:"body_bytes,omitempty"` // binary body; takes precedence over Body
 }
 
 // HTTPFetchResult is returned by the host's host_http_fetch import.
