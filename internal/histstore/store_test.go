@@ -200,15 +200,6 @@ func TestInsertBallHit(t *testing.T) {
 	}
 }
 
-func TestInsertTick(t *testing.T) {
-	s := newTestStore(t)
-	matchID, _ := s.UpsertMatch("guid-tick", "Champions Field", time.Now())
-
-	if err := s.InsertTick(matchID, `{"Game":{}}`); err != nil {
-		t.Fatalf("InsertTick: %v", err)
-	}
-}
-
 func TestMatchesFilter(t *testing.T) {
 	s := newTestStore(t)
 	s.UpsertPlayer("pid1", "Alice")

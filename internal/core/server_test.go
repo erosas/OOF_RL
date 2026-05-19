@@ -490,22 +490,14 @@ func TestHandleDBOpenFolder_MethodNotAllowed(t *testing.T) {
 func TestApplyCoreSettings(t *testing.T) {
 	mux, cfg := newTestMux(t)
 	w := postJSON(mux, "/api/settings", map[string]string{
-		"storage.ball_hit_events":    "true",
-		"storage.tick_snapshots":     "true",
-		"storage.tick_snapshot_rate": "30.5",
-		"storage.raw_packets":        "true",
+		"storage.ball_hit_events": "true",
+		"storage.raw_packets":     "true",
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
 	}
 	if !cfg.Storage.BallHitEvents {
 		t.Error("BallHitEvents: want true")
-	}
-	if !cfg.Storage.TickSnapshots {
-		t.Error("TickSnapshots: want true")
-	}
-	if cfg.Storage.TickSnapshotRate != 30.5 {
-		t.Errorf("TickSnapshotRate: got %v, want 30.5", cfg.Storage.TickSnapshotRate)
 	}
 	if !cfg.Storage.RawPackets {
 		t.Error("RawPackets: want true")

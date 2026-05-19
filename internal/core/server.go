@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -402,20 +401,6 @@ func (s *Server) coreSettingsSchema() []plugin.Setting {
 			Description: "Store every ball touch. Can generate large amounts of data.",
 		},
 		{
-			Key:         "storage.tick_snapshots",
-			Label:       "Tick snapshots",
-			Type:        plugin.SettingTypeCheckbox,
-			Default:     "false",
-			Description: "Store full game state at regular intervals. Produces very large data.",
-		},
-		{
-			Key:         "storage.tick_snapshot_rate",
-			Label:       "Tick rate (snapshots/sec)",
-			Type:        plugin.SettingTypeNumber,
-			Default:     "1",
-			Description: "Snapshots per second when tick snapshots are enabled.",
-		},
-		{
 			Key:         "storage.raw_packets",
 			Label:       "Capture raw packets",
 			Type:        plugin.SettingTypeCheckbox,
@@ -428,14 +413,6 @@ func (s *Server) coreSettingsSchema() []plugin.Setting {
 func (s *Server) applyCoreSettings(values map[string]string) {
 	if v, ok := values["storage.ball_hit_events"]; ok {
 		s.cfg.Storage.BallHitEvents = v == "true"
-	}
-	if v, ok := values["storage.tick_snapshots"]; ok {
-		s.cfg.Storage.TickSnapshots = v == "true"
-	}
-	if v, ok := values["storage.tick_snapshot_rate"]; ok {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			s.cfg.Storage.TickSnapshotRate = f
-		}
 	}
 	if v, ok := values["storage.raw_packets"]; ok {
 		s.cfg.Storage.RawPackets = v == "true"

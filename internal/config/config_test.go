@@ -25,12 +25,6 @@ func TestDefaults(t *testing.T) {
 	if s.BallHitEvents {
 		t.Error("BallHitEvents should default to false")
 	}
-	if s.TickSnapshots {
-		t.Error("TickSnapshots should default to false")
-	}
-	if s.TickSnapshotRate != 1.0 {
-		t.Errorf("TickSnapshotRate: got %f, want 1.0", s.TickSnapshotRate)
-	}
 	if s.RawPackets {
 		t.Error("RawPackets should default to false")
 	}
@@ -44,7 +38,6 @@ func TestSaveLoad(t *testing.T) {
 	cfg.AppPort = 9090
 	cfg.DataDir = filepath.Join(dir, "data")
 	cfg.Storage.BallHitEvents = true
-	cfg.Storage.TickSnapshotRate = 30.0
 	cfg.Storage.RawPackets = true
 
 	if err := Save(path, cfg); err != nil {
@@ -62,9 +55,6 @@ func TestSaveLoad(t *testing.T) {
 	}
 	if !loaded.Storage.BallHitEvents {
 		t.Error("BallHitEvents should be true after round-trip")
-	}
-	if loaded.Storage.TickSnapshotRate != 30.0 {
-		t.Errorf("TickSnapshotRate: got %f, want 30.0", loaded.Storage.TickSnapshotRate)
 	}
 	if !loaded.Storage.RawPackets {
 		t.Error("RawPackets should be true after round-trip")
