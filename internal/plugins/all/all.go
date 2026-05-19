@@ -8,6 +8,5 @@ import (
 	_ "OOF_RL/internal/plugins/debugassistant"
 	_ "OOF_RL/internal/plugins/history"
 	_ "OOF_RL/internal/plugins/overlayhud"
-	_ "OOF_RL/internal/plugins/ranks"
 	_ "OOF_RL/internal/plugins/session"
 )
