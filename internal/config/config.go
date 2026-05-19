@@ -12,10 +12,8 @@ import (
 )
 
 type StorageSettings struct {
-	BallHitEvents    bool    `toml:"ball_hit_events"   json:"ball_hit_events"`
-	TickSnapshots    bool    `toml:"tick_snapshots"    json:"tick_snapshots"`
-	TickSnapshotRate float64 `toml:"tick_snapshot_rate" json:"tick_snapshot_rate"`
-	RawPackets       bool    `toml:"raw_packets"       json:"raw_packets"`
+	BallHitEvents bool `toml:"ball_hit_events" json:"ball_hit_events"`
+	RawPackets    bool `toml:"raw_packets"     json:"raw_packets"`
 }
 
 type Config struct {
@@ -80,10 +78,8 @@ func Defaults() Config {
 		OverlayOpacity:         1.0,
 		OverlayHoldMode:        false,
 		Storage: StorageSettings{
-			BallHitEvents:    false,
-			TickSnapshots:    false,
-			TickSnapshotRate: 1.0,
-			RawPackets:       false,
+			BallHitEvents: false,
+			RawPackets:    false,
 		},
 	}
 }

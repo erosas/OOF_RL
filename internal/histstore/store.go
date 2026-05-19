@@ -344,15 +344,6 @@ func (s *Store) InsertBallHit(matchID int64, playerID string, pre, post, x, y, z
 	return err
 }
 
-// --- Tick snapshots ---
-
-func (s *Store) InsertTick(matchID int64, raw string) error {
-	_, err := s.conn.Exec(`
-		INSERT INTO hist_tick_snapshots(match_id,captured_at,raw_json) VALUES(?,?,?)`,
-		matchID, time.Now(), raw)
-	return err
-}
-
 // --- Statfeed events ---
 
 func (s *Store) InsertStatfeedEvent(matchID int64, playerID, playerName string, teamNum int, eventType, targetID, targetName string) error {

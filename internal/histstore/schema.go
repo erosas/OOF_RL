@@ -4,7 +4,6 @@ import "OOF_RL/internal/db"
 
 const schema = `
 DROP TABLE IF EXISTS ball_hit_events;
-DROP TABLE IF EXISTS tick_snapshots;
 DROP TABLE IF EXISTS goal_events;
 DROP TABLE IF EXISTS player_match_stats;
 DROP TABLE IF EXISTS matches;
@@ -75,13 +74,6 @@ CREATE TABLE IF NOT EXISTS hist_ball_hit_events (
 	hit_at         DATETIME NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS hist_tick_snapshots (
-	id          INTEGER PRIMARY KEY AUTOINCREMENT,
-	match_id    INTEGER NOT NULL REFERENCES hist_matches(id),
-	captured_at DATETIME NOT NULL,
-	raw_json    TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS hist_statfeed_events (
 	id           INTEGER PRIMARY KEY AUTOINCREMENT,
 	match_id     INTEGER NOT NULL REFERENCES hist_matches(id),
@@ -98,7 +90,6 @@ CREATE INDEX IF NOT EXISTS idx_hist_pms_primary_id ON hist_player_match_stats(pr
 CREATE INDEX IF NOT EXISTS idx_hist_goal_scorer     ON hist_goal_events(scorer_id);
 CREATE INDEX IF NOT EXISTS idx_hist_goal_match      ON hist_goal_events(match_id);
 CREATE INDEX IF NOT EXISTS idx_hist_bh_player       ON hist_ball_hit_events(player_id);
-CREATE INDEX IF NOT EXISTS idx_hist_tick_match      ON hist_tick_snapshots(match_id);
 CREATE INDEX IF NOT EXISTS idx_hist_matches_started_at ON hist_matches(started_at);
 CREATE INDEX IF NOT EXISTS idx_hist_sf_match  ON hist_statfeed_events(match_id);
 CREATE INDEX IF NOT EXISTS idx_hist_sf_player ON hist_statfeed_events(player_id);
