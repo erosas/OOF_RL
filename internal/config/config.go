@@ -113,6 +113,18 @@ func Load(path string) (Config, error) {
 	return cfg, err
 }
 
+// Set updates a config field by its settings key. Mirrors Lookup in the reverse direction.
+// Used by handleSettings to persist plugin settings that are stored in the config file.
+// Unknown keys are silently ignored.
+func (c *Config) Set(key, value string) {
+	switch key {
+	case "ballchasing_api_key":
+		c.BallchasingAPIKey = value
+	case "ballchasing_delete_after_upload":
+		c.BallchasingDeleteAfterUpload = value == "true" || value == "1" || value == "on"
+	}
+}
+
 // Lookup returns a config field value by its settings key as a string.
 // Returns empty string for unknown keys.
 func (c *Config) Lookup(key string) string {
@@ -124,9 +136,50 @@ func (c *Config) Lookup(key string) string {
 			return "true"
 		}
 		return "false"
+	case "replay_dir":
+		return DetectReplayDir()
 	default:
 		return ""
 	}
+}
+
+// DetectReplayDir returns the Rocket League replay directory, or "" if not found.
+// Checks the standard Windows locations including OneDrive variants.
+func DetectReplayDir() string {
+	const rlRelPath = `My Games\Rocket League\TAGame\Demos`
+	seen := map[string]struct{}{}
+	var candidates []string
+
+	add := func(base string) {
+		if base == "" {
+			return
+		}
+		p := filepath.Join(base, rlRelPath)
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		candidates = append(candidates, p)
+	}
+
+	home := os.Getenv("USERPROFILE")
+	if home != "" {
+		add(filepath.Join(home, "OneDrive", "Documents"))
+		add(filepath.Join(home, "Documents"))
+	}
+	if od := os.Getenv("OneDriveConsumer"); od != "" {
+		add(filepath.Join(od, "Documents"))
+	}
+	if od := os.Getenv("OneDrive"); od != "" {
+		add(filepath.Join(od, "Documents"))
+	}
+
+	for _, p := range candidates {
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	return ""
 }
 
 func Save(path string, cfg Config) error {

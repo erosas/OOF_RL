@@ -3,6 +3,7 @@
 package wasmhost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -58,6 +59,11 @@ type Plugin struct {
 	fnShutdown      api.Function
 	fnApplySettings api.Function
 
+	// mu serializes all calls into the WASM module. wazero module instances are
+	// not goroutine-safe; concurrent HTTP handlers and the event worker goroutine
+	// both call into the same module and must not overlap.
+	mu sync.Mutex
+
 	eventCh chan eventMsg
 	wg      sync.WaitGroup
 }
@@ -101,6 +107,9 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		NewFunctionBuilder().WithFunc(p.hostHTTPFetch).Export("host_http_fetch").
 		NewFunctionBuilder().WithFunc(p.hostBroadcastWS).Export("host_broadcast_ws").
 		NewFunctionBuilder().WithFunc(p.hostGetConfig).Export("host_get_config").
+		NewFunctionBuilder().WithFunc(p.hostScanDir).Export("host_scan_dir").
+		NewFunctionBuilder().WithFunc(p.hostReadFile).Export("host_read_file").
+		NewFunctionBuilder().WithFunc(p.hostDeleteFile).Export("host_delete_file").
 		Instantiate(ctx); err != nil {
 		r.Close(ctx)
 		return nil, fmt.Errorf("wasmhost: host module: %w", err)
@@ -202,6 +211,10 @@ func (p *Plugin) ApplySettings(settings map[string]string) error {
 	if p.fnApplySettings == nil {
 		return nil
 	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	cfgJSON, err := json.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("wasm:%s ApplySettings marshal: %w", p.meta.ID, err)
@@ -338,6 +351,9 @@ func (p *Plugin) dispatchEvent(eventType string, payload []byte) {
 		return
 	}
 
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	typePtr, typeSize, err := p.writeGuest([]byte(eventType))
 	if err != nil {
 		log.Printf("[wasm:%s] write event type: %v", p.meta.ID, err)
@@ -366,7 +382,16 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := sdk.HTTPRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var bodyStr string
+	if r.Body != nil {
+		if b, err := io.ReadAll(r.Body); err == nil {
+			bodyStr = string(b)
+		}
+	}
+	req := sdk.HTTPRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: bodyStr}
 	reqJSON, _ := json.Marshal(req)
 
 	reqPtr, reqSize, err := p.writeGuest(reqJSON)
@@ -525,7 +550,8 @@ func (p *Plugin) hostDBQuery(_ context.Context, m api.Module, sqlPtr, sqlLen, ar
 			ptrs[i] = &vals[i]
 		}
 		if err := rows.Scan(ptrs...); err != nil {
-			continue
+			log.Printf("[wasm:%s] host_db_query: scan row: %v", p.meta.ID, err)
+			return 0
 		}
 		row := make(map[string]any, len(cols))
 		for i, col := range cols {
@@ -572,7 +598,9 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 	}
 
 	var bodyReader io.Reader
-	if req.Body != "" {
+	if len(req.BodyBytes) > 0 {
+		bodyReader = bytes.NewReader(req.BodyBytes)
+	} else if req.Body != "" {
 		bodyReader = strings.NewReader(req.Body)
 	}
 	httpReq, err := http.NewRequest(req.Method, req.URL, bodyReader)
@@ -590,10 +618,13 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 	}
 	defer resp.Body.Close()
 
-	var bodyBuilder []byte
-	bodyBuilder, err = io.ReadAll(resp.Body)
+	limited := io.LimitReader(resp.Body, int64(outMax)+1)
+	bodyBuilder, err := io.ReadAll(limited)
 	if err != nil {
 		return p.writeHTTPFetchError(m, "read body: "+err.Error(), outPtr, outMax)
+	}
+	if uint32(len(bodyBuilder)) > outMax {
+		return p.writeHTTPFetchError(m, fmt.Sprintf("response body exceeds buffer (%d bytes)", outMax), outPtr, outMax)
 	}
 
 	respHeaders := make(map[string]string, len(resp.Header))
@@ -608,6 +639,105 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 	}
 	out, _ := json.Marshal(result)
 	return p.writeResult(m, out, outPtr, outMax)
+}
+
+// hostScanDir lists the host's replay directory and writes JSON []sdk.DirEntry to outPtr.
+func (p *Plugin) hostScanDir(_ context.Context, m api.Module, outPtr, outMax uint32) uint32 {
+	dir := ""
+	if p.cfg != nil {
+		dir = p.cfg.Lookup("replay_dir")
+	}
+	if dir == "" {
+		return 0
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Printf("[wasm:%s] host_scan_dir: %v", p.meta.ID, err)
+		return 0
+	}
+	var dirEntries []sdk.DirEntry
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		dirEntries = append(dirEntries, sdk.DirEntry{
+			Name:    e.Name(),
+			IsDir:   e.IsDir(),
+			Size:    info.Size(),
+			ModTime: info.ModTime().UTC().Format(time.RFC3339),
+		})
+	}
+	if dirEntries == nil {
+		dirEntries = []sdk.DirEntry{}
+	}
+	out, err := json.Marshal(dirEntries)
+	if err != nil {
+		return 0
+	}
+	return p.writeResult(m, out, outPtr, outMax)
+}
+
+// hostReadFile reads a file by basename from the replay directory into outPtr.
+// Returns bytes written, or 0 if the file is missing, invalid, or too large for outMax.
+func (p *Plugin) hostReadFile(_ context.Context, m api.Module, namePtr, nameLen, outPtr, outMax uint32) uint32 {
+	dir := ""
+	if p.cfg != nil {
+		dir = p.cfg.Lookup("replay_dir")
+	}
+	if dir == "" {
+		return 0
+	}
+	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
+	if !ok {
+		return 0
+	}
+	name := string(nameBytes)
+	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
+		log.Printf("[wasm:%s] host_read_file: invalid name %q", p.meta.ID, name)
+		return 0
+	}
+	fullPath := filepath.Join(dir, name)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return 0
+	}
+	if uint32(info.Size()) > outMax {
+		log.Printf("[wasm:%s] host_read_file: %s (%d bytes) exceeds outMax %d", p.meta.ID, name, info.Size(), outMax)
+		return 0
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		log.Printf("[wasm:%s] host_read_file: read %s: %v", p.meta.ID, name, err)
+		return 0
+	}
+	return p.writeResult(m, data, outPtr, outMax)
+}
+
+// hostDeleteFile removes a file by basename from the replay directory.
+// Returns 1 on success, 0 on failure.
+func (p *Plugin) hostDeleteFile(_ context.Context, m api.Module, namePtr, nameLen uint32) uint32 {
+	dir := ""
+	if p.cfg != nil {
+		dir = p.cfg.Lookup("replay_dir")
+	}
+	if dir == "" {
+		return 0
+	}
+	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
+	if !ok {
+		return 0
+	}
+	name := string(nameBytes)
+	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
+		log.Printf("[wasm:%s] host_delete_file: invalid name %q", p.meta.ID, name)
+		return 0
+	}
+	if err := os.Remove(filepath.Join(dir, name)); err != nil {
+		log.Printf("[wasm:%s] host_delete_file: %s: %v", p.meta.ID, name, err)
+		return 0
+	}
+	return 1
 }
 
 func (p *Plugin) writeHTTPFetchError(m api.Module, msg string, outPtr, outMax uint32) uint32 {
@@ -643,17 +773,18 @@ func (p *Plugin) hostGetConfig(_ context.Context, m api.Module, keyPtr, keyLen, 
 	return p.writeResult(m, []byte(val), outPtr, outMax)
 }
 
-// writeResult copies data into guest memory at outPtr up to outMax bytes.
-// Returns the number of bytes written.
+// writeResult copies data into guest memory at outPtr.
+// Returns the number of bytes written, or 0 if data exceeds outMax (truncation would
+// corrupt JSON-encoded results, so it is treated as an error).
 func (p *Plugin) writeResult(m api.Module, data []byte, outPtr, outMax uint32) uint32 {
-	n := uint32(len(data))
-	if n > outMax {
-		n = outMax
-	}
-	if !m.Memory().Write(outPtr, data[:n]) {
+	if uint32(len(data)) > outMax {
+		log.Printf("[wasm:%s] writeResult: result size %d exceeds buffer %d", p.meta.ID, len(data), outMax)
 		return 0
 	}
-	return n
+	if !m.Memory().Write(outPtr, data) {
+		return 0
+	}
+	return uint32(len(data))
 }
 
 func (p *Plugin) malloc(size uint32) (uint32, error) {

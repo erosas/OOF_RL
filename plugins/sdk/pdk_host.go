@@ -7,6 +7,9 @@ func Log(_ string) {}
 
 func DBExec(_ string, _ []string) int64             { return -1 }
 func DBQuery(_ string, _ []string) []map[string]any { return nil }
-func HTTPFetch(_ HTTPFetchRequest) HTTPFetchResult   { return HTTPFetchResult{} }
+func HTTPFetch(_ HTTPFetchRequest) HTTPFetchResult  { return HTTPFetchResult{} }
 func BroadcastWS(_ []byte)                          {}
 func GetConfig(_ string) string                     { return "" }
+func ScanDir() []DirEntry                           { return nil }
+func ReadFile(_ string) []byte                      { return nil }
+func DeleteFile(_ string) bool                      { return false }
