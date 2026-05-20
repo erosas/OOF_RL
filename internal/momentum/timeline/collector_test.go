@@ -2,6 +2,7 @@ package timeline
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,26 @@ import (
 type fakeProvider struct {
 	state  momentum.MomentumState
 	status momentum.ServiceStatus
+}
+
+var _ SnapshotProvider = (*Collector)(nil)
+
+func TestSnapshotProviderExposesReadOnlyMethods(t *testing.T) {
+	providerType := reflect.TypeOf((*SnapshotProvider)(nil)).Elem()
+
+	if _, ok := providerType.MethodByName("Snapshot"); !ok {
+		t.Fatal("SnapshotProvider missing Snapshot method")
+	}
+	for _, name := range []string{
+		"HandleGameAction",
+		"Reset",
+		"MarkMatchEnded",
+		"Clear",
+	} {
+		if _, ok := providerType.MethodByName(name); ok {
+			t.Fatalf("SnapshotProvider exposes mutating method %s", name)
+		}
+	}
 }
 
 func (f *fakeProvider) Snapshot() momentum.MomentumState {

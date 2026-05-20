@@ -85,6 +85,11 @@ func (s *Server) Momentum() momentum.SnapshotProvider {
 	return s.momentum
 }
 
+// Timeline returns the read-only app-owned Timeline snapshot provider.
+func (s *Server) Timeline() timeline.SnapshotProvider {
+	return s.timeline
+}
+
 func (s *Server) Config() *config.Config { return s.cfg }
 
 // InitPlugins sorts plugins by their declared dependencies, then calls Init on

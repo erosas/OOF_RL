@@ -10,6 +10,7 @@ import (
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/momentum/timeline"
 	"OOF_RL/internal/oofevents"
 )
 
@@ -45,6 +46,15 @@ func TestServerRegistersMomentumTimelineRuntime(t *testing.T) {
 	}
 }
 
+func TestServerExposesMomentumTimelineProvider(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+
+	if srv.Timeline() == nil {
+		t.Fatal("Timeline() returned nil")
+	}
+	var _ timeline.SnapshotProvider = srv.Timeline()
+}
+
 func TestServerTimelineRuntimeReceivesTranslatedGameActionsAfterMomentum(t *testing.T) {
 	srv, _ := newTimelineTestServer(t)
 
@@ -68,6 +78,35 @@ func TestServerTimelineRuntimeReceivesTranslatedGameActionsAfterMomentum(t *test
 	}
 	if entry.Blue.MomentumInfluence <= 0 {
 		t.Fatalf("Timeline sampled stale Momentum state: %+v", entry)
+	}
+}
+
+func TestServerTimelineProviderSnapshotReturnsCopy(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+
+	srv.DispatchEvent(events.Envelope{
+		Event: "StatfeedEvent",
+		Data: []byte(`{
+			"MatchGuid":"match-1",
+			"EventName":"Shot",
+			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
+		}`),
+	})
+
+	waitForTimelineTest(t, func() bool {
+		return len(srv.Timeline().Snapshot().Entries) == 1
+	})
+
+	snapshot := srv.Timeline().Snapshot()
+	snapshot.Entries[0].PlayerName = "mutated"
+	snapshot.Entries = append(snapshot.Entries, timeline.TimelineEntry{PlayerName: "extra"})
+
+	next := srv.Timeline().Snapshot()
+	if len(next.Entries) != 1 {
+		t.Fatalf("Timeline provider entry count = %d, want 1", len(next.Entries))
+	}
+	if next.Entries[0].PlayerName != "Alice" {
+		t.Fatalf("Timeline provider player name = %q, want Alice", next.Entries[0].PlayerName)
 	}
 }
 
