@@ -18,7 +18,7 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
-	"OOF_RL/internal/plugins/dashboard"
+	"OOF_RL/internal/plugins/debugassistant"
 )
 
 func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
@@ -41,7 +41,7 @@ func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
 	}
 	t.Cleanup(bus.Stop)
 	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
-	srv.Use(dashboard.New(database))
+	srv.Use(debugassistant.New(&cfg))
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	return mux, &cfg
@@ -370,8 +370,8 @@ func TestServerGet(t *testing.T) {
 	if err := srv.LoadPlugins(); err != nil {
 		t.Fatalf("LoadPlugins: %v", err)
 	}
-	if _, ok := srv.Get("dashboard"); !ok {
-		t.Error("Get(dashboard): want found")
+	if _, ok := srv.Get("debugassistant"); !ok {
+		t.Error("Get(debugassistant): want found")
 	}
 	if _, ok := srv.Get("nonexistent-plugin"); ok {
 		t.Error("Get(nonexistent-plugin): want not found")
@@ -432,9 +432,9 @@ func TestHandlePluginView_NotFound(t *testing.T) {
 
 func TestHandlePluginView_Success(t *testing.T) {
 	mux, _ := newTestMux(t)
-	w := get(mux, "/api/plugins/dashboard/view")
+	w := get(mux, "/api/plugins/debugassistant/view")
 	if w.Code != http.StatusOK {
-		t.Errorf("history view: got %d, want 200", w.Code)
+		t.Errorf("debugassistant view: got %d, want 200", w.Code)
 	}
 	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
 		t.Errorf("content-type: got %q, want text/html", ct)
