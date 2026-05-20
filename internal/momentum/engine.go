@@ -75,7 +75,7 @@ func (e *Engine) ApplyGameAction(event oofevents.GameActionEvent) MomentumState 
 		e.state.MatchGUID = event.MatchGUID()
 	}
 
-	e.decay()
+	e.decayTo(event.OccurredAt())
 	for _, delta := range deltas {
 		e.applyDelta(delta.team, delta.signal)
 	}
@@ -94,6 +94,13 @@ func (e *Engine) ApplyGameAction(event oofevents.GameActionEvent) MomentumState 
 		MatchGUID:  event.MatchGUID(),
 	}
 
+	return e.Snapshot()
+}
+
+// Tick applies elapsed-time decay without requiring a new game action. This
+// mirrors the old PR #47 polling path while keeping the new typed-event stack.
+func (e *Engine) Tick(now time.Time) MomentumState {
+	e.decayTo(now)
 	return e.Snapshot()
 }
 
@@ -116,14 +123,14 @@ func (e *Engine) deltasFor(event oofevents.GameActionEvent) (oofevents.Team, []t
 				e.config.ShotControl,
 				pressure,
 				0.12,
-				confidenceFor(event, e.config)+0.03,
+				0.18,
 				0.08,
 			),
 		}}, true
 	case oofevents.ActionSave:
 		defendingControl := e.config.SaveDefendingControl
 		contest := 0.20
-		confidence := confidenceFor(event, e.config) + 0.04
+		confidence := 0.14
 		volatility := 0.10
 		if event.IsEpicSave {
 			defendingControl += e.config.EpicSaveControlBonus
@@ -172,7 +179,7 @@ func (e *Engine) deltasFor(event oofevents.GameActionEvent) (oofevents.Team, []t
 				e.config.GoalScoringControl,
 				pressure,
 				0.10,
-				confidenceFor(event, e.config)+0.06,
+				0.38,
 				0.20,
 			),
 		}}, true
@@ -183,7 +190,7 @@ func (e *Engine) deltasFor(event oofevents.GameActionEvent) (oofevents.Team, []t
 				0.04,
 				e.config.AssistPressure,
 				0.10,
-				confidenceFor(event, e.config)+e.config.AssistConfidenceBonus,
+				e.config.AssistConfidenceBonus,
 				0.04,
 			),
 		}}, true
@@ -194,7 +201,7 @@ func (e *Engine) deltasFor(event oofevents.GameActionEvent) (oofevents.Team, []t
 				0.02,
 				e.config.DemoPressure,
 				0.16,
-				confidenceFor(event, e.config),
+				0.06,
 				0.14,
 			),
 		}}, true
@@ -215,6 +222,13 @@ func (e *Engine) ballHitDeltas(event oofevents.GameActionEvent) []teamDelta {
 		chainBonus := math.Min(e.config.MaxTouchChainBonus, float64(e.touchChains[event.Team]-1)*e.config.SameTeamTouchControlBonus)
 		control += chainBonus
 		pressure += math.Min(e.config.MaxTouchChainBonus, float64(e.touchChains[event.Team]-1)*e.config.SameTeamTouchPressureBonus)
+		confidence := 0.12 + math.Min(0.16, float64(e.touchChains[event.Team])*0.03)
+		deltas = append(deltas, teamDelta{
+			team: event.Team,
+			signal: TeamSignal{
+				Confidence: confidence,
+			},
+		})
 	} else {
 		if e.lastTouchTeam != "" && e.lastTouchTeam != event.Team {
 			deltas = append(deltas, teamDelta{
@@ -230,6 +244,12 @@ func (e *Engine) ballHitDeltas(event oofevents.GameActionEvent) []teamDelta {
 			}
 		}
 		e.touchChains[event.Team] = 1
+		deltas = append(deltas, teamDelta{
+			team: event.Team,
+			signal: TeamSignal{
+				Confidence: 0.08,
+			},
+		})
 	}
 
 	e.lastTouchTeam = event.Team
@@ -240,22 +260,26 @@ func (e *Engine) ballHitDeltas(event oofevents.GameActionEvent) []teamDelta {
 			control,
 			pressure,
 			0.05,
-			confidenceFor(event, e.config),
+			0,
 			volatility,
 		),
 	})
 	return deltas
 }
 
-func (e *Engine) decay() {
+func (e *Engine) decayTo(now time.Time) {
+	if e.state.LastEvent.OccurredAt.IsZero() || !now.After(e.state.LastEvent.OccurredAt) {
+		return
+	}
+	seconds := now.Sub(e.state.LastEvent.OccurredAt).Seconds()
 	for team, signal := range e.state.Teams {
 		e.state.Teams[team] = TeamSignal{
-			Pressure:            clamp01(signal.Pressure * e.config.Decay),
-			MomentumInfluence:   clamp01(signal.MomentumInfluence * e.config.Decay),
-			ContestInvolvement:  clamp01(signal.ContestInvolvement * e.config.Decay),
-			EventDerivedControl: clamp01(signal.EventDerivedControl * e.config.Decay),
-			Confidence:          clamp01(signal.Confidence * e.config.Decay),
-			Volatility:          clamp01(signal.Volatility * e.config.Decay),
+			Pressure:            max0(signal.Pressure * math.Pow(e.config.PressureDecayPerSecond, seconds)),
+			MomentumInfluence:   max0(signal.MomentumInfluence * math.Pow(e.config.ControlDecayPerSecond, seconds)),
+			ContestInvolvement:  max0(signal.ContestInvolvement * math.Pow(e.config.VolatilityDecayPerSecond, seconds)),
+			EventDerivedControl: max0(signal.EventDerivedControl * math.Pow(e.config.ControlDecayPerSecond, seconds)),
+			Confidence:          clamp01(signal.Confidence * math.Pow(e.config.ConfidenceDecayPerSecond, seconds)),
+			Volatility:          max0(signal.Volatility * math.Pow(e.config.VolatilityDecayPerSecond, seconds)),
 		}
 	}
 }
@@ -263,12 +287,12 @@ func (e *Engine) decay() {
 func (e *Engine) applyDelta(team oofevents.Team, delta TeamSignal) {
 	signal := e.state.Teams[team]
 	e.state.Teams[team] = TeamSignal{
-		Pressure:            clamp01(signal.Pressure + delta.Pressure),
-		MomentumInfluence:   clamp01(signal.MomentumInfluence + delta.MomentumInfluence),
-		ContestInvolvement:  clamp01(signal.ContestInvolvement + delta.ContestInvolvement),
-		EventDerivedControl: clamp01(signal.EventDerivedControl + delta.EventDerivedControl),
+		Pressure:            max0(signal.Pressure + delta.Pressure),
+		MomentumInfluence:   max0(signal.MomentumInfluence + delta.MomentumInfluence),
+		ContestInvolvement:  max0(signal.ContestInvolvement + delta.ContestInvolvement),
+		EventDerivedControl: max0(signal.EventDerivedControl + delta.EventDerivedControl),
 		Confidence:          clamp01(signal.Confidence + delta.Confidence),
-		Volatility:          clamp01(signal.Volatility + delta.Volatility),
+		Volatility:          max0(signal.Volatility + delta.Volatility),
 	}
 }
 
@@ -288,12 +312,12 @@ func confidenceFor(event oofevents.GameActionEvent, config Config) float64 {
 
 func signalFromWeights(control, pressure, contest, confidence, volatility float64) TeamSignal {
 	return TeamSignal{
-		Pressure:            clamp01(pressure),
-		MomentumInfluence:   clamp01(control + pressure),
-		ContestInvolvement:  clamp01(contest),
-		EventDerivedControl: clamp01(control),
+		Pressure:            max0(pressure),
+		MomentumInfluence:   max0(control + pressure),
+		ContestInvolvement:  max0(contest),
+		EventDerivedControl: max0(control),
 		Confidence:          clamp01(confidence),
-		Volatility:          clamp01(volatility),
+		Volatility:          max0(volatility),
 	}
 }
 
@@ -349,9 +373,29 @@ func within(now, then time.Time, window time.Duration) bool {
 
 func normalizeConfig(config Config) Config {
 	defaults := DefaultConfig()
-	if config.Decay <= 0 || config.Decay > 1 {
-		config.Decay = defaults.Decay
+	if config.Decay < 0 || config.Decay > 1 {
+		config.Decay = 0
 	}
+	decayFallback := config.Decay
+	if decayFallback == 0 {
+		decayFallback = defaults.ControlDecayPerSecond
+	}
+	fillFloat(&config.ControlDecayPerSecond, decayFallback)
+	if config.Decay > 0 {
+		fillFloat(&config.PressureDecayPerSecond, config.Decay)
+		fillFloat(&config.VolatilityDecayPerSecond, config.Decay)
+		fillFloat(&config.ConfidenceDecayPerSecond, config.Decay)
+	} else {
+		fillFloat(&config.PressureDecayPerSecond, defaults.PressureDecayPerSecond)
+		fillFloat(&config.VolatilityDecayPerSecond, defaults.VolatilityDecayPerSecond)
+		fillFloat(&config.ConfidenceDecayPerSecond, defaults.ConfidenceDecayPerSecond)
+	}
+	fillFloat(&config.ControlThreshold, defaults.ControlThreshold)
+	fillFloat(&config.PressureThreshold, defaults.PressureThreshold)
+	fillFloat(&config.ConfidenceThreshold, defaults.ConfidenceThreshold)
+	fillFloat(&config.VolatilityThreshold, defaults.VolatilityThreshold)
+	fillFloat(&config.PressureShareThreshold, defaults.PressureShareThreshold)
+	fillFloat(&config.ControlShareThreshold, defaults.ControlShareThreshold)
 	if config.TouchChainWindow <= 0 {
 		config.TouchChainWindow = defaults.TouchChainWindow
 	}
@@ -420,4 +464,11 @@ func clamp01(v float64) float64 {
 	default:
 		return v
 	}
+}
+
+func max0(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	return v
 }

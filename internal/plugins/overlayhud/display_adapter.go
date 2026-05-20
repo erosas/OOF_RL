@@ -2,6 +2,7 @@ package overlayhud
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"OOF_RL/internal/momentum"
@@ -11,21 +12,32 @@ import (
 // It owns no background work and renders only when a caller requests output.
 type DisplayAdapter struct {
 	momentum momentum.SnapshotProvider
+	tracker  *DisplayStateTracker
+	mu       sync.Mutex
 }
 
-func NewDisplayAdapter(provider momentum.SnapshotProvider) DisplayAdapter {
-	return DisplayAdapter{momentum: provider}
+func NewDisplayAdapter(provider momentum.SnapshotProvider) *DisplayAdapter {
+	return &DisplayAdapter{momentum: provider, tracker: NewDisplayStateTracker()}
 }
 
-func (a DisplayAdapter) RenderSVG(now time.Time) (string, bool) {
+func (a *DisplayAdapter) RenderSVG(now time.Time) (string, bool) {
+	if a == nil {
+		return "", false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	view, ok := momentumViewModelFromProvider(a.momentum, now)
 	if !ok {
 		return "", false
 	}
+	if a.tracker != nil {
+		view = a.tracker.Apply(view, now)
+	}
 	return RenderSVG(buildRenderModel(view)), true
 }
 
-func (a DisplayAdapter) RenderHTML(now time.Time) (string, bool) {
+func (a *DisplayAdapter) RenderHTML(now time.Time) (string, bool) {
 	svg, ok := a.RenderSVG(now)
 	if !ok {
 		return "", false
@@ -73,8 +85,8 @@ svg {
 	--mcw-seam: #f5f7fb;
 	--mcw-frame: #111827;
 	--mcw-frame-edge: #5e7086;
-	--mcw-response-transition-ms: 260ms;
-	--mcw-response-effect-transition-ms: 320ms;
+	--mcw-response-transition-ms: 186ms;
+	--mcw-response-effect-transition-ms: 229ms;
 }
 #momentum-overlay-root {
 	display: grid;
@@ -174,7 +186,7 @@ svg {
 	stroke-width: 6;
 	stroke-linecap: round;
 	opacity: 0.42;
-	animation: mcw-energy-streak 1040ms ease-in-out infinite;
+	animation: mcw-energy-streak 743ms ease-in-out infinite;
 }
 .mcw-streaks-blue line {
 	stroke: var(--mcw-blue-glow);
@@ -194,7 +206,7 @@ svg {
 .mcw-state-volatile #outer-sparks-white .mcw-spark-role-volatile {
 	display: block;
 	opacity: calc(0.32 + var(--mcw-volatility) * 0.42);
-	animation: mcw-spark-fly 900ms cubic-bezier(0.2, 0.85, 0.28, 1) infinite;
+	animation: mcw-spark-fly 771ms cubic-bezier(0.2, 0.85, 0.28, 1) infinite;
 }
 #outer-sparks-blue .mcw-spark {
 	fill: var(--mcw-blue-glow);
@@ -380,7 +392,7 @@ svg {
 .mcw-state-volatile #contest-top-core,
 .mcw-state-volatile #contest-top-purple-glow,
 .mcw-state-volatile #contest-top-vertical-beam {
-	animation: mcw-contest-flicker 760ms ease-in-out infinite alternate;
+	animation: mcw-contest-flicker 543ms ease-in-out infinite alternate;
 }
 .is-inactive .overlayhud-arc-blue,
 .is-inactive .overlayhud-arc-orange,

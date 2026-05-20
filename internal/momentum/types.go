@@ -6,15 +6,28 @@ import (
 	"OOF_RL/internal/oofevents"
 )
 
-// Config controls the event-derived signal model. Values are clamped to safe
-// ranges by NewEngine so callers can pass a zero-value config.
+// Config controls the event-derived signal model. Values are filled from the
+// old PR #47 event-pressure defaults by NewEngine so callers can pass a
+// zero-value config.
 type Config struct {
-	// Decay keeps the signal responsive by fading earlier actions each time a
-	// new supported action arrives. Valid range: [0, 1].
+	// Decay is retained for older tests/callers. When provided, it is used as a
+	// fallback for the per-second decay values below.
 	Decay float64
 
-	// The remaining weights are explicit display/enrichment weights adapted from
-	// the old PR #47 event-pressure model onto the bounded MomentumState fields.
+	ControlDecayPerSecond    float64
+	PressureDecayPerSecond   float64
+	VolatilityDecayPerSecond float64
+	ConfidenceDecayPerSecond float64
+
+	ControlThreshold       float64
+	PressureThreshold      float64
+	ConfidenceThreshold    float64
+	VolatilityThreshold    float64
+	PressureShareThreshold float64
+	ControlShareThreshold  float64
+
+	// The remaining weights are explicit display/enrichment weights restored
+	// from the old PR #47 event-pressure model.
 	// They are not possession, tactical certainty, or win-probability values.
 	TouchChainWindow       time.Duration
 	AlternatingTouchWindow time.Duration
@@ -60,47 +73,59 @@ type Config struct {
 // DefaultConfig returns conservative defaults for runtime-only momentum signals.
 func DefaultConfig() Config {
 	return Config{
-		Decay: 0.88,
+		Decay: 0,
+
+		ControlDecayPerSecond:    0.72,
+		PressureDecayPerSecond:   0.84,
+		VolatilityDecayPerSecond: 0.78,
+		ConfidenceDecayPerSecond: 0.82,
+
+		ControlThreshold:       1.8,
+		PressureThreshold:      3.2,
+		ConfidenceThreshold:    0.35,
+		VolatilityThreshold:    0.65,
+		PressureShareThreshold: 0.62,
+		ControlShareThreshold:  0.60,
 
 		TouchChainWindow:       5 * time.Second,
 		AlternatingTouchWindow: 2 * time.Second,
 		DemoBeforeShotWindow:   5 * time.Second,
 		DemoBeforeGoalWindow:   8 * time.Second,
 
-		BallHitControl:               0.06,
-		BallHitPressure:              0.02,
-		SameTeamTouchControlBonus:    0.025,
-		SameTeamTouchPressureBonus:   0.012,
-		MaxTouchChainBonus:           0.12,
-		OpponentTouchNewControl:      0.06,
-		OpponentTouchPreviousPenalty: -0.025,
+		BallHitControl:               1.0,
+		BallHitPressure:              0.2,
+		SameTeamTouchControlBonus:    0.4,
+		SameTeamTouchPressureBonus:   0.15,
+		MaxTouchChainBonus:           2.0,
+		OpponentTouchNewControl:      1.0,
+		OpponentTouchPreviousPenalty: -0.4,
 
-		ShotControl:  0.08,
-		ShotPressure: 0.26,
+		ShotControl:  0.8,
+		ShotPressure: 4.0,
 
-		SaveDefendingControl:        0.13,
-		SaveForcedAttackingPressure: 0.16,
-		EpicSaveControlBonus:        0.05,
-		EpicSaveContestBonus:        0.05,
-		EpicSaveConfidenceBonus:     0.02,
-		EpicSaveVolatilityBonus:     0.04,
+		SaveDefendingControl:        1.5,
+		SaveForcedAttackingPressure: 2.5,
+		EpicSaveControlBonus:        0.12,
+		EpicSaveContestBonus:        0.10,
+		EpicSaveConfidenceBonus:     0.06,
+		EpicSaveVolatilityBonus:     0.08,
 
-		GoalScoringControl:  0.16,
-		GoalScoringPressure: 0.42,
+		GoalScoringControl:  2.0,
+		GoalScoringPressure: 10.0,
 
-		AssistPressure:        0.14,
-		AssistConfidenceBonus: 0.02,
+		AssistPressure:        2.0,
+		AssistConfidenceBonus: 0.1,
 
-		DemoPressure:                0.08,
-		DemoBeforeShotPressureBonus: 0.16,
-		DemoBeforeGoalPressureBonus: 0.22,
+		DemoPressure:                1.0,
+		DemoBeforeShotPressureBonus: 2.0,
+		DemoBeforeGoalPressureBonus: 3.5,
 
-		AlternatingTouchVolatilityBonus: 0.12,
+		AlternatingTouchVolatilityBonus: 1.0,
 
-		ConfidenceBase:       0.08,
-		ConfidencePlayerID:   0.04,
-		ConfidencePlayerName: 0.02,
-		ConfidenceDemoVictim: 0.02,
+		ConfidenceBase:       0,
+		ConfidencePlayerID:   0,
+		ConfidencePlayerName: 0,
+		ConfidenceDemoVictim: 0,
 	}
 }
 
@@ -122,7 +147,8 @@ type SnapshotProvider interface {
 	Status() ServiceStatus
 }
 
-// TeamSignal describes bounded, event-derived team influence. The fields are
+// TeamSignal describes event-derived team influence. Pressure/control values
+// use the old PR #47 event-pressure scale; confidence remains [0, 1].
 // heuristics, not possession, rotation, win odds, or tactical certainty.
 type TeamSignal struct {
 	Pressure            float64

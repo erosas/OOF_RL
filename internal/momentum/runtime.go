@@ -2,6 +2,7 @@ package momentum
 
 import (
 	"sync"
+	"time"
 
 	"OOF_RL/internal/oofevents"
 )
@@ -42,9 +43,12 @@ func (s *Service) HandleGameAction(event oofevents.GameActionEvent) MomentumStat
 
 // Snapshot returns a copy of the current runtime-only momentum state.
 func (s *Service) Snapshot() MomentumState {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
+	if !s.inactive {
+		return s.engine.Tick(time.Now())
+	}
 	return s.engine.Snapshot()
 }
 

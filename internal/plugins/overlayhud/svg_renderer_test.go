@@ -57,6 +57,86 @@ func TestRenderSVGIncludesExpectedGroupsAndClasses(t *testing.T) {
 	}
 }
 
+func TestRenderSVGIncludesRecentEventDataAttributes(t *testing.T) {
+	model := testRenderModel()
+	model.RecentEvent = RecentEventModel{
+		Energy:    0.75,
+		Team:      "orange",
+		Type:      "goal",
+		ClassName: "mcw-recent-event has-recent-event is-recent-team-orange is-recent-event-goal",
+	}
+	model.StateClasses = append(model.StateClasses, "has-recent-event", "recent-event-team-orange", "recent-event-goal")
+
+	svg := RenderSVG(model)
+
+	for _, want := range []string{
+		`data-recent-event-energy="0.750"`,
+		`data-recent-event-team="orange"`,
+		`data-recent-event-type="goal"`,
+		`has-recent-event`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Fatalf("svg missing %q: %s", want, svg)
+		}
+	}
+}
+
+func TestRenderSVGIncludesContestedLineContractAttributes(t *testing.T) {
+	model := testRenderModel()
+	model.ContestedLine = ContestedLineModel{
+		Active:    true,
+		AngleDeg:  72,
+		BandDeg:   7.5,
+		Intensity: 0.67,
+		ClassName: "mcw-contested-front-line is-contested-line-active is-contested-line-blue-control",
+	}
+
+	svg := RenderSVG(model)
+
+	for _, want := range []string{
+		`data-contested-line-angle="72.000"`,
+		`data-contested-line-band="7.500"`,
+		`data-contested-line-intensity="0.670"`,
+		`is-contested-line-active`,
+		`is-contested-line-blue-control`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Fatalf("svg missing %q: %s", want, svg)
+		}
+	}
+}
+
+func TestRenderSVGIncludesSignalDiagnosticAttributes(t *testing.T) {
+	model := testRenderModel()
+	model.Diagnostics = SignalDiagnosticsModel{
+		BlueShare:           0.72,
+		OrangeShare:         0.28,
+		BluePressureShare:   0.44,
+		OrangePressureShare: 0.56,
+		BlueControlShare:    0.72,
+		OrangeControlShare:  0.28,
+		ConfidenceBucket:    confidenceBucketHigh,
+		Volatility:          0.24,
+	}
+
+	svg := RenderSVG(model)
+
+	for _, want := range []string{
+		`data-blue-share="0.720"`,
+		`data-orange-share="0.280"`,
+		`data-blue-pressure-share="0.440"`,
+		`data-orange-pressure-share="0.560"`,
+		`data-blue-control-share="0.720"`,
+		`data-orange-control-share="0.280"`,
+		`data-confidence-bucket="high"`,
+		`data-volatility="0.240"`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Fatalf("svg missing diagnostic attr %q: %s", want, svg)
+		}
+	}
+}
+
 func TestRenderSVGIncludesInactiveNoDataClasses(t *testing.T) {
 	model := buildRenderModel(ViewModel{StateLabel: "NO DATA"})
 
@@ -81,9 +161,9 @@ func TestRenderSVGIncludesMomentumControlWheelResponseHooks(t *testing.T) {
 		`id="center-disc-purple-contest-wash"`,
 		`id="contest-top-core"`,
 		`id="contest-top-purple-glow"`,
-		`--mcw-blue-pressure:0.700`,
-		`--mcw-orange-pressure:0.300`,
-		`--mcw-volatility:0.500`,
+		`--mcw-blue-pressure:0.763`,
+		`--mcw-orange-pressure:0.327`,
+		`--mcw-volatility:0.568`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Fatalf("svg missing response hook %q: %s", want, svg)

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"OOF_RL/internal/oofevents"
 )
@@ -56,6 +57,19 @@ func TestServiceSnapshotReturnsCopy(t *testing.T) {
 	next := service.Snapshot()
 	if next.Teams[oofevents.TeamBlue].MomentumInfluence == 0 {
 		t.Fatal("mutating returned snapshot should not mutate service state")
+	}
+}
+
+func TestServiceSnapshotAppliesRuntimeDecay(t *testing.T) {
+	service := NewService(Config{})
+	start := time.Now().Add(-30 * time.Second)
+	service.HandleGameAction(at(oofevents.NewGameAction("match-1", oofevents.ActionGoal, oofevents.TeamBlue, "pid-a", "Alice"), start))
+
+	before := service.engine.Snapshot().Teams[oofevents.TeamBlue]
+	after := service.Snapshot().Teams[oofevents.TeamBlue]
+
+	if after.Pressure >= before.Pressure {
+		t.Fatalf("snapshot should apply elapsed decay: before=%+v after=%+v", before, after)
 	}
 }
 

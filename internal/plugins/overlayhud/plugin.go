@@ -30,6 +30,7 @@ func init() {
 type Plugin struct {
 	plugin.BasePlugin
 	momentum      momentum.SnapshotProvider
+	display       *DisplayAdapter
 	cfg           *config.Config
 	launchShell   manualShellLauncher
 	launchShellMu sync.Mutex
@@ -44,6 +45,7 @@ func New(provider momentum.SnapshotProvider) *Plugin {
 func NewWithConfig(provider momentum.SnapshotProvider, cfg *config.Config) *Plugin {
 	return &Plugin{
 		momentum:    provider,
+		display:     NewDisplayAdapter(provider),
 		cfg:         cfg,
 		launchShell: startManualShell,
 	}
@@ -66,8 +68,16 @@ func (p *Plugin) Assets() fs.FS                           { return nil }
 
 func (p *Plugin) Init(_ oofevents.PluginBus, reg plugin.Registry, _ *db.DB) error {
 	p.momentum = reg.Momentum()
+	p.display = NewDisplayAdapter(p.momentum)
 	p.cfg = reg.Config()
 	return nil
+}
+
+func (p *Plugin) displayAdapter() *DisplayAdapter {
+	if p.display == nil {
+		p.display = NewDisplayAdapter(p.momentum)
+	}
+	return p.display
 }
 
 func (p *Plugin) momentumSnapshot() (momentum.MomentumState, momentum.ServiceStatus, bool) {

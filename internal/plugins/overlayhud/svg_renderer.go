@@ -20,11 +20,22 @@ func RenderSVG(model RenderModel) string {
 	var b strings.Builder
 	rootID := groupID(model.Groups.Root, "hud-root")
 
-	fmt.Fprintf(&b, `<svg id="momentum-control-wheel" xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" data-state="%s" data-seam-angle="%s" style="%s" role="img" aria-label="%s">`,
+	fmt.Fprintf(&b, `<svg id="momentum-control-wheel" xmlns="http://www.w3.org/2000/svg" viewBox="%s" class="%s" data-state="%s" data-seam-angle="%s" data-blue-share="%s" data-orange-share="%s" data-blue-pressure-share="%s" data-orange-pressure-share="%s" data-blue-control-share="%s" data-orange-control-share="%s" data-confidence-bucket="%s" data-volatility="%s" data-recent-event-energy="%s" data-recent-event-team="%s" data-recent-event-type="%s" style="%s" role="img" aria-label="%s">`,
 		escapeAttr(model.ViewBox),
 		escapeAttr(strings.Join(model.StateClasses, " ")),
 		escapeAttr(model.DisplayState),
 		num(model.SeamAngleDeg),
+		num(model.Diagnostics.BlueShare),
+		num(model.Diagnostics.OrangeShare),
+		num(model.Diagnostics.BluePressureShare),
+		num(model.Diagnostics.OrangePressureShare),
+		num(model.Diagnostics.BlueControlShare),
+		num(model.Diagnostics.OrangeControlShare),
+		escapeAttr(model.Diagnostics.ConfidenceBucket),
+		num(model.Diagnostics.Volatility),
+		num(model.RecentEvent.Energy),
+		escapeAttr(model.RecentEvent.Team),
+		escapeAttr(model.RecentEvent.Type),
 		escapeAttr(model.StyleVars),
 		escapeAttr(svgAriaLabel(model)),
 	)
@@ -85,7 +96,17 @@ func renderEnergyStreaks(b *strings.Builder, model RenderModel) {
 }
 
 func renderSparks(b *strings.Builder, model RenderModel) {
-	fmt.Fprintf(b, `<g id="%s" class="mcw-sparks">`, escapeAttr(groupID(model.Groups.OuterSparks, "outer-sparks")))
+	className := "mcw-sparks"
+	if model.RecentEvent.ClassName != "" {
+		className += " " + model.RecentEvent.ClassName
+	}
+	fmt.Fprintf(b, `<g id="%s" class="%s" data-recent-event-energy="%s" data-recent-event-team="%s" data-recent-event-type="%s">`,
+		escapeAttr(groupID(model.Groups.OuterSparks, "outer-sparks")),
+		escapeAttr(className),
+		num(model.RecentEvent.Energy),
+		escapeAttr(model.RecentEvent.Team),
+		escapeAttr(model.RecentEvent.Type),
+	)
 	b.WriteString(`<g id="outer-sparks-blue"><circle class="mcw-spark mcw-spark-role-pressure" cx="214" cy="216" r="4"/><circle class="mcw-spark mcw-spark-role-control" cx="166" cy="308" r="3"/></g>`)
 	b.WriteString(`<g id="outer-sparks-orange"><circle class="mcw-spark mcw-spark-role-pressure" cx="810" cy="216" r="4"/><circle class="mcw-spark mcw-spark-role-control" cx="858" cy="308" r="3"/></g>`)
 	b.WriteString(`<g id="outer-sparks-purple"><circle class="mcw-spark mcw-spark-role-volatile" cx="512" cy="76" r="5"/></g>`)
@@ -215,7 +236,25 @@ func renderCenterRim(b *strings.Builder, model RenderModel) {
 }
 
 func renderContestedFrontLine(b *strings.Builder, model RenderModel) {
-	fmt.Fprintf(b, `<g id="%s" class="mcw-contested-front-line" transform="rotate(%s 512 512)">`, escapeAttr(groupID(model.Groups.ContestedFrontLine, "contested-front-line")), num(model.SeamAngleDeg))
+	line := model.ContestedLine
+	if line.ClassName == "" {
+		line = ContestedLineModel{
+			Active:    model.HasData && model.MatchActive && !model.IsStale,
+			AngleDeg:  model.SeamAngleDeg,
+			BandDeg:   7.5,
+			Intensity: 0.34,
+			ClassName: "mcw-contested-front-line",
+		}
+	}
+	fmt.Fprintf(b, `<g id="%s" class="%s" transform="rotate(%s 512 512)" data-contested-line-active="%t" data-contested-line-angle="%s" data-contested-line-band="%s" data-contested-line-intensity="%s">`,
+		escapeAttr(groupID(model.Groups.ContestedFrontLine, "contested-front-line")),
+		escapeAttr(line.ClassName),
+		num(line.AngleDeg),
+		line.Active,
+		num(line.AngleDeg),
+		num(line.BandDeg),
+		num(line.Intensity),
+	)
 	b.WriteString(`<circle id="contest-top-core" cx="512" cy="92" r="8"/>`)
 	b.WriteString(`<circle id="contest-top-purple-glow" cx="512" cy="92" r="34"/>`)
 	b.WriteString(`<line id="contest-top-vertical-beam" x1="512" y1="100" x2="512" y2="270"/>`)

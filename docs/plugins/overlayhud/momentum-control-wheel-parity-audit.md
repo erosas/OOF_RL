@@ -1,10 +1,11 @@
 # MomentumControlWheel Parity Audit
 
-Status: PR #80 candidate audit
+Status: parity audit and PR #81 resolution checkpoint
 
 Scope: documentation and classification only. This audit compares old PR #47
-MomentumControlWheel behavior against the rebuilt Momentum Overlay path so the
-next implementation PR can target the right layer without guessing.
+MomentumControlWheel behavior against the rebuilt Momentum Overlay path, then
+records which audit findings are addressed by the PR #81 signal/display
+calibration candidate.
 
 ## Purpose
 
@@ -16,16 +17,36 @@ up, and if not, exactly what is missing, where does it belong, and what PR
 should fix it?
 ```
 
-The short answer is:
+The short answer from the original audit was:
 
 ```text
 The rebuilt architecture and core wheel geometry are strong.
 Full visual, display-contract, and engine-output parity are not complete yet.
 ```
 
+After the PR #81 candidate work, the main remaining parity gaps are narrower:
+
+```text
+The wheel now has much stronger signal/display parity and visual response.
+The known remaining gaps are live match clock, goal/replay reset parity, and
+final hardening/polish items.
+```
+
 That is expected. Old PR #47 bundled engine math, event normalization, widget
 rendering, native HUD lifecycle, Overlay Lab controls, configuration, and
 performance tooling. The rebuild intentionally separated those responsibilities.
+
+## Reading This Document
+
+The detailed parity tables below preserve the original audit findings so future
+reviewers can see what PR #81 was meant to address. Use the PR #81 resolution
+map as the current checkpoint when a table row still says "PR #81".
+
+In other words:
+
+- baseline tables = what the audit found before PR #81 candidate work
+- PR #81 resolution map = what the candidate work has since resolved
+- remaining open items = what should move to focused follow-up PRs
 
 ## Explicit Non-Goals
 
@@ -73,7 +94,7 @@ All requested old PR #47 sources were available on
 | `momentum-overlay-dormancy-blueprint.md` | Found | Dormancy/lifecycle blueprint. |
 | `momentum-overlay-ingame-validation.md` | Found | PR #79 validation and seam parity notes. |
 | `internal/momentum/types.go` | Found | Runtime-only typed-event MomentumState. |
-| `internal/momentum/engine.go` | Found | Bounded typed-event engine. |
+| `internal/momentum/engine.go` | Found | Typed-event engine. The original audit found bounded/per-event behavior; PR #81 candidate work restores old-scale weighting and runtime decay behavior. |
 | `internal/momentum/runtime.go` | Found | Thread-safe service/status/reset. |
 | `internal/momentum/wiring.go` | Found | Typed event bus wiring. |
 | `internal/plugins/overlayhud/viewmodel.go` | Found | SnapshotProvider to display ViewModel mapping. |
@@ -82,23 +103,54 @@ All requested old PR #47 sources were available on
 | `internal/plugins/overlayhud/display_adapter.go` | Found | Request-driven SVG/HTML adapter and CSS wrapper. |
 | `internal/plugins/overlayhud/preview_route.go` | Found | Internal preview route. |
 | `internal/plugins/overlayhud/launch_route.go` | Found | Manual launch route. |
-| `internal/plugins/overlayhud/control_route.go` | Missing on this branch | Prompt listed it, but current branch only has preview/SVG/launch routes. |
+| `internal/plugins/overlayhud/control_route.go` | Found on current `main` | Controlled dormancy route exists after the merged dormancy work. It is not part of this visual/engine contract audit. |
 | `internal/plugins/overlayhud/*_test.go` | Found | Rebuilt Go tests. |
 
 ## Sources Unavailable Or Assumptions
 
 - No old rendered screenshots were inspected in this audit. Visual conclusions
   are based on old docs, CSS, JS, tests, and recent manual validation notes.
-- Current `control_route.go` is not present on this branch. The native shell has
-  `Show`, `Hide`, and `Dormant` primitives, but route-level controlled dormancy
-  is not auditable here.
+- Controlled dormancy exists on current `main`, but hotkey/lifecycle behavior is
+  outside this audit. This document only covers MomentumControlWheel visual and
+  engine/display contract parity.
 - Old PR #47 frontend behavior was dynamic DOM mutation in `view.js`. The rebuilt
   path is static SVG refreshed by a route. Motion parity must account for that
   architectural difference.
 - Old PR #47 included Overlay Lab/config/presets. Those are intentionally out of
   scope for the current rebuild line.
 
-## Summary Verdict
+## PR #81 Candidate Resolution Map
+
+The following items were identified by the original audit and are addressed by
+the PR #81 signal/display calibration candidate:
+
+| Original Finding | PR #81 Candidate Resolution | Current Status |
+| --- | --- | --- |
+| Wheel share source was ambiguous. | ViewModel now preserves separate influence, pressure, and control shares, with the wheel driven by the old overlay momentum-bar-style influence share while pressure/control remain diagnostic and classification inputs. | Addressed in candidate |
+| Confidence used averaged team confidence and lacked old buckets. | ViewModel uses the stronger team confidence and RenderModel carries explicit `low`, `medium`, `high`, and `max` bucket semantics. | Addressed in candidate |
+| Dominant blue/orange states were missing. | Display mapping and RenderModel classes now include dominant state support. | Addressed in candidate |
+| Recent event pulse fields were missing. | ViewModel/RenderModel now expose recent event energy/team/type for goal, shot, save, demo, and related response hooks. | Addressed in candidate |
+| Display hold/transition behavior was missing. | A package-local `DisplayStateTracker` keeps temporal display response in the Overlay HUD layer instead of the pure ViewModel or Momentum Engine. | Addressed in candidate |
+| Engine decay was per-event instead of old runtime decay. | Momentum Engine now supports runtime ticking/decay through snapshots while preserving runtime-only state. | Addressed in candidate |
+| Engine weight scale differed from old PR #47. | Default Momentum config restores old-scale pressure/control/volatility/confidence weights and thresholds with tests. | Addressed in candidate |
+| High-energy visual response preset was not represented. | Display response constants now apply pressure, volatility, recent-event, and animation timing response in the display layer. | Addressed in candidate |
+| Volatile label differed from old `CONTESTED`. | Candidate mapping uses contested semantics for volatile/alternating pressure windows while keeping safe terminology. | Addressed in candidate |
+
+The following items remain open after PR #81 candidate work:
+
+| Remaining Gap | Category | Recommended Follow-Up | Reason |
+| --- | --- | --- | --- |
+| Live match clock/timer still displays `--:--`. | display-contract/mapping | `feature/momentum-overlay-match-clock` | Needs a reliable live clock source and strict no-desync behavior. |
+| Momentum reset around goal/replay windows is not restored. | engine/runtime parity | `feature/momentum-goal-replay-reset-parity` | Old behavior used replay start/end events plus a 3.7s fallback after goal when replay events were absent. |
+| Full spark/streak/texture/badge/token polish is incomplete. | visual-only | final hardening / visual polish | Visual parity is now passable, but fine details remain lower priority than clock/reset parity. |
+| Full config/preset/Overlay Lab behavior is absent. | intentionally deferred | defer | This was intentionally excluded from the rebuild to avoid repeating old PR #47 scope bloat. |
+| Plugin manager/lifecycle architecture is absent. | intentionally deferred | future plugin manager | Lifecycle architecture should not block MomentumControlWheel parity. |
+
+## Baseline Audit Verdict
+
+This table records the original audit verdict before the PR #81 candidate work.
+Rows that recommended PR #81 should be read together with the resolution map
+above.
 
 | Area | Verdict |
 | --- | --- |
@@ -259,7 +311,7 @@ All requested old PR #47 sources were available on
 - Pressure/control/volatile classes and major visual hooks exist.
 - No DB/session/history/live/replay mutation was introduced by the rebuild.
 
-## Partial Areas
+## Baseline Partial Areas
 
 - Display contract preserves basic shares/confidence/volatility but not old
   overlay/debug/pulse fields.
@@ -270,7 +322,10 @@ All requested old PR #47 sources were available on
 - Engine rebuilt old weighting concepts into bounded typed-event fields, but
   response scale and decay are different.
 
-## Missing Areas
+These were baseline findings. Several of them are now addressed by the PR #81
+candidate resolution map above.
+
+## Baseline Missing Areas
 
 - `dominant-blue` and `dominant-orange` display states.
 - Confidence label/value text and `max` bucket.
@@ -282,6 +337,11 @@ All requested old PR #47 sources were available on
 - Old UpdateState delta fallback behavior, if still needed after PR #51 typed
   event foundation.
 
+These were baseline findings. Dominant states, max confidence bucket, recent
+event display contract, display hold/transition behavior, and old-scale engine
+decay/weighting are addressed by the PR #81 candidate. Match clock, goal/replay
+reset parity, and detailed visual polish remain open.
+
 ## Intentionally Deferred Areas
 
 - Overlay Lab.
@@ -291,7 +351,7 @@ All requested old PR #47 sources were available on
 - Large frontend split or framework migration.
 - Persisting Momentum state.
 
-## Recommended PR #81 Scope
+## PR #81 Candidate Scope
 
 Title:
 
@@ -305,8 +365,8 @@ Branch:
 feature/momentum-signal-display-calibration
 ```
 
-PR #81 should implement the minimum calibration/data-contract work needed to
-make the rebuilt overlay respond like old PR #47:
+PR #81 implements the minimum calibration/data-contract work needed to make the
+rebuilt overlay respond like old PR #47:
 
 1. Add/restore display-contract fields needed by the wheel:
    - share source decision: control, pressure, or blended momentum
@@ -319,31 +379,51 @@ make the rebuilt overlay respond like old PR #47:
 4. Add old-behavior fixture tests before changing weights.
 5. Keep all changes runtime-only and non-persistent.
 
+The PR #81 candidate addresses the first four items except for match clock,
+which remains open because it needs a reliable live clock source and should be
+handled in a focused follow-up.
+
 PR #81 should not add Overlay Lab, settings/config, plugin manager, lifecycle
 architecture, DB/schema changes, or session/history/live/replay mutation.
 
-## Recommended Future Visual Polish Scope
+## Recommended Follow-Up Scope
 
-After PR #81 clarifies the data contract and calibration:
+After PR #81:
 
-- Restore dominant-state visual styling.
-- Restore confidence label/value text.
-- Restore old spark/streak roles where performance-safe.
-- Add center reactive layer, honeycomb texture, and optional badge.
-- Expand reduced-motion/performance-safe CSS.
-- Consider whether static SVG refresh needs stable in-place updates for better
-  motion parity.
+1. Add live match-clock parity:
+   - replace the `--:--` placeholder
+   - avoid flashes/desyncs
+   - keep the timer display-only
+2. Add goal/replay reset parity:
+   - reset/freeze Momentum around replay start/end equivalents
+   - fallback reset 3.7s after goal when replay events are absent
+   - keep state runtime-only and non-persistent
+3. Final hardening / visual polish:
+   - restore remaining confidence label/value text if still desired
+   - restore old spark/streak roles where performance-safe
+   - add center reactive layer, honeycomb texture, and optional badge
+   - expand reduced-motion/performance-safe CSS
 
-## Unresolved Questions
+## Resolved And Remaining Questions
 
 1. Should the wheel display share be driven by `MomentumInfluence`,
    `EventDerivedControl`, `Pressure`, or a blended output matching old
    `momentumBarBluePercent`?
+   - PR #81 candidate answer: the wheel uses old overlay momentum-bar-style
+     influence share for the primary split, while pressure/control shares remain
+     explicit diagnostics and state-classification inputs.
 2. Should the state label use old `CONTESTED` for volatile, or keep the safe
    rebuilt label `VOLATILE`?
+   - PR #81 candidate answer: use contested semantics for the alternating/near-
+     even pressure window while preserving safe terminology in code and tests.
 3. Are typed PR #51 events sufficient, or does UpdateState delta fallback still
    need a modern equivalent?
+   - Remaining question. This should be verified during final calibration and
+     playtest evidence, not guessed from old code alone.
 4. Should display hold/transition behavior live in `overlayhud.ViewModel`
    mapping, `RenderModel`, or Momentum Service status?
+   - PR #81 candidate answer: hold/transition behavior lives in package-local
+     `DisplayStateTracker`, between ViewModel and RenderModel.
 5. Should match clock be added to Momentum snapshots, or should Overlay HUD read
    it from a separate live status provider later?
+   - Remaining question. This should be handled by the match-clock follow-up.

@@ -63,14 +63,17 @@ func TestBuildRenderModelUsesNeutralNoDataState(t *testing.T) {
 
 func TestBuildRenderModelAddsMomentumControlWheelRootClassAndStyleVars(t *testing.T) {
 	model := buildRenderModel(ViewModel{
-		MatchActive:  true,
-		HasData:      true,
-		BlueShare:    0.72,
-		OrangeShare:  0.28,
-		DisplayState: displayStateBlueControl,
-		StateLabel:   "BLUE CONTROL",
-		Confidence:   0.76,
-		Volatility:   0.24,
+		MatchActive:         true,
+		HasData:             true,
+		BlueShare:           0.72,
+		OrangeShare:         0.28,
+		BluePressureShare:   0.44,
+		OrangePressureShare: 0.56,
+		DisplayState:        displayStateBlueControl,
+		StateLabel:          "BLUE CONTROL",
+		Confidence:          0.76,
+		ConfidenceBucket:    confidenceBucketHigh,
+		Volatility:          0.24,
 	})
 
 	for _, className := range []string{"momentum-control-wheel-svg", "mcw-state-blue-control", "is-state-blue-control"} {
@@ -79,10 +82,11 @@ func TestBuildRenderModelAddsMomentumControlWheelRootClassAndStyleVars(t *testin
 		}
 	}
 	for _, want := range []string{
-		"--mcw-blue-pressure:0.720",
-		"--mcw-orange-pressure:0.280",
+		"--mcw-blue-pressure:0.480",
+		"--mcw-orange-pressure:0.610",
 		"--mcw-confidence:0.760",
-		"--mcw-volatility:0.240",
+		"--mcw-volatility:0.272",
+		"--mcw-state-intensity:1.750",
 		"--mcw-center-blue-wash:0.280",
 		"--mcw-blue-aura-opacity:0.420",
 	} {
@@ -92,6 +96,122 @@ func TestBuildRenderModelAddsMomentumControlWheelRootClassAndStyleVars(t *testin
 	}
 	if !almostEqual(model.SeamAngleDeg, 79.2) {
 		t.Fatalf("SeamAngleDeg = %f, want 79.2", model.SeamAngleDeg)
+	}
+}
+
+func TestBuildRenderModelPreservesDominantStateClasses(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		MatchActive:      true,
+		HasData:          true,
+		BlueShare:        0.86,
+		OrangeShare:      0.14,
+		DisplayState:     displayStateDominantBlue,
+		StateLabel:       "BLUE CONTROL",
+		Confidence:       0.90,
+		ConfidenceBucket: confidenceBucketMax,
+	})
+
+	if model.DisplayState != displayStateDominantBlue {
+		t.Fatalf("DisplayState = %q, want %q", model.DisplayState, displayStateDominantBlue)
+	}
+	for _, className := range []string{"mcw-state-dominant-blue", "is-state-dominant-blue"} {
+		if !hasStateClass(model.StateClasses, className) {
+			t.Fatalf("StateClasses = %v, want %s", model.StateClasses, className)
+		}
+	}
+	if model.Confidence.Bucket != confidenceBucketMax {
+		t.Fatalf("Confidence bucket = %q, want %q", model.Confidence.Bucket, confidenceBucketMax)
+	}
+}
+
+func TestBuildRenderModelMapsConfidenceMaxBucket(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		Confidence:       0.95,
+		ConfidenceBucket: confidenceBucketMax,
+	})
+
+	if model.Confidence.Bucket != confidenceBucketMax {
+		t.Fatalf("Confidence bucket = %q, want %q", model.Confidence.Bucket, confidenceBucketMax)
+	}
+	if !strings.Contains(model.Confidence.ClassName, "is-max") {
+		t.Fatalf("confidence class = %q, want is-max", model.Confidence.ClassName)
+	}
+}
+
+func TestBuildRenderModelPreservesRecentEventContract(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		MatchActive:       true,
+		HasData:           true,
+		RecentEventEnergy: 0.64,
+		RecentEventTeam:   "blue",
+		RecentEventType:   "goal",
+	})
+
+	if !almostEqual(model.RecentEvent.Energy, 0.9728) {
+		t.Fatalf("RecentEvent energy = %f, want 0.9728", model.RecentEvent.Energy)
+	}
+	if model.RecentEvent.Team != "blue" || model.RecentEvent.Type != "goal" {
+		t.Fatalf("RecentEvent team/type = %q/%q, want blue/goal", model.RecentEvent.Team, model.RecentEvent.Type)
+	}
+	if model.RecentEvent.ClassName != "mcw-recent-event has-recent-event is-recent-team-blue is-recent-event-goal" {
+		t.Fatalf("RecentEvent class = %q", model.RecentEvent.ClassName)
+	}
+	for _, className := range []string{"has-recent-event", "recent-event-team-blue", "recent-event-goal"} {
+		if !hasStateClass(model.StateClasses, className) {
+			t.Fatalf("StateClasses = %v, want %s", model.StateClasses, className)
+		}
+	}
+}
+
+func TestBuildRenderModelAddsContestedLineContract(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		MatchActive:       true,
+		HasData:           true,
+		BlueShare:         0.70,
+		OrangeShare:       0.30,
+		DisplayState:      displayStateBlueControl,
+		StateLabel:        "BLUE CONTROL",
+		Volatility:        0.40,
+		RecentEventEnergy: 0.50,
+		RecentEventTeam:   "blue",
+		RecentEventType:   "shot",
+	})
+
+	if !almostEqual(model.ContestedLine.AngleDeg, model.SeamAngleDeg) || !almostEqual(model.ContestedLine.AngleDeg, 72) {
+		t.Fatalf("ContestedLine angle = %f seam = %f, want 72", model.ContestedLine.AngleDeg, model.SeamAngleDeg)
+	}
+	if !model.ContestedLine.Active {
+		t.Fatal("expected contested line active for live data")
+	}
+	if !almostEqual(model.ContestedLine.BandDeg, 7.5) {
+		t.Fatalf("ContestedLine BandDeg = %f, want 7.5", model.ContestedLine.BandDeg)
+	}
+	if !almostEqual(model.ContestedLine.Intensity, 0.76144) {
+		t.Fatalf("ContestedLine Intensity = %f, want 0.76144", model.ContestedLine.Intensity)
+	}
+	for _, want := range []string{"mcw-contested-front-line", "is-contested-line-active", "is-contested-line-blue-control"} {
+		if !strings.Contains(model.ContestedLine.ClassName, want) {
+			t.Fatalf("ContestedLine class = %q, want %q", model.ContestedLine.ClassName, want)
+		}
+	}
+}
+
+func TestBuildRenderModelWidensContestedLineForVolatileState(t *testing.T) {
+	model := buildRenderModel(ViewModel{
+		MatchActive:  true,
+		HasData:      true,
+		BlueShare:    0.50,
+		OrangeShare:  0.50,
+		DisplayState: displayStateVolatile,
+		StateLabel:   "CONTESTED",
+		Volatility:   0.90,
+	})
+
+	if !almostEqual(model.ContestedLine.BandDeg, 11.25) {
+		t.Fatalf("ContestedLine BandDeg = %f, want 11.25", model.ContestedLine.BandDeg)
+	}
+	if !strings.Contains(model.ContestedLine.ClassName, "is-contested-line-volatile") {
+		t.Fatalf("ContestedLine class = %q, want volatile class", model.ContestedLine.ClassName)
 	}
 }
 
@@ -130,7 +250,7 @@ func TestBuildRenderModelAddsMomentumControlWheelStateClasses(t *testing.T) {
 		},
 		{
 			name:      "label fallback volatile",
-			view:      ViewModel{StateLabel: "VOLATILE"},
+			view:      ViewModel{StateLabel: "CONTESTED"},
 			wantState: displayStateVolatile,
 			wantClasses: []string{
 				"mcw-state-volatile",
@@ -164,8 +284,8 @@ func TestBuildRenderModelClampsConfidence(t *testing.T) {
 	if high.Confidence.Value != 1 || high.Confidence.Intensity != 1 {
 		t.Fatalf("high confidence = %+v, want one", high.Confidence)
 	}
-	if !strings.Contains(high.Confidence.ClassName, "is-high") {
-		t.Fatalf("high confidence class = %q, want is-high", high.Confidence.ClassName)
+	if !strings.Contains(high.Confidence.ClassName, "is-max") {
+		t.Fatalf("high confidence class = %q, want is-max", high.Confidence.ClassName)
 	}
 }
 

@@ -16,7 +16,7 @@ func (p *Plugin) handlePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	html, ok := NewDisplayAdapter(p.momentum).RenderHTML(time.Now())
+	html, ok := p.displayAdapter().RenderHTML(time.Now())
 	if !ok {
 		http.Error(w, "momentum snapshot provider unavailable", http.StatusServiceUnavailable)
 		return
@@ -32,7 +32,7 @@ func (p *Plugin) handlePreviewSVG(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svg, ok := NewDisplayAdapter(p.momentum).RenderSVG(time.Now())
+	svg, ok := p.displayAdapter().RenderSVG(time.Now())
 	if !ok {
 		http.Error(w, "momentum snapshot provider unavailable", http.StatusServiceUnavailable)
 		return
