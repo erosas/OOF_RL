@@ -26,7 +26,9 @@ const momentumTimelineBLitePreviewHTML = `<!doctype html>
   --mtl-confidence-low: #ff3b24;
   --mtl-text-primary: #eef4f7;
   --mtl-text-muted: #9aa8b4;
-  --mtl-glow-strength: 0.38;
+  --mtl-text-soft: #c6d0d8;
+  --mtl-glow-strength: 0.34;
+  --mtl-shadow: 0 16px 42px rgba(0, 0, 0, 0.3);
 }
 * {
   box-sizing: border-box;
@@ -34,17 +36,19 @@ const momentumTimelineBLitePreviewHTML = `<!doctype html>
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--mtl-bg);
+  background:
+    linear-gradient(180deg, rgba(12, 20, 28, 0.96), var(--mtl-bg) 48%),
+    var(--mtl-bg);
   color: var(--mtl-text-primary);
   font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
 }
 .page {
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 184px;
   margin: 0 auto;
   max-width: 1540px;
-  padding: 20px 24px 24px;
+  padding: 18px 24px 24px;
 }
 .topbar {
   align-items: center;
@@ -73,9 +77,10 @@ h1 span {
 }
 .fixture {
   align-items: center;
-  background: var(--mtl-panel);
+  background: rgba(12, 18, 25, 0.92);
   border: 1px solid var(--mtl-panel-border);
   border-radius: 7px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -98,25 +103,27 @@ h1 span {
 .timeline-panel,
 .side-panel,
 .card {
-  background: rgba(16, 24, 32, 0.92);
+  background: rgba(13, 20, 27, 0.94);
   border: 1px solid var(--mtl-panel-border);
   border-radius: 7px;
+  box-shadow: var(--mtl-shadow);
 }
 .timeline-panel {
   grid-column: 1 / 2;
-  padding: 16px 16px 12px;
+  padding: 18px 18px 14px;
 }
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  padding: 10px 6px 0;
+  gap: 14px;
+  padding: 12px 6px 0;
 }
 .legend-item {
   align-items: center;
   color: var(--mtl-text-muted);
   display: flex;
   gap: 8px;
+  min-height: 22px;
 }
 .swatch {
   border-radius: 3px;
@@ -127,21 +134,24 @@ h1 span {
 .main-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: 1fr 1.22fr 1.1fr;
+  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.25fr) minmax(320px, 1.1fr);
 }
 .card {
   min-height: 150px;
-  padding: 14px;
+  overflow: hidden;
+  padding: 16px;
 }
 .card h2 {
-  font-size: 15px;
+  color: var(--mtl-text-soft);
+  font-size: 13px;
   font-weight: 650;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   margin-bottom: 12px;
   text-transform: uppercase;
 }
 .selected-card {
   border-color: rgba(46, 233, 209, 0.42);
+  box-shadow: 0 0 0 1px rgba(46, 233, 209, 0.08), var(--mtl-shadow);
 }
 .selected-hero {
   align-items: center;
@@ -152,12 +162,14 @@ h1 span {
   align-items: center;
   background: rgba(46, 233, 209, 0.12);
   border: 2px solid var(--mtl-selected-range);
-  border-radius: 16px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 24px rgba(46, 233, 209, 0.1), 0 0 22px rgba(46, 233, 209, 0.18);
   color: var(--mtl-selected-range);
   display: grid;
   font-size: 22px;
   font-weight: 800;
   height: 86px;
+  flex: 0 0 auto;
   place-items: center;
   width: 86px;
 }
@@ -170,7 +182,8 @@ h1 span {
 }
 .chip,
 .tag {
-  border: 1px solid var(--mtl-panel-border);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   color: var(--mtl-text-muted);
   padding: 4px 8px;
@@ -190,13 +203,14 @@ h1 span {
 }
 .event-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .event-row,
 .contribution-row,
 .insight-row {
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.07);
   display: grid;
   gap: 10px;
   grid-template-columns: 46px 44px minmax(0, 1fr) 86px;
@@ -207,8 +221,16 @@ h1 span {
   color: inherit;
   cursor: pointer;
   font: inherit;
+  min-height: 58px;
   text-align: left;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
   width: 100%;
+}
+.event-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transform: translateY(-1px);
 }
 .event-row:focus-visible,
 .mtl-marker-hit-target:focus-visible {
@@ -216,7 +238,7 @@ h1 span {
   outline-offset: 3px;
 }
 .event-row.is-selected {
-  background: rgba(46, 233, 209, 0.08);
+  background: linear-gradient(90deg, rgba(46, 233, 209, 0.16), rgba(46, 233, 209, 0.045));
   border: 1px solid rgba(46, 233, 209, 0.5);
   border-radius: 6px;
   padding: 8px;
@@ -235,6 +257,29 @@ h1 span {
   height: 34px;
   place-items: center;
   width: 34px;
+}
+.mini-marker.blue {
+  color: var(--mtl-blue-control);
+}
+.mini-marker.orange {
+  color: var(--mtl-orange-control);
+}
+.confidence-dot {
+  border-radius: 999px;
+  display: inline-block;
+  height: 7px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  width: 7px;
+}
+.confidence-dot.high {
+  background: var(--mtl-confidence-high);
+}
+.confidence-dot.medium {
+  background: var(--mtl-confidence-medium);
+}
+.confidence-dot.low {
+  background: var(--mtl-confidence-low);
 }
 .contribution-row {
   grid-template-columns: 24px minmax(0, 1fr) 120px 42px;
@@ -266,18 +311,22 @@ h1 span {
 .side-panel {
   grid-column: 2 / 3;
   grid-row: 2 / 4;
-  padding: 14px;
+  padding: 16px;
 }
 .icon-stack {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   margin-top: 16px;
 }
 .icon-ref {
   align-items: center;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
   display: grid;
   gap: 10px;
   grid-template-columns: 44px minmax(0, 1fr);
+  padding: 8px;
 }
 .footer-note {
   align-items: center;
@@ -293,6 +342,7 @@ h1 span {
   height: auto;
   overflow: visible;
   width: 100%;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.22));
 }
 .mtl-time-label,
 .mtl-selection-badge-text,
@@ -302,10 +352,10 @@ h1 span {
   font-size: 14px;
 }
 .mtl-time-label {
-  fill: var(--mtl-text-primary);
+  fill: var(--mtl-text-soft);
 }
 .mtl-tick-major {
-  stroke: rgba(255, 255, 255, 0.6);
+  stroke: rgba(238, 244, 247, 0.55);
   stroke-width: 1.5;
 }
 .mtl-tick-minor {
@@ -314,6 +364,7 @@ h1 span {
 }
 .mtl-band {
   opacity: 0.92;
+  filter: saturate(1.12);
 }
 .mtl-band-blue-control {
   fill: var(--mtl-blue-control);
@@ -333,18 +384,24 @@ h1 span {
   stroke-width: 1;
 }
 .mtl-selection-box {
-  fill: rgba(46, 233, 209, 0.08);
+  fill: rgba(46, 233, 209, 0.1);
   stroke: var(--mtl-selected-range);
-  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  stroke-width: 2.5;
 }
 .mtl-selection-badge {
-  fill: rgba(0, 0, 0, 0.72);
+  fill: rgba(5, 12, 18, 0.92);
   stroke: var(--mtl-selected-range);
+  stroke-width: 1.5;
 }
 .mtl-marker-shape {
-  fill: rgba(8, 13, 18, 0.92);
+  fill: rgba(8, 13, 18, 0.96);
   stroke: currentColor;
   stroke-width: 2;
+}
+.mtl-marker.is-selected .mtl-marker-shape {
+  stroke: var(--mtl-selected-range);
+  stroke-width: 3;
 }
 .mtl-marker-blue {
   color: var(--mtl-blue-control);
@@ -368,8 +425,23 @@ h1 span {
 .mtl-focus-ring {
   fill: none;
   stroke: var(--mtl-selected-range);
-  stroke-dasharray: 5 4;
+  stroke-dasharray: 6 5;
   stroke-width: 2;
+}
+@media (max-width: 1220px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+  .side-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .icon-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .main-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 980px) {
   .page,
@@ -377,11 +449,28 @@ h1 span {
   .topbar {
     display: block;
   }
+  .page {
+    padding: 14px;
+  }
   .fixture,
   .timeline-panel,
   .card,
   .side-panel {
     margin-top: 12px;
+  }
+  .fixture {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .event-row {
+    grid-template-columns: 44px 42px minmax(0, 1fr);
+  }
+  .event-row .event-team {
+    grid-column: 3;
+  }
+  .icon-stack {
+    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -399,8 +488,8 @@ h1 span {
 <main class="page">
   <header class="topbar">
     <div>
-      <h1><span>OOF RL</span> — MOMENTUM TIMELINE B-LITE</h1>
-      <p class="subtitle">Post-Match Story Layer • Event-Derived Insights Only</p>
+      <h1><span>OOF RL</span> - MOMENTUM TIMELINE B-LITE</h1>
+      <p class="subtitle">Post-Match Story Layer - Event-Derived Insights Only</p>
     </div>
     <section class="fixture" aria-label="Fixture summary">
       <span id="fixture-label" class="muted">Fixture</span>
@@ -786,7 +875,7 @@ function renderCards() {
     '<div class="selected-hero">',
     '<div class="hero-marker">' + html(fallbackLabels[selected.type]) + '</div>',
     '<div>',
-    '<h3>' + html(formatMatchClock(selected.second)) + ' • ' + html(eventNames[selected.type]) + '</h3>',
+    '<h3>' + html(formatMatchClock(selected.second)) + ' - ' + html(eventNames[selected.type]) + '<span class="confidence-dot ' + html(selected.confidence) + '" aria-label="' + html(selected.confidence) + ' confidence"></span></h3>',
     '<p class="team ' + teamClass(selected.team) + '">' + html(selected.playerName) + '</p>',
     '<p class="muted">' + html(selected.summary) + '</p>',
     '<div class="tag-row"><span class="tag ' + teamClass(selected.team) + '">' + html(segment.summary) + '</span><span class="tag">Event-derived pressure/control signal</span></div>',
@@ -797,8 +886,8 @@ function renderCards() {
     '<button type="button" class="event-row ' + (event.id === selected.id ? "is-selected" : "") + '" data-event-id="' + html(event.id) + '" aria-pressed="' + (event.id === selected.id ? "true" : "false") + '">' +
     '<span>' + html(formatMatchClock(event.second)) + '</span>' +
     '<span class="mini-marker ' + teamClass(event.team) + '">' + html(fallbackLabels[event.type]) + '</span>' +
-    '<span>' + html(eventNames[event.type]) + '<br><span class="muted">' + html(event.summary) + '</span></span>' +
-    '<span class="team ' + teamClass(event.team) + '">' + html(event.team === "blue" ? fixture.metadata.blueTeamName : fixture.metadata.orangeTeamName) + '</span>' +
+    '<span>' + html(eventNames[event.type]) + '<span class="confidence-dot ' + html(event.confidence) + '" aria-label="' + html(event.confidence) + ' confidence"></span><br><span class="muted">' + html(event.summary) + '</span></span>' +
+    '<span class="event-team team ' + teamClass(event.team) + '">' + html(event.team === "blue" ? fixture.metadata.blueTeamName : fixture.metadata.orangeTeamName) + '</span>' +
     '</button>'
   ).join("");
   document.getElementById("contributions").innerHTML = fixture.contributions.map((item, index) =>
