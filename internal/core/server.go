@@ -260,6 +260,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
 	mux.HandleFunc("/internal/momentum-timeline-snapshot", s.handleMomentumTimelineSnapshot)
+	mux.HandleFunc("/internal/momentum-timeline-preview", s.handleMomentumTimelinePreview)
 	for _, p := range s.plugins {
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {

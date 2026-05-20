@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -197,6 +198,48 @@ func TestMomentumTimelineSnapshotRouteMethodNotAllowed(t *testing.T) {
 	srv.Register(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/internal/momentum-timeline-snapshot", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", w.Code)
+	}
+}
+
+func TestMomentumTimelinePreviewRoute(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/momentum-timeline-preview", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want text/html; charset=utf-8", ct)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"Momentum Timeline Preview",
+		"/internal/momentum-timeline-snapshot",
+		"fetch(endpoint",
+		"Entries",
+		"Signals",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("preview body missing %q", want)
+		}
+	}
+}
+
+func TestMomentumTimelinePreviewRouteMethodNotAllowed(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/momentum-timeline-preview", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
