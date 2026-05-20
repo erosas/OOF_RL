@@ -23,6 +23,7 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/momentum"
+	"OOF_RL/internal/momentum/timeline"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
@@ -45,7 +46,8 @@ type Server struct {
 	bus          oofevents.Bus
 	translator   *rlevents.Translator
 	momentum     *momentum.Service
-	momentumW    *momentum.Wiring
+	timeline     *timeline.Collector
+	timelineW    *timeline.Wiring
 	histStore    *histstore.Store
 	histRecorder *histstore.Recorder
 }
@@ -53,6 +55,7 @@ type Server struct {
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
 	momentumService := momentum.NewService(momentum.DefaultConfig())
+	timelineCollector := timeline.NewCollector(momentumService, timeline.Config{})
 	s := &Server{
 		cfgPath:     cfgPath,
 		cfg:         cfg,
@@ -64,7 +67,8 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		bus:         bus,
 		translator:  rlevents.New(rlBus),
 		momentum:    momentumService,
-		momentumW:   momentum.NewWiring(bus.ForPlugin("momentum"), momentumService),
+		timeline:    timelineCollector,
+		timelineW:   timeline.NewWiring(bus.ForPlugin("momentum-timeline"), momentumService, timelineCollector),
 	}
 	if database != nil {
 		if err := histstore.Migrate(database); err != nil {
@@ -168,8 +172,8 @@ func (s *Server) ShutdownPlugins() {
 
 // ShutdownRuntime stops app-owned runtime services that are not plugins.
 func (s *Server) ShutdownRuntime() {
-	if s.momentumW != nil {
-		s.momentumW.Stop()
+	if s.timelineW != nil {
+		s.timelineW.Stop()
 	}
 }
 
