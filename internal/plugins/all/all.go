@@ -6,6 +6,5 @@ package all
 import (
 	_ "OOF_RL/internal/plugins/dashboard"
 	_ "OOF_RL/internal/plugins/debugassistant"
-	_ "OOF_RL/internal/plugins/history"
 	_ "OOF_RL/internal/plugins/overlayhud"
 )
