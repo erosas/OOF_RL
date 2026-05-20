@@ -289,6 +289,12 @@ func TestMomentumTimelineBLitePreviewRoute(t *testing.T) {
 		"Pressure Sequence",
 		"Event-Derived Contribution",
 		"Event-derived pressure/control signal",
+		"data-event-id",
+		"aria-pressed",
+		"selectEvent(",
+		"ArrowLeft",
+		"ArrowRight",
+		"prefers-reduced-motion",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("B-lite preview body missing %q", want)

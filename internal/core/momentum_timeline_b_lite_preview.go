@@ -202,11 +202,28 @@ h1 span {
   grid-template-columns: 46px 44px minmax(0, 1fr) 86px;
   padding: 8px 0;
 }
+.event-row {
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+.event-row:focus-visible,
+.mtl-marker-hit-target:focus-visible {
+  outline: 2px solid var(--mtl-selected-range);
+  outline-offset: 3px;
+}
 .event-row.is-selected {
   background: rgba(46, 233, 209, 0.08);
   border: 1px solid rgba(46, 233, 209, 0.5);
   border-radius: 6px;
   padding: 8px;
+}
+.event-row.is-selected,
+.mtl-marker.is-selected .mtl-marker-shape {
+  filter: drop-shadow(0 0 10px rgba(46, 233, 209, var(--mtl-glow-strength)));
 }
 .mini-marker {
   align-items: center;
@@ -342,6 +359,11 @@ h1 span {
   cursor: pointer;
   fill: transparent;
   pointer-events: all;
+}
+.mtl-marker-hit-target.is-selected {
+  fill: rgba(46, 233, 209, 0.12);
+  stroke: var(--mtl-selected-range);
+  stroke-width: 1.5;
 }
 .mtl-focus-ring {
   fill: none;
@@ -540,6 +562,8 @@ const eventNames = {
   demo: "Demo"
 };
 
+let selectedEventId = fixture.selectedMoment.eventId;
+
 function totalSeconds() {
   return fixture.metadata.durationSeconds + fixture.metadata.overtimeSeconds;
 }
@@ -576,6 +600,48 @@ function markerLane(events, event, index) {
 
 function markerY(lane) {
   return constants.markerLaneY + lane * 18;
+}
+
+function selectedEvent() {
+  return fixture.events.find((event) => event.id === selectedEventId) || fixture.events[0];
+}
+
+function selectedSegment() {
+  const event = selectedEvent();
+  return fixture.segments.find((item) => item.id === event.segmentId) || fixture.segments[0];
+}
+
+function syncSelectedMoment(event) {
+  const segment = fixture.segments.find((item) => item.id === event.segmentId) || fixture.segments[0];
+  selectedEventId = event.id;
+  fixture.selectedMoment.eventId = event.id;
+  fixture.selectedMoment.segmentId = event.segmentId;
+  fixture.selectedMoment.rangeStartSecond = Math.max(0, event.second - 13);
+  fixture.selectedMoment.rangeEndSecond = Math.min(totalSeconds(), event.second + 13);
+  if (segment) {
+    fixture.selectedMoment.rangeStartSecond = Math.max(0, Math.min(fixture.selectedMoment.rangeStartSecond, segment.startSecond));
+    fixture.selectedMoment.rangeEndSecond = Math.min(totalSeconds(), Math.max(fixture.selectedMoment.rangeEndSecond, segment.endSecond));
+  }
+  fixture.selectedMoment.badgeSecond = event.second;
+}
+
+function selectEvent(eventId, options = {}) {
+  const event = fixture.events.find((item) => item.id === eventId);
+  if (!event) return;
+  syncSelectedMoment(event);
+  renderTimeline();
+  renderCards();
+  if (options.focusMarker) {
+    const target = document.querySelector('.mtl-marker-hit-target[data-event-id="' + event.id + '"]');
+    if (target) target.focus();
+  }
+}
+
+function selectEventByOffset(eventId, offset) {
+  const currentIndex = fixture.events.findIndex((event) => event.id === eventId);
+  if (currentIndex < 0) return;
+  const nextIndex = Math.max(0, Math.min(fixture.events.length - 1, currentIndex + offset));
+  selectEvent(fixture.events[nextIndex].id, { focusMarker: true });
 }
 
 function teamClass(team) {
@@ -676,19 +742,22 @@ function renderMarker(event, index, selectedId) {
 function renderHitTarget(event, index) {
   const x = secondToX(event.second);
   const y = markerY(markerLane(fixture.events, event, index));
+  const selected = event.id === selectedEventId;
   return svg("circle", {
-    class: "mtl-marker-hit-target",
+    class: "mtl-marker-hit-target " + (selected ? "is-selected" : ""),
     cx: x,
     cy: y,
     r: constants.markerHitSize / 2,
+    "data-event-id": event.id,
     tabindex: "0",
     role: "button",
+    "aria-pressed": selected ? "true" : "false",
     "aria-label": formatMatchClock(event.second) + " " + eventNames[event.type] + " by " + event.playerName
   });
 }
 
 function renderTimeline() {
-  const selectedId = fixture.selectedMoment.eventId;
+  const selectedId = selectedEventId;
   document.querySelector(".mtl-background").innerHTML = svg("rect", { class: "mtl-rail-bg", x: constants.railX, y: constants.railY, width: constants.railWidth, height: constants.railHeight, rx: 4 });
   document.querySelector(".mtl-time-ticks").innerHTML = renderTicks();
   document.querySelector(".mtl-momentum-bands").innerHTML = renderBands();
@@ -702,11 +771,12 @@ function renderTimeline() {
     const y = markerY(markerLane(fixture.events, selectedEvent, fixture.events.indexOf(selectedEvent)));
     document.querySelector(".mtl-focus-selection").innerHTML = svg("circle", { class: "mtl-focus-ring", cx: x, cy: y, r: 27 });
   }
+  bindMarkerInteractions();
 }
 
 function renderCards() {
-  const selected = fixture.events.find((event) => event.id === fixture.selectedMoment.eventId);
-  const segment = fixture.segments.find((item) => item.id === fixture.selectedMoment.segmentId);
+  const selected = selectedEvent();
+  const segment = selectedSegment();
   document.getElementById("fixture-label").textContent = fixture.metadata.fixtureLabel;
   document.getElementById("blue-team").textContent = fixture.metadata.blueTeamName;
   document.getElementById("orange-team").textContent = fixture.metadata.orangeTeamName;
@@ -724,12 +794,12 @@ function renderCards() {
     '</div>'
   ].join("");
   document.getElementById("event-list").innerHTML = fixture.events.slice(2, 7).map((event) =>
-    '<div class="event-row ' + (event.id === selected.id ? "is-selected" : "") + '">' +
+    '<button type="button" class="event-row ' + (event.id === selected.id ? "is-selected" : "") + '" data-event-id="' + html(event.id) + '" aria-pressed="' + (event.id === selected.id ? "true" : "false") + '">' +
     '<span>' + html(formatMatchClock(event.second)) + '</span>' +
     '<span class="mini-marker ' + teamClass(event.team) + '">' + html(fallbackLabels[event.type]) + '</span>' +
     '<span>' + html(eventNames[event.type]) + '<br><span class="muted">' + html(event.summary) + '</span></span>' +
     '<span class="team ' + teamClass(event.team) + '">' + html(event.team === "blue" ? fixture.metadata.blueTeamName : fixture.metadata.orangeTeamName) + '</span>' +
-    '</div>'
+    '</button>'
   ).join("");
   document.getElementById("contributions").innerHTML = fixture.contributions.map((item, index) =>
     '<div class="contribution-row">' +
@@ -759,6 +829,42 @@ function renderCards() {
     '<span>' + html(eventNames[type]) + '<br><span class="muted">' + html(type) + ' fallback</span></span>' +
     '</div>'
   ).join("");
+  bindEventListInteractions();
+}
+
+function handleSelectionKeydown(event, eventId) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    selectEvent(eventId, { focusMarker: true });
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    selectEventByOffset(eventId, -1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    selectEventByOffset(eventId, 1);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    selectEvent(fixture.events[0].id, { focusMarker: true });
+  } else if (event.key === "End") {
+    event.preventDefault();
+    selectEvent(fixture.events[fixture.events.length - 1].id, { focusMarker: true });
+  }
+}
+
+function bindMarkerInteractions() {
+  document.querySelectorAll(".mtl-marker-hit-target[data-event-id]").forEach((target) => {
+    const eventId = target.getAttribute("data-event-id");
+    target.addEventListener("click", () => selectEvent(eventId, { focusMarker: true }));
+    target.addEventListener("keydown", (event) => handleSelectionKeydown(event, eventId));
+  });
+}
+
+function bindEventListInteractions() {
+  document.querySelectorAll(".event-row[data-event-id]").forEach((target) => {
+    const eventId = target.getAttribute("data-event-id");
+    target.addEventListener("click", () => selectEvent(eventId));
+    target.addEventListener("keydown", (event) => handleSelectionKeydown(event, eventId));
+  });
 }
 
 renderTimeline();
