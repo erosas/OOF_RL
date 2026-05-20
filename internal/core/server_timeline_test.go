@@ -247,6 +247,79 @@ func TestMomentumTimelinePreviewRouteMethodNotAllowed(t *testing.T) {
 	}
 }
 
+func TestMomentumTimelineBLitePreviewRoute(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/momentum-timeline-b-lite-preview", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want text/html; charset=utf-8", ct)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"Momentum Timeline B-lite Preview",
+		"class=\"mtl-root\"",
+		"id=\"mtl-defs\"",
+		"class=\"mtl-background\"",
+		"class=\"mtl-time-ticks\"",
+		"class=\"mtl-momentum-bands\"",
+		"class=\"mtl-segment-dividers\"",
+		"class=\"mtl-selected-range\"",
+		"class=\"mtl-event-markers\"",
+		"class=\"mtl-marker-hit-targets\"",
+		"class=\"mtl-focus-selection\"",
+		"class=\"mtl-effects\"",
+		"GL",
+		"SV",
+		"ES",
+		"AS",
+		"SH",
+		"DM",
+		"Blue Control",
+		"Orange Control",
+		"Contested",
+		"Neutral / Reset",
+		"Pressure Sequence",
+		"Event-Derived Contribution",
+		"Event-derived pressure/control signal",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("B-lite preview body missing %q", want)
+		}
+	}
+	for _, banned := range []string{
+		"possession",
+		"win odds",
+		"rotation quality",
+		"tactical advantage",
+		"coaching-grade",
+	} {
+		if strings.Contains(strings.ToLower(body), banned) {
+			t.Fatalf("B-lite preview body includes banned term %q", banned)
+		}
+	}
+}
+
+func TestMomentumTimelineBLitePreviewRouteMethodNotAllowed(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/momentum-timeline-b-lite-preview", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", w.Code)
+	}
+}
+
 func TestServerTimelineRuntimeRoutesLifecycle(t *testing.T) {
 	srv, bus := newTimelineTestServer(t)
 
