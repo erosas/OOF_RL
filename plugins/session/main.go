@@ -16,7 +16,6 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
 		ID:       "session",
 		NavTab:   sdk.NavTabMeta{ID: "session", Label: "Session", Order: 25},
-		Requires: []string{"history"},
 		Routes: []string{
 			"/api/session/stats",
 			"/api/session/start",
