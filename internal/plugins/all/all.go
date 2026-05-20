@@ -4,12 +4,6 @@
 package all
 
 import (
-	_ "OOF_RL/internal/plugins/ballchasing"
-	_ "OOF_RL/internal/plugins/dashboard"
 	_ "OOF_RL/internal/plugins/debugassistant"
-	_ "OOF_RL/internal/plugins/history"
-	_ "OOF_RL/internal/plugins/live"
 	_ "OOF_RL/internal/plugins/overlayhud"
-	_ "OOF_RL/internal/plugins/ranks"
-	_ "OOF_RL/internal/plugins/session"
 )

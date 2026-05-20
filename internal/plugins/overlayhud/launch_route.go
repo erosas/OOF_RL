@@ -44,6 +44,7 @@ func (p *Plugin) handleLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.launchedShell = shell
+	p.shellState = overlayShellVisible
 	writeLaunchStatus(w, "launched", spec.URL)
 }
 

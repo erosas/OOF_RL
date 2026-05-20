@@ -18,12 +18,12 @@ func TestLaunchRouteStartsManualShell(t *testing.T) {
 	var gotURL string
 	var gotTitle string
 	var gotVisible bool
-	plugin.launchShell = func(url string, cfg *config.Config, opts overlay.ManualShellOptions) any {
+	plugin.launchShell = func(url string, cfg *config.Config, opts overlay.ManualShellOptions) manualOverlayShell {
 		calls++
 		gotURL = url
 		gotTitle = opts.Title
 		gotVisible = opts.Visible
-		return struct{}{}
+		return &fakeManualShell{}
 	}
 
 	mux := http.NewServeMux()
@@ -59,9 +59,9 @@ func TestLaunchRouteReusesExistingShell(t *testing.T) {
 	plugin := NewWithConfig(&fakeMomentumProvider{}, &cfg)
 
 	var calls int
-	plugin.launchShell = func(url string, cfg *config.Config, opts overlay.ManualShellOptions) any {
+	plugin.launchShell = func(url string, cfg *config.Config, opts overlay.ManualShellOptions) manualOverlayShell {
 		calls++
-		return struct{}{}
+		return &fakeManualShell{}
 	}
 
 	mux := http.NewServeMux()

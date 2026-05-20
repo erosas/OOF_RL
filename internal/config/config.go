@@ -12,28 +12,26 @@ import (
 )
 
 type StorageSettings struct {
-	BallHitEvents    bool    `toml:"ball_hit_events"   json:"ball_hit_events"`
-	TickSnapshots    bool    `toml:"tick_snapshots"    json:"tick_snapshots"`
-	TickSnapshotRate float64 `toml:"tick_snapshot_rate" json:"tick_snapshot_rate"`
-	RawPackets       bool    `toml:"raw_packets"       json:"raw_packets"`
+	BallHitEvents bool `toml:"ball_hit_events" json:"ball_hit_events"`
+	RawPackets    bool `toml:"raw_packets"     json:"raw_packets"`
 }
 
 type Config struct {
-	AppPort                int             `toml:"app_port"                  json:"app_port"`
-	DataDir                string          `toml:"data_dir"                  json:"data_dir"`
-	RLInstallPath          string          `toml:"rl_install_path"           json:"rl_install_path"`
-	TrackerCacheTTLMinutes int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
-	BallchasingAPIKey             string          `toml:"ballchasing_api_key"              json:"-"`
-	BallchasingDeleteAfterUpload  bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
-	OverlayHotkey          string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
-	OverlayX               int             `toml:"overlay_x"                 json:"overlay_x"`
-	OverlayY               int             `toml:"overlay_y"                 json:"overlay_y"`
-	OverlayWidth           int             `toml:"overlay_width"             json:"overlay_width"`
-	OverlayHeight          int             `toml:"overlay_height"            json:"overlay_height"`
-	OverlayOpacity         float64         `toml:"overlay_opacity"           json:"overlay_opacity"`
-	OverlayHoldMode        bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
-	Storage                StorageSettings `toml:"storage"                   json:"storage"`
-	DisabledPlugins        []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
+	AppPort                      int             `toml:"app_port"                  json:"app_port"`
+	DataDir                      string          `toml:"data_dir"                  json:"data_dir"`
+	RLInstallPath                string          `toml:"rl_install_path"           json:"rl_install_path"`
+	TrackerCacheTTLMinutes       int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
+	BallchasingAPIKey            string          `toml:"ballchasing_api_key"              json:"-"`
+	BallchasingDeleteAfterUpload bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
+	OverlayHotkey                string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
+	OverlayX                     int             `toml:"overlay_x"                 json:"overlay_x"`
+	OverlayY                     int             `toml:"overlay_y"                 json:"overlay_y"`
+	OverlayWidth                 int             `toml:"overlay_width"             json:"overlay_width"`
+	OverlayHeight                int             `toml:"overlay_height"            json:"overlay_height"`
+	OverlayOpacity               float64         `toml:"overlay_opacity"           json:"overlay_opacity"`
+	OverlayHoldMode              bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
+	Storage                      StorageSettings `toml:"storage"                   json:"storage"`
+	DisabledPlugins              []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
 }
 
 // defaultDataDir returns %LOCALAPPDATA%\OOF_RL — the Windows standard for
@@ -62,6 +60,9 @@ func (c *Config) LogPath() string { return filepath.Join(c.DataDir, "oof_rl.log"
 // CapturesDir returns the directory for raw packet captures.
 func (c *Config) CapturesDir() string { return filepath.Join(c.DataDir, "captures") }
 
+// PluginsDir returns the directory where WASM plugin binaries and assets are loaded from.
+func (c *Config) PluginsDir() string { return filepath.Join(c.DataDir, "plugins") }
+
 func Defaults() Config {
 	dataDir := defaultDataDir()
 	return Config{
@@ -77,10 +78,8 @@ func Defaults() Config {
 		OverlayOpacity:         1.0,
 		OverlayHoldMode:        false,
 		Storage: StorageSettings{
-			BallHitEvents:    false,
-			TickSnapshots:    false,
-			TickSnapshotRate: 1.0,
-			RawPackets:       false,
+			BallHitEvents: false,
+			RawPackets:    false,
 		},
 	}
 }
@@ -108,6 +107,75 @@ func Load(path string) (Config, error) {
 		cfg.OverlayHeight = 620
 	}
 	return cfg, err
+}
+
+// Set updates a config field by its settings key. Mirrors Lookup in the reverse direction.
+// Used by handleSettings to persist plugin settings that are stored in the config file.
+// Unknown keys are silently ignored.
+func (c *Config) Set(key, value string) {
+	switch key {
+	case "ballchasing_api_key":
+		c.BallchasingAPIKey = value
+	case "ballchasing_delete_after_upload":
+		c.BallchasingDeleteAfterUpload = value == "true" || value == "1" || value == "on"
+	}
+}
+
+// Lookup returns a config field value by its settings key as a string.
+// Returns empty string for unknown keys.
+func (c *Config) Lookup(key string) string {
+	switch key {
+	case "ballchasing_api_key":
+		return c.BallchasingAPIKey
+	case "ballchasing_delete_after_upload":
+		if c.BallchasingDeleteAfterUpload {
+			return "true"
+		}
+		return "false"
+	case "replay_dir":
+		return DetectReplayDir()
+	default:
+		return ""
+	}
+}
+
+// DetectReplayDir returns the Rocket League replay directory, or "" if not found.
+// Checks the standard Windows locations including OneDrive variants.
+func DetectReplayDir() string {
+	const rlRelPath = `My Games\Rocket League\TAGame\Demos`
+	seen := map[string]struct{}{}
+	var candidates []string
+
+	add := func(base string) {
+		if base == "" {
+			return
+		}
+		p := filepath.Join(base, rlRelPath)
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		candidates = append(candidates, p)
+	}
+
+	home := os.Getenv("USERPROFILE")
+	if home != "" {
+		add(filepath.Join(home, "OneDrive", "Documents"))
+		add(filepath.Join(home, "Documents"))
+	}
+	if od := os.Getenv("OneDriveConsumer"); od != "" {
+		add(filepath.Join(od, "Documents"))
+	}
+	if od := os.Getenv("OneDrive"); od != "" {
+		add(filepath.Join(od, "Documents"))
+	}
+
+	for _, p := range candidates {
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	return ""
 }
 
 func Save(path string, cfg Config) error {

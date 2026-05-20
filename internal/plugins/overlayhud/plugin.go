@@ -33,7 +33,8 @@ type Plugin struct {
 	cfg           *config.Config
 	launchShell   manualShellLauncher
 	launchShellMu sync.Mutex
-	launchedShell any
+	launchedShell manualOverlayShell
+	shellState    overlayShellState
 }
 
 func New(provider momentum.SnapshotProvider) *Plugin {
@@ -57,6 +58,7 @@ func (p *Plugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc(previewRoutePath, p.handlePreview)
 	mux.HandleFunc(previewSVGRoutePath, p.handlePreviewSVG)
 	mux.HandleFunc(launchRoutePath, p.handleLaunch)
+	mux.HandleFunc(controlRoutePath, p.handleControl)
 }
 func (p *Plugin) SettingsSchema() []plugin.Setting        { return nil }
 func (p *Plugin) ApplySettings(_ map[string]string) error { return nil }
@@ -75,8 +77,23 @@ func (p *Plugin) momentumSnapshot() (momentum.MomentumState, momentum.ServiceSta
 	return p.momentum.Snapshot(), p.momentum.Status(), true
 }
 
-type manualShellLauncher func(url string, cfg *config.Config, opts overlay.ManualShellOptions) any
+type overlayShellState string
 
-func startManualShell(url string, cfg *config.Config, opts overlay.ManualShellOptions) any {
+const (
+	overlayShellNotLaunched overlayShellState = "not-launched"
+	overlayShellVisible     overlayShellState = "visible"
+	overlayShellHidden      overlayShellState = "hidden"
+	overlayShellDormant     overlayShellState = "dormant"
+)
+
+type manualOverlayShell interface {
+	Show()
+	Hide()
+	Dormant()
+}
+
+type manualShellLauncher func(url string, cfg *config.Config, opts overlay.ManualShellOptions) manualOverlayShell
+
+func startManualShell(url string, cfg *config.Config, opts overlay.ManualShellOptions) manualOverlayShell {
 	return overlay.StartManualShell(url, cfg, opts)
 }

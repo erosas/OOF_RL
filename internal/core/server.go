@@ -6,9 +6,10 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
+	"OOF_RL/internal/histstore"
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
@@ -24,6 +26,7 @@ import (
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
+	"OOF_RL/internal/wasmhost"
 )
 
 var upgrader = websocket.Upgrader{
@@ -31,24 +34,26 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	cfg         *config.Config
-	cfgPath     string
-	db          *db.DB
-	hub         *hub.Hub
-	fs          http.Handler
-	reconnect   func()
-	mmrProvider mmr.Provider
-	plugins     []plugin.Plugin
-	bus         oofevents.Bus
-	translator  *rlevents.Translator
-	momentum    *momentum.Service
-	momentumW   *momentum.Wiring
+	cfg          *config.Config
+	cfgPath      string
+	db           *db.DB
+	hub          *hub.Hub
+	fs           http.Handler
+	reconnect    func()
+	mmrProvider  mmr.Provider
+	plugins      []plugin.Plugin
+	bus          oofevents.Bus
+	translator   *rlevents.Translator
+	momentum     *momentum.Service
+	momentumW    *momentum.Wiring
+	histStore    *histstore.Store
+	histRecorder *histstore.Recorder
 }
 
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
 	momentumService := momentum.NewService(momentum.DefaultConfig())
-	return &Server{
+	s := &Server{
 		cfgPath:     cfgPath,
 		cfg:         cfg,
 		db:          database,
@@ -61,6 +66,14 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		momentum:    momentumService,
 		momentumW:   momentum.NewWiring(bus.ForPlugin("momentum"), momentumService),
 	}
+	if database != nil {
+		if err := histstore.Migrate(database); err != nil {
+			log.Printf("[core] histstore migrate: %v", err)
+		}
+		s.histStore = histstore.NewStore(database)
+		s.histRecorder = histstore.NewRecorder(s.histStore, cfg)
+	}
+	return s
 }
 
 // Momentum returns the read-only app-owned Momentum snapshot provider.
@@ -70,9 +83,17 @@ func (s *Server) Momentum() momentum.SnapshotProvider {
 
 func (s *Server) Config() *config.Config { return s.cfg }
 
-// InitPlugins calls Init on every registered plugin after all plugins are registered.
-// Must be called before the RL client starts delivering events.
+// InitPlugins sorts plugins by their declared dependencies, then calls Init on
+// each in dependency order. Must be called before the RL client delivers events.
 func (s *Server) InitPlugins() error {
+	if s.histRecorder != nil {
+		s.histRecorder.Subscribe(s.bus.ForPlugin("history"))
+	}
+	sorted, err := topoSort(s.plugins)
+	if err != nil {
+		return fmt.Errorf("plugin dependency: %w", err)
+	}
+	s.plugins = sorted
 	for _, p := range s.plugins {
 		if err := p.Init(s.bus.ForPlugin(p.ID()), s, s.db); err != nil {
 			return fmt.Errorf("plugin %s Init: %w", p.ID(), err)
@@ -81,13 +102,67 @@ func (s *Server) InitPlugins() error {
 	return nil
 }
 
-// ShutdownPlugins calls Shutdown on every registered plugin in reverse order.
+// topoSort returns plugins in dependency order (required plugins first).
+// Returns an error if a required plugin is not loaded or a cycle is detected.
+func topoSort(plugins []plugin.Plugin) ([]plugin.Plugin, error) {
+	byID := make(map[string]plugin.Plugin, len(plugins))
+	for _, p := range plugins {
+		byID[p.ID()] = p
+	}
+
+	// dependants[X] = list of plugin IDs that require X
+	dependants := make(map[string][]string)
+	inDegree := make(map[string]int, len(plugins))
+	for _, p := range plugins {
+		if _, seen := inDegree[p.ID()]; !seen {
+			inDegree[p.ID()] = 0
+		}
+		for _, req := range p.Requires() {
+			if _, ok := byID[req]; !ok {
+				return nil, fmt.Errorf("plugin %q requires unknown plugin %q", p.ID(), req)
+			}
+			inDegree[p.ID()]++
+			dependants[req] = append(dependants[req], p.ID())
+		}
+	}
+
+	queue := make([]plugin.Plugin, 0, len(plugins))
+	for _, p := range plugins {
+		if inDegree[p.ID()] == 0 {
+			queue = append(queue, p)
+		}
+	}
+
+	sorted := make([]plugin.Plugin, 0, len(plugins))
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		sorted = append(sorted, p)
+		for _, depID := range dependants[p.ID()] {
+			inDegree[depID]--
+			if inDegree[depID] == 0 {
+				queue = append(queue, byID[depID])
+			}
+		}
+	}
+
+	if len(sorted) != len(plugins) {
+		return nil, fmt.Errorf("circular dependency detected")
+	}
+	return sorted, nil
+}
+
+// ShutdownPlugins calls Shutdown on every registered plugin in reverse order,
+// then stops the history recorder.
 func (s *Server) ShutdownPlugins() {
 	for i := len(s.plugins) - 1; i >= 0; i-- {
 		p := s.plugins[i]
 		if err := p.Shutdown(); err != nil {
 			log.Printf("[core] plugin %s Shutdown: %v", p.ID(), err)
 		}
+	}
+	if s.histRecorder != nil {
+		s.histRecorder.Stop()
 	}
 }
 
@@ -131,6 +206,32 @@ func (s *Server) LoadPlugins() error {
 	return nil
 }
 
+// LoadWASMPlugins scans dir for *.wasm files and registers each as a plugin.
+// Missing or empty dir is silently ignored.
+func (s *Server) LoadWASMPlugins(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("wasm plugins dir: %w", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".wasm") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		p, err := wasmhost.Load(path, s.db, s.hub, s.cfg)
+		if err != nil {
+			log.Printf("[core] wasm load %s: %v", e.Name(), err)
+			continue
+		}
+		s.Use(p)
+		log.Printf("[core] loaded wasm plugin %q from %s", p.ID(), e.Name())
+	}
+	return nil
+}
+
 // Register wires all routes onto mux: core endpoints first, then each plugin,
 // then the static file fallback.
 func (s *Server) Register(mux *http.ServeMux) {
@@ -139,6 +240,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/config/ini", s.handleINI)
 	mux.HandleFunc("/api/nav", s.handleNav)
 	mux.HandleFunc("/api/plugins/", s.handlePluginView)
+	if s.histStore != nil {
+		mux.HandleFunc("/api/players", s.histStore.HandlePlayers)
+		mux.HandleFunc("/api/matches", s.histStore.HandleMatches)
+		mux.HandleFunc("/api/matches/", s.histStore.HandleMatchDetail)
+	}
 	mux.HandleFunc("/api/settings/schema", s.handleSettingsSchema)
 	mux.HandleFunc("/api/settings", s.handleSettings)
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
@@ -295,20 +401,6 @@ func (s *Server) coreSettingsSchema() []plugin.Setting {
 			Description: "Store every ball touch. Can generate large amounts of data.",
 		},
 		{
-			Key:         "storage.tick_snapshots",
-			Label:       "Tick snapshots",
-			Type:        plugin.SettingTypeCheckbox,
-			Default:     "false",
-			Description: "Store full game state at regular intervals. Produces very large data.",
-		},
-		{
-			Key:         "storage.tick_snapshot_rate",
-			Label:       "Tick rate (snapshots/sec)",
-			Type:        plugin.SettingTypeNumber,
-			Default:     "1",
-			Description: "Snapshots per second when tick snapshots are enabled.",
-		},
-		{
 			Key:         "storage.raw_packets",
 			Label:       "Capture raw packets",
 			Type:        plugin.SettingTypeCheckbox,
@@ -321,14 +413,6 @@ func (s *Server) coreSettingsSchema() []plugin.Setting {
 func (s *Server) applyCoreSettings(values map[string]string) {
 	if v, ok := values["storage.ball_hit_events"]; ok {
 		s.cfg.Storage.BallHitEvents = v == "true"
-	}
-	if v, ok := values["storage.tick_snapshots"]; ok {
-		s.cfg.Storage.TickSnapshots = v == "true"
-	}
-	if v, ok := values["storage.tick_snapshot_rate"]; ok {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			s.cfg.Storage.TickSnapshotRate = f
-		}
 	}
 	if v, ok := values["storage.raw_packets"]; ok {
 		s.cfg.Storage.RawPackets = v == "true"
@@ -343,10 +427,14 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins)+1)
 	for _, p := range s.plugins {
 		tab := p.NavTab()
+		title := tab.Label
+		if title == "" {
+			title = p.ID()
+		}
 		blobs = append(blobs, plugin.PluginSettingsBlob{
 			PluginID: p.ID(),
 			NavTabID: tab.ID,
-			Title:    tab.Label,
+			Title:    title,
 			Enabled:  !disabled[p.ID()],
 			Requires: p.Requires(),
 			Settings: p.SettingsSchema(),
@@ -387,6 +475,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.applyCoreSettings(values)
+	for k, v := range values {
+		s.cfg.Set(k, v)
+	}
 	for _, p := range s.plugins {
 		if err := p.ApplySettings(values); err != nil {
 			httputil.JSONError(w, 500, fmt.Sprintf("plugin %s: %v", p.ID(), err))
