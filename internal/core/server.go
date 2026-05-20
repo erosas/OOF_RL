@@ -259,6 +259,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
+	mux.HandleFunc("/internal/momentum-timeline-snapshot", s.handleMomentumTimelineSnapshot)
 	for _, p := range s.plugins {
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
@@ -504,6 +505,19 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDataDir(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, map[string]string{"path": s.cfg.DataDir})
+}
+
+func (s *Server) handleMomentumTimelineSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	provider := s.Timeline()
+	if provider == nil {
+		http.Error(w, "momentum timeline unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	httputil.WriteJSON(w, provider.Snapshot())
 }
 
 // DispatchEvent translates a raw RL envelope into typed OOF events and publishes

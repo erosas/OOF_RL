@@ -1,7 +1,9 @@
 package core
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -110,6 +112,98 @@ func TestServerTimelineProviderSnapshotReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestMomentumTimelineSnapshotRouteEmptySnapshot(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	w := getTimelineSnapshot(t, mux)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	var snapshot timeline.TimelineSnapshot
+	if err := json.Unmarshal(w.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if snapshot.MatchGUID != "" || len(snapshot.Entries) != 0 || snapshot.MatchEnded {
+		t.Fatalf("empty snapshot = %+v", snapshot)
+	}
+}
+
+func TestMomentumTimelineSnapshotRoutePopulatedSnapshot(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	srv.DispatchEvent(events.Envelope{
+		Event: "StatfeedEvent",
+		Data: []byte(`{
+			"MatchGuid":"match-1",
+			"EventName":"Shot",
+			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
+		}`),
+	})
+	waitForTimelineTest(t, func() bool {
+		return len(srv.Timeline().Snapshot().Entries) == 1
+	})
+
+	w := getTimelineSnapshot(t, mux)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	var snapshot timeline.TimelineSnapshot
+	if err := json.Unmarshal(w.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if snapshot.MatchGUID != "match-1" || len(snapshot.Entries) != 1 {
+		t.Fatalf("populated snapshot = %+v", snapshot)
+	}
+	entry := snapshot.Entries[0]
+	if entry.PlayerName != "Alice" || entry.Action != oofevents.ActionShot || entry.Blue.MomentumInfluence <= 0 {
+		t.Fatalf("entry = %+v", entry)
+	}
+}
+
+func TestMomentumTimelineSnapshotRouteLifecycleState(t *testing.T) {
+	srv, bus := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	bus.PublishAuthoritative(oofevents.NewGameAction("match-1", oofevents.ActionGoal, oofevents.TeamBlue, "pid-a", "Alice"))
+	waitForTimelineTest(t, func() bool {
+		return len(srv.Timeline().Snapshot().Entries) == 1
+	})
+	bus.PublishAuthoritative(oofevents.NewMatchEnded("match-1", 0))
+	waitForTimelineTest(t, func() bool {
+		return srv.Timeline().Snapshot().MatchEnded
+	})
+
+	w := getTimelineSnapshot(t, mux)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", w.Code, w.Body.String())
+	}
+	var snapshot timeline.TimelineSnapshot
+	if err := json.Unmarshal(w.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !snapshot.MatchEnded || snapshot.EndedReason != "match.ended" || len(snapshot.Entries) != 1 {
+		t.Fatalf("ended snapshot = %+v", snapshot)
+	}
+}
+
+func TestMomentumTimelineSnapshotRouteMethodNotAllowed(t *testing.T) {
+	srv, _ := newTimelineTestServer(t)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/internal/momentum-timeline-snapshot", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", w.Code)
+	}
+}
+
 func TestServerTimelineRuntimeRoutesLifecycle(t *testing.T) {
 	srv, bus := newTimelineTestServer(t)
 
@@ -174,4 +268,13 @@ func waitForTimelineTest(t *testing.T, fn func() bool) {
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("condition not met before timeout")
+}
+
+func getTimelineSnapshot(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/internal/momentum-timeline-snapshot", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	return w
 }
