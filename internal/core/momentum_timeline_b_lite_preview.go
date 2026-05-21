@@ -14,13 +14,18 @@ const momentumTimelineBLitePreviewHTML = `<!doctype html>
   --mtl-bg: #080d12;
   --mtl-panel: #101820;
   --mtl-panel-strong: #14202a;
-  --mtl-panel-border: #20303d;
+  --mtl-panel-border: #2b3a48;
+  --mtl-panel-edge: #405366;
   --mtl-rail-base: #1b232b;
-  --mtl-blue-control: #147cff;
-  --mtl-orange-control: #ff8a00;
-  --mtl-contested: #8b3ff4;
+  --mtl-blue-control: #2f8cff;
+  --mtl-orange-control: #ff7a18;
+  --mtl-contested: #9b5cff;
   --mtl-neutral: #8d949c;
   --mtl-selected-range: #2ee9d1;
+  --mtl-cyan-edge: #35d9ff;
+  --mtl-blue-hot: #39a7ff;
+  --mtl-orange-hot: #ffb347;
+  --mtl-purple-hot: #bd6dff;
   --mtl-confidence-high: #48d86f;
   --mtl-confidence-medium: #ffab22;
   --mtl-confidence-low: #ff3b24;
@@ -29,6 +34,7 @@ const momentumTimelineBLitePreviewHTML = `<!doctype html>
   --mtl-text-soft: #c6d0d8;
   --mtl-glow-strength: 0.34;
   --mtl-shadow: 0 16px 42px rgba(0, 0, 0, 0.3);
+  --mtl-neon-shadow: 0 0 0 1px rgba(92, 130, 160, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 18px 48px rgba(0, 0, 0, 0.42);
 }
 * {
   box-sizing: border-box;
@@ -37,7 +43,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(12, 20, 28, 0.96), var(--mtl-bg) 48%),
+    linear-gradient(180deg, rgba(21, 32, 42, 0.98), rgba(6, 10, 14, 0.98) 54%),
+    linear-gradient(90deg, rgba(47, 140, 255, 0.08), transparent 24%, transparent 76%, rgba(255, 122, 24, 0.075)),
     var(--mtl-bg);
   color: var(--mtl-text-primary);
   font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
@@ -150,22 +157,37 @@ h1 span {
 .card,
 .guide-card,
 .journey-panel {
-  background: rgba(13, 20, 27, 0.94);
-  border: 1px solid var(--mtl-panel-border);
-  border-radius: 7px;
-  box-shadow: var(--mtl-shadow);
+  background:
+    linear-gradient(180deg, rgba(22, 34, 45, 0.88), rgba(8, 13, 18, 0.96)),
+    rgba(13, 20, 27, 0.94);
+  border: 1px solid rgba(78, 99, 119, 0.78);
+  border-radius: 12px;
+  box-shadow: var(--mtl-neon-shadow);
 }
 .timeline-panel {
   grid-column: 2 / 3;
   overflow: hidden;
-  padding: 16px 18px 14px;
+  padding: 18px 18px 18px;
   position: relative;
 }
 .timeline-panel::before {
-  background: linear-gradient(90deg, rgba(20, 124, 255, 0.16), rgba(46, 233, 209, 0.08), rgba(255, 138, 0, 0.14));
+  background: linear-gradient(90deg, rgba(47, 140, 255, 0.85), rgba(53, 217, 255, 0.45), rgba(255, 122, 24, 0.74));
   content: "";
-  height: 3px;
+  height: 2px;
   left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+.timeline-panel::after {
+  background:
+    linear-gradient(90deg, rgba(47, 140, 255, 0.08), transparent 28%, transparent 72%, rgba(255, 122, 24, 0.08)),
+    repeating-linear-gradient(90deg, transparent 0 30px, rgba(255, 255, 255, 0.025) 31px, transparent 32px);
+  bottom: 0;
+  content: "";
+  left: 0;
+  opacity: 0.58;
+  pointer-events: none;
   position: absolute;
   right: 0;
   top: 0;
@@ -210,10 +232,10 @@ h1 span {
 }
 .selected-card {
   background:
-    linear-gradient(145deg, rgba(46, 233, 209, 0.16), rgba(13, 20, 27, 0.94) 42%),
+    linear-gradient(145deg, rgba(47, 140, 255, 0.2), rgba(46, 233, 209, 0.14) 38%, rgba(13, 20, 27, 0.94) 62%),
     rgba(13, 20, 27, 0.94);
   border-color: rgba(46, 233, 209, 0.58);
-  box-shadow: 0 0 0 1px rgba(46, 233, 209, 0.14), 0 22px 58px rgba(0, 0, 0, 0.38);
+  box-shadow: inset 4px 0 0 rgba(46, 233, 209, 0.82), 0 0 0 1px rgba(46, 233, 209, 0.2), 0 0 34px rgba(46, 233, 209, 0.16), 0 22px 58px rgba(0, 0, 0, 0.38);
 }
 .selected-hero {
   align-items: stretch;
@@ -224,10 +246,12 @@ h1 span {
 .hero-marker {
   align-items: center;
   align-self: stretch;
-  background: linear-gradient(180deg, rgba(46, 233, 209, 0.22), rgba(46, 233, 209, 0.06));
+  background:
+    linear-gradient(135deg, rgba(46, 233, 209, 0.28), rgba(46, 233, 209, 0.06)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 8px);
   border: 2px solid var(--mtl-selected-range);
   border-radius: 8px;
-  box-shadow: inset 0 0 28px rgba(46, 233, 209, 0.12), 0 0 30px rgba(46, 233, 209, 0.22);
+  box-shadow: inset 0 0 36px rgba(46, 233, 209, 0.18), 0 0 38px rgba(46, 233, 209, 0.3);
   color: var(--mtl-selected-range);
   display: grid;
   font-size: 28px;
@@ -321,7 +345,9 @@ h1 span {
   outline-offset: 3px;
 }
 .event-row.is-selected {
-  background: linear-gradient(90deg, rgba(46, 233, 209, 0.16), rgba(46, 233, 209, 0.045));
+  background:
+    linear-gradient(90deg, rgba(46, 233, 209, 0.2), rgba(46, 233, 209, 0.055)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 14px);
   border: 1px solid rgba(46, 233, 209, 0.5);
   border-radius: 6px;
   padding: 8px;
@@ -332,8 +358,10 @@ h1 span {
 }
 .mini-marker {
   align-items: center;
+  background: rgba(6, 10, 16, 0.78);
   border: 1px solid currentColor;
   border-radius: 10px;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.035), 0 0 14px currentColor;
   display: grid;
   font-size: 11px;
   font-weight: 800;
@@ -513,10 +541,10 @@ h1 span {
 .mtl-root {
   display: block;
   height: auto;
-  margin: 4px 0 2px;
+  margin: 2px 0 4px;
   overflow: visible;
   width: 100%;
-  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.22));
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.28));
 }
 .mtl-time-label,
 .mtl-selection-badge-text,
@@ -537,23 +565,38 @@ h1 span {
   stroke-width: 1;
 }
 .mtl-band {
-  opacity: 0.92;
-  filter: saturate(1.12);
+  filter: saturate(1.18) url(#mtl-band-glow);
+  opacity: 0.96;
 }
 .mtl-rail-bg {
-  fill: rgba(255, 255, 255, 0.055);
+  fill: url(#mtl-rail-gradient);
+  stroke: rgba(93, 122, 145, 0.48);
+  stroke-width: 1;
+}
+.mtl-rail-frame {
+  fill: rgba(6, 10, 15, 0.78);
+  stroke: rgba(87, 117, 139, 0.7);
+  stroke-width: 1.5;
+}
+.mtl-rail-glow {
+  fill: rgba(47, 140, 255, 0.16);
+  filter: url(#mtl-rail-glow);
+}
+.mtl-rail-scanline {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1;
 }
 .mtl-band-blue-control {
-  fill: var(--mtl-blue-control);
+  fill: url(#mtl-blue-band);
 }
 .mtl-band-orange-control {
-  fill: var(--mtl-orange-control);
+  fill: url(#mtl-orange-band);
 }
 .mtl-band-contested {
-  fill: var(--mtl-contested);
+  fill: url(#mtl-contested-band);
 }
 .mtl-band-neutral {
-  fill: var(--mtl-neutral);
+  fill: url(#mtl-neutral-band);
 }
 .mtl-segment-divider,
 .mtl-ot-divider {
@@ -561,20 +604,33 @@ h1 span {
   stroke-width: 1;
 }
 .mtl-selection-box {
-  fill: rgba(46, 233, 209, 0.1);
+  fill: rgba(46, 233, 209, 0.12);
+  filter: url(#mtl-selection-glow);
   stroke: var(--mtl-selected-range);
-  stroke-dasharray: 7 5;
   stroke-width: 2.5;
+}
+.mtl-selection-corner {
+  fill: none;
+  stroke: #d9fff9;
+  stroke-linecap: square;
+  stroke-width: 3;
 }
 .mtl-selection-badge {
   fill: rgba(5, 12, 18, 0.92);
+  filter: url(#mtl-selection-glow);
   stroke: var(--mtl-selected-range);
   stroke-width: 1.5;
 }
 .mtl-marker-shape {
-  fill: rgba(8, 13, 18, 0.96);
+  fill: rgba(7, 12, 18, 0.98);
+  filter: url(#mtl-marker-glow);
   stroke: currentColor;
   stroke-width: 2;
+}
+.mtl-marker-halo {
+  fill: currentColor;
+  filter: url(#mtl-marker-glow);
+  opacity: 0.12;
 }
 .mtl-marker-stem {
   stroke: currentColor;
@@ -611,8 +667,8 @@ h1 span {
 .mtl-focus-ring {
   fill: none;
   stroke: var(--mtl-selected-range);
-  stroke-dasharray: 6 5;
-  stroke-width: 2;
+  filter: url(#mtl-selection-glow);
+  stroke-width: 2.5;
 }
 @media (max-width: 1180px) {
   .page {
@@ -744,12 +800,48 @@ h1 span {
   </aside>
 
   <section class="timeline-panel" aria-label="Fixture-only SVG timeline">
-    <svg class="mtl-root" viewBox="0 0 1200 180" role="img" aria-labelledby="mtl-title mtl-desc">
+    <svg class="mtl-root" viewBox="0 0 1200 220" role="img" aria-labelledby="mtl-title mtl-desc">
       <title id="mtl-title">Momentum Timeline B-lite fixture preview</title>
       <desc id="mtl-desc">Fixture-only event-derived pressure and control signal timeline.</desc>
       <defs id="mtl-defs">
-        <filter id="mtl-soft-glow" x="-30%" y="-80%" width="160%" height="260%">
+        <linearGradient id="mtl-rail-gradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#243342"></stop>
+          <stop offset="48%" stop-color="#0b1219"></stop>
+          <stop offset="100%" stop-color="#18232d"></stop>
+        </linearGradient>
+        <linearGradient id="mtl-blue-band" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#5db5ff"></stop>
+          <stop offset="48%" stop-color="#147cff"></stop>
+          <stop offset="100%" stop-color="#0b3e96"></stop>
+        </linearGradient>
+        <linearGradient id="mtl-orange-band" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ffb347"></stop>
+          <stop offset="48%" stop-color="#ff7a18"></stop>
+          <stop offset="100%" stop-color="#8a3300"></stop>
+        </linearGradient>
+        <linearGradient id="mtl-contested-band" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#d28cff"></stop>
+          <stop offset="50%" stop-color="#8f45ff"></stop>
+          <stop offset="100%" stop-color="#4f1f94"></stop>
+        </linearGradient>
+        <linearGradient id="mtl-neutral-band" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#c6cdd4"></stop>
+          <stop offset="48%" stop-color="#7f8a95"></stop>
+          <stop offset="100%" stop-color="#404b55"></stop>
+        </linearGradient>
+        <filter id="mtl-band-glow" x="-10%" y="-120%" width="120%" height="340%">
+          <feGaussianBlur stdDeviation="2.8" result="blur"></feGaussianBlur>
+          <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+        </filter>
+        <filter id="mtl-rail-glow" x="-10%" y="-220%" width="120%" height="520%">
+          <feGaussianBlur stdDeviation="9" result="blur"></feGaussianBlur>
+        </filter>
+        <filter id="mtl-marker-glow" x="-120%" y="-120%" width="340%" height="340%">
           <feGaussianBlur stdDeviation="4" result="blur"></feGaussianBlur>
+          <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+        </filter>
+        <filter id="mtl-selection-glow" x="-40%" y="-80%" width="180%" height="260%">
+          <feGaussianBlur stdDeviation="4.5" result="blur"></feGaussianBlur>
           <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
         </filter>
       </defs>
@@ -897,11 +989,11 @@ const fixture = {
 const constants = {
   padding: 40,
   railX: 56,
-  railY: 54,
+  railY: 72,
   railWidth: 1088,
-  railHeight: 30,
-  markerLaneY: 132,
-  selectedBadgeY: 160,
+  railHeight: 34,
+  markerLaneY: 160,
+  selectedBadgeY: 198,
   majorTickSpacing: 60,
   markerSize: 34,
   markerHitSize: 50
@@ -1042,13 +1134,13 @@ function renderTicks() {
   const ticks = [];
   for (let second = 0; second <= totalSeconds(); second += constants.majorTickSpacing) {
     const x = secondToX(second);
-    ticks.push(svg("line", { class: "mtl-tick-major", x1: x, x2: x, y1: 32, y2: 86 }));
-    ticks.push(svg("text", { class: "mtl-time-label", x, y: 24, "text-anchor": "middle" }, html(formatMatchClock(second))));
+    ticks.push(svg("line", { class: "mtl-tick-major", x1: x, x2: x, y1: 38, y2: 116 }));
+    ticks.push(svg("text", { class: "mtl-time-label", x, y: 30, "text-anchor": "middle" }, html(formatMatchClock(second))));
   }
   if (fixture.metadata.overtimeSeconds > 0) {
     const otX = secondToX(fixture.metadata.durationSeconds);
-    ticks.push(svg("line", { class: "mtl-ot-divider", x1: otX, x2: otX, y1: 28, y2: 92 }));
-    ticks.push(svg("text", { class: "mtl-time-label", x: otX + 36, y: 24, "text-anchor": "middle" }, "OT"));
+    ticks.push(svg("line", { class: "mtl-ot-divider", x1: otX, x2: otX, y1: 36, y2: 122 }));
+    ticks.push(svg("text", { class: "mtl-time-label", x: otX + 36, y: 30, "text-anchor": "middle" }, "OT"));
   }
   return ticks.join("");
 }
@@ -1080,8 +1172,13 @@ function renderSelection() {
   const selected = fixture.selectedMoment;
   const rect = selectedRangeToRect(selected.rangeStartSecond, selected.rangeEndSecond);
   const badgeX = secondToX(selected.badgeSecond);
+  const c = 18;
   return [
     svg("rect", { class: "mtl-selection-box", x: rect.x, y: rect.y, width: rect.width, height: rect.height, rx: 6 }),
+    svg("path", { class: "mtl-selection-corner", d: "M " + rect.x + " " + (rect.y + c) + " L " + rect.x + " " + rect.y + " L " + (rect.x + c) + " " + rect.y }),
+    svg("path", { class: "mtl-selection-corner", d: "M " + (rect.x + rect.width - c) + " " + rect.y + " L " + (rect.x + rect.width) + " " + rect.y + " L " + (rect.x + rect.width) + " " + (rect.y + c) }),
+    svg("path", { class: "mtl-selection-corner", d: "M " + rect.x + " " + (rect.y + rect.height - c) + " L " + rect.x + " " + (rect.y + rect.height) + " L " + (rect.x + c) + " " + (rect.y + rect.height) }),
+    svg("path", { class: "mtl-selection-corner", d: "M " + (rect.x + rect.width - c) + " " + (rect.y + rect.height) + " L " + (rect.x + rect.width) + " " + (rect.y + rect.height) + " L " + (rect.x + rect.width) + " " + (rect.y + rect.height - c) }),
     svg("line", { class: "mtl-focus-ring", x1: badgeX, x2: badgeX, y1: constants.railY + constants.railHeight, y2: constants.selectedBadgeY - 20 }),
     svg("rect", { class: "mtl-selection-badge", x: badgeX - 28, y: constants.selectedBadgeY - 18, width: 56, height: 26, rx: 5 }),
     svg("text", { class: "mtl-selection-badge-text", x: badgeX, y: constants.selectedBadgeY, "text-anchor": "middle" }, html(formatMatchClock(selected.badgeSecond)))
@@ -1098,6 +1195,7 @@ function renderMarker(event, index, selectedId) {
   const title = formatMatchClock(event.second) + " " + eventNames[event.type] + " by " + event.playerName;
   return svg("g", { class: "mtl-marker mtl-marker-" + event.type.replace("_", "-") + " " + markerClass(event.team) + " " + (selected ? "is-selected" : ""), "aria-label": title }, [
     svg("title", {}, html(title)),
+    svg("circle", { class: "mtl-marker-halo", cx: x, cy: y, r: selected ? 34 : 26 }),
     svg("line", { class: "mtl-marker-stem", x1: x, x2: x, y1: constants.railY + constants.railHeight + 3, y2: y - markerRadius + 3 }),
     svg("polygon", { class: "mtl-marker-shape", points }),
     svg("text", { class: "mtl-marker-label", x, y: y + 5, "text-anchor": "middle" }, html(label))
@@ -1123,7 +1221,13 @@ function renderHitTarget(event, index) {
 
 function renderTimeline() {
   const selectedId = selectedEventId;
-  document.querySelector(".mtl-background").innerHTML = svg("rect", { class: "mtl-rail-bg", x: constants.railX, y: constants.railY, width: constants.railWidth, height: constants.railHeight, rx: 4 });
+  document.querySelector(".mtl-background").innerHTML = [
+    svg("rect", { class: "mtl-rail-frame", x: constants.railX - 18, y: constants.railY - 18, width: constants.railWidth + 36, height: constants.railHeight + 36, rx: 9 }),
+    svg("rect", { class: "mtl-rail-glow", x: constants.railX - 4, y: constants.railY - 8, width: constants.railWidth + 8, height: constants.railHeight + 16, rx: 10 }),
+    svg("rect", { class: "mtl-rail-bg", x: constants.railX, y: constants.railY, width: constants.railWidth, height: constants.railHeight, rx: 5 }),
+    svg("line", { class: "mtl-rail-scanline", x1: constants.railX + 12, x2: constants.railX + constants.railWidth - 12, y1: constants.railY + 8, y2: constants.railY + 8 }),
+    svg("line", { class: "mtl-rail-scanline", x1: constants.railX + 12, x2: constants.railX + constants.railWidth - 12, y1: constants.railY + constants.railHeight - 7, y2: constants.railY + constants.railHeight - 7 })
+  ].join("");
   document.querySelector(".mtl-time-ticks").innerHTML = renderTicks();
   document.querySelector(".mtl-momentum-bands").innerHTML = renderBands();
   document.querySelector(".mtl-segment-dividers").innerHTML = renderDividers();
