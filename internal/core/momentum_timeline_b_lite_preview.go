@@ -44,18 +44,18 @@ body {
 }
 .page {
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) 184px;
+  gap: 10px;
+  grid-template-columns: 158px minmax(650px, 1fr) 168px;
   margin: 0 auto;
-  max-width: 1540px;
-  padding: 18px 24px 24px;
+  max-width: 1536px;
+  padding: 15px 16px 16px;
 }
 .topbar {
   align-items: center;
   display: grid;
-  gap: 16px;
+  gap: 10px;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(280px, 1fr) minmax(420px, 0.75fr);
+  grid-template-columns: 390px minmax(440px, 1fr) minmax(250px, 0.56fr);
 }
 h1,
 h2,
@@ -64,7 +64,7 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -75,6 +75,48 @@ h1 span {
 .muted {
   color: var(--mtl-text-muted);
 }
+.state-strip {
+  background: rgba(13, 20, 27, 0.96);
+  border: 1px solid var(--mtl-panel-border);
+  border-radius: 7px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(72px, 1fr));
+  min-height: 78px;
+  overflow: hidden;
+}
+.state-item {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 17px minmax(0, 1fr);
+  padding: 9px 8px;
+}
+.state-item:last-child {
+  border-right: 0;
+}
+.state-icon {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: grid;
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  place-items: center;
+  width: 18px;
+}
+.state-label {
+  color: var(--mtl-text-primary);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.state-copy {
+  color: var(--mtl-text-soft);
+  font-size: 10px;
+  grid-column: 2;
+  line-height: 1.3;
+}
 .fixture {
   align-items: center;
   background: rgba(12, 18, 25, 0.92);
@@ -82,10 +124,13 @@ h1 span {
   border-radius: 7px;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
   display: flex;
-  gap: 16px;
+  gap: 10px;
   justify-content: space-between;
   min-height: 54px;
-  padding: 10px 14px;
+  padding: 9px 12px;
+}
+.fixture .muted {
+  font-size: 12px;
 }
 .team {
   font-weight: 650;
@@ -97,20 +142,33 @@ h1 span {
   color: var(--mtl-orange-control);
 }
 .score {
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 750;
 }
 .timeline-panel,
 .side-panel,
-.card {
+.card,
+.guide-card,
+.journey-panel {
   background: rgba(13, 20, 27, 0.94);
   border: 1px solid var(--mtl-panel-border);
   border-radius: 7px;
   box-shadow: var(--mtl-shadow);
 }
 .timeline-panel {
-  grid-column: 1 / 2;
-  padding: 18px 18px 14px;
+  grid-column: 2 / 3;
+  overflow: hidden;
+  padding: 16px 18px 14px;
+  position: relative;
+}
+.timeline-panel::before {
+  background: linear-gradient(90deg, rgba(20, 124, 255, 0.16), rgba(46, 233, 209, 0.08), rgba(255, 138, 0, 0.14));
+  content: "";
+  height: 3px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 .legend {
   display: flex;
@@ -134,12 +192,13 @@ h1 span {
 .main-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.25fr) minmax(320px, 1.1fr);
+  grid-column: 2 / 3;
+  grid-template-columns: minmax(230px, 0.9fr) minmax(300px, 1.24fr) minmax(250px, 1fr);
 }
 .card {
   min-height: 150px;
   overflow: hidden;
-  padding: 16px;
+  padding: 14px;
 }
 .card h2 {
   color: var(--mtl-text-soft);
@@ -150,28 +209,52 @@ h1 span {
   text-transform: uppercase;
 }
 .selected-card {
-  border-color: rgba(46, 233, 209, 0.42);
-  box-shadow: 0 0 0 1px rgba(46, 233, 209, 0.08), var(--mtl-shadow);
+  background:
+    linear-gradient(145deg, rgba(46, 233, 209, 0.16), rgba(13, 20, 27, 0.94) 42%),
+    rgba(13, 20, 27, 0.94);
+  border-color: rgba(46, 233, 209, 0.58);
+  box-shadow: 0 0 0 1px rgba(46, 233, 209, 0.14), 0 22px 58px rgba(0, 0, 0, 0.38);
 }
 .selected-hero {
-  align-items: center;
-  display: flex;
+  align-items: stretch;
+  display: grid;
   gap: 14px;
+  grid-template-columns: 104px minmax(0, 1fr);
 }
 .hero-marker {
   align-items: center;
-  background: rgba(46, 233, 209, 0.12);
+  align-self: stretch;
+  background: linear-gradient(180deg, rgba(46, 233, 209, 0.22), rgba(46, 233, 209, 0.06));
   border: 2px solid var(--mtl-selected-range);
-  border-radius: 14px;
-  box-shadow: inset 0 0 24px rgba(46, 233, 209, 0.1), 0 0 22px rgba(46, 233, 209, 0.18);
+  border-radius: 8px;
+  box-shadow: inset 0 0 28px rgba(46, 233, 209, 0.12), 0 0 30px rgba(46, 233, 209, 0.22);
   color: var(--mtl-selected-range);
   display: grid;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
-  height: 86px;
+  min-height: 122px;
   flex: 0 0 auto;
   place-items: center;
-  width: 86px;
+  width: 104px;
+}
+.selected-meta {
+  display: grid;
+  gap: 8px;
+}
+.selected-time {
+  color: var(--mtl-selected-range);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+.selected-title {
+  color: var(--mtl-text-primary);
+  font-size: 18px;
+  font-weight: 750;
+}
+.selected-summary {
+  color: var(--mtl-text-soft);
+  max-width: 28rem;
 }
 .tag-row,
 .chip-row {
@@ -309,14 +392,66 @@ h1 span {
   grid-template-columns: 42px minmax(0, 1fr);
 }
 .side-panel {
-  grid-column: 2 / 3;
-  grid-row: 2 / 4;
-  padding: 16px;
+  grid-column: 3 / 4;
+  grid-row: 2 / span 3;
+  align-self: start;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+}
+.guide-rail {
+  align-self: start;
+  display: grid;
+  gap: 8px;
+}
+.left-guide {
+  grid-column: 1 / 2;
+  grid-row: 2 / span 3;
+}
+.guide-card {
+  min-height: 92px;
+  padding: 11px;
+}
+.guide-card h2 {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+.guide-card p,
+.guide-card li {
+  color: var(--mtl-text-soft);
+  font-size: 10px;
+  line-height: 1.38;
+}
+.guide-card ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+}
+.guide-number {
+  align-items: center;
+  border: 1px solid var(--mtl-blue-control);
+  border-radius: 999px;
+  color: #6bb6ff;
+  display: inline-grid;
+  flex: 0 0 auto;
+  font-size: 11px;
+  height: 19px;
+  place-items: center;
+  width: 19px;
+}
+.guide-card.teal .guide-number {
+  border-color: var(--mtl-selected-range);
+  color: var(--mtl-selected-range);
 }
 .icon-stack {
   display: grid;
-  gap: 10px;
-  margin-top: 16px;
+  gap: 7px;
+  margin-top: 10px;
 }
 .icon-ref {
   align-items: center;
@@ -333,13 +468,52 @@ h1 span {
   color: var(--mtl-text-muted);
   display: flex;
   gap: 8px;
-  grid-column: 1 / 2;
+  grid-column: 2 / 3;
   justify-content: center;
   padding: 8px;
+}
+.journey-panel {
+  grid-column: 1 / -1;
+  padding: 12px 16px 14px;
+}
+.journey-panel h2 {
+  font-size: 13px;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+.journey-steps {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.journey-step {
+  min-height: 92px;
+}
+.journey-step h3 {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  font-size: 12px;
+}
+.journey-step p {
+  color: var(--mtl-text-soft);
+  font-size: 11px;
+  margin: 5px 0 8px;
+}
+.mini-rail {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+  height: 18px;
+}
+.mini-segment {
+  border-radius: 2px;
+  height: 6px;
 }
 .mtl-root {
   display: block;
   height: auto;
+  margin: 4px 0 2px;
   overflow: visible;
   width: 100%;
   filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.22));
@@ -365,6 +539,9 @@ h1 span {
 .mtl-band {
   opacity: 0.92;
   filter: saturate(1.12);
+}
+.mtl-rail-bg {
+  fill: rgba(255, 255, 255, 0.055);
 }
 .mtl-band-blue-control {
   fill: var(--mtl-blue-control);
@@ -399,9 +576,18 @@ h1 span {
   stroke: currentColor;
   stroke-width: 2;
 }
+.mtl-marker-stem {
+  stroke: currentColor;
+  stroke-opacity: 0.7;
+  stroke-width: 1.5;
+}
 .mtl-marker.is-selected .mtl-marker-shape {
   stroke: var(--mtl-selected-range);
   stroke-width: 3;
+}
+.mtl-marker.is-selected .mtl-marker-stem {
+  stroke: var(--mtl-selected-range);
+  stroke-width: 2;
 }
 .mtl-marker-blue {
   color: var(--mtl-blue-control);
@@ -428,25 +614,48 @@ h1 span {
   stroke-dasharray: 6 5;
   stroke-width: 2;
 }
-@media (max-width: 1220px) {
+@media (max-width: 1180px) {
   .page {
+    grid-template-columns: 172px minmax(0, 1fr);
+  }
+  .topbar {
     grid-template-columns: 1fr;
   }
-  .side-panel {
-    grid-column: 1;
+  .state-strip {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .timeline-panel,
+  .main-grid,
+  .footer-note {
+    grid-column: 2;
     grid-row: auto;
   }
+  .left-guide {
+    grid-column: 1;
+    grid-row: 2 / span 3;
+  }
+  .side-panel {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
   .icon-stack {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
   .main-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .journey-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 980px) {
   .page,
   .main-grid,
-  .topbar {
+  .topbar,
+  .state-strip,
+  .side-panel,
+  .journey-steps {
     display: block;
   }
   .page {
@@ -472,6 +681,12 @@ h1 span {
   .icon-stack {
     grid-template-columns: 1fr;
   }
+  .timeline-panel,
+  .main-grid,
+  .left-guide,
+  .footer-note {
+    grid-column: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -489,8 +704,16 @@ h1 span {
   <header class="topbar">
     <div>
       <h1><span>OOF RL</span> - MOMENTUM TIMELINE B-LITE</h1>
+      <h2>UI BREAKDOWN & INTERACTION GUIDE</h2>
       <p class="subtitle">Post-Match Story Layer - Event-Derived Insights Only</p>
     </div>
+    <section class="state-strip" aria-label="State legend guide">
+      <div class="state-item blue"><span class="state-icon">B</span><span class="state-label">Blue Control</span><span class="state-copy">Blue team has sustained pressure / control signal</span></div>
+      <div class="state-item contested"><span class="state-icon">C</span><span class="state-label">Contested</span><span class="state-copy">Both teams evenly trading pressure</span></div>
+      <div class="state-item orange"><span class="state-icon">O</span><span class="state-label">Orange Control</span><span class="state-copy">Orange team has sustained pressure / control signal</span></div>
+      <div class="state-item neutral"><span class="state-icon">N</span><span class="state-label">Neutral / Reset</span><span class="state-copy">Low pressure / reset in play</span></div>
+      <div class="state-item teal"><span class="state-icon">S</span><span class="state-label">Selected Range</span><span class="state-copy">User selected moment or pressure sequence</span></div>
+    </section>
     <section class="fixture" aria-label="Fixture summary">
       <span id="fixture-label" class="muted">Fixture</span>
       <span id="blue-team" class="team blue"></span>
@@ -499,6 +722,26 @@ h1 span {
       <span class="muted">Mock Data</span>
     </section>
   </header>
+
+  <aside class="guide-rail left-guide" aria-label="Timeline overview guide">
+    <article class="guide-card">
+      <h2><span class="guide-number">1</span>Timeline Overview</h2>
+      <p>Visualizes match momentum across the full timeline. Bands show event-derived pressure/control states.</p>
+      <ul><li>Icons mark key events.</li><li>Click icon to focus moment.</li><li>Hover for details.</li></ul>
+    </article>
+    <article class="guide-card">
+      <h2><span class="guide-number">2</span>Legend</h2>
+      <p>Explains what each band color means.</p>
+    </article>
+    <article class="guide-card teal">
+      <h2><span class="guide-number">3</span>Selected Moment Card</h2>
+      <p>Shows details about the selected moment or pressure sequence.</p>
+    </article>
+    <article class="guide-card">
+      <h2><span class="guide-number">4</span>Data Confidence</h2>
+      <p>Confidence in the event-derived signal quality for this moment/sequence.</p>
+    </article>
+  </aside>
 
   <section class="timeline-panel" aria-label="Fixture-only SVG timeline">
     <svg class="mtl-root" viewBox="0 0 1200 180" role="img" aria-labelledby="mtl-title mtl-desc">
@@ -529,10 +772,29 @@ h1 span {
     </div>
   </section>
 
-  <aside class="side-panel" aria-label="Event marker reference">
-    <h2>Event Icons (Fallback)</h2>
-    <p class="muted">SVG asset adoption is deferred. Markers use direct SVG shapes and short labels.</p>
-    <div id="icon-reference" class="icon-stack"></div>
+  <aside class="side-panel" aria-label="Timeline interaction guide">
+    <article class="guide-card">
+      <h2><span class="guide-number">6</span>Match Header</h2>
+      <p>Fixture label, teams, score, playlist, and timestamp. Static in this view.</p>
+    </article>
+    <article class="guide-card">
+      <h2><span class="guide-number">7</span>Event Icons (SVG)</h2>
+      <p>Approved icon set used for all event markers. This preview still uses fallback labels.</p>
+      <div id="icon-reference" class="icon-stack"></div>
+    </article>
+    <article class="guide-card">
+      <h2><span class="guide-number">8</span>Interaction Behaviors</h2>
+      <ul>
+        <li>Hover on band: show segment info.</li>
+        <li>Click event icon: focus that moment.</li>
+        <li>Keyboard: arrows move focus, Enter selects.</li>
+      </ul>
+    </article>
+    <article class="guide-card">
+      <h2><span class="guide-number">9</span>Honesty Guardrails</h2>
+      <p>We show event-derived pressure/control signals.</p>
+      <ul><li>No saved data writes.</li><li>No live data mutation.</li><li>No certainty claims.</li></ul>
+    </article>
   </aside>
 
   <section class="main-grid">
@@ -565,6 +827,18 @@ h1 span {
   </section>
 
   <footer class="footer-note">Event-derived data only. Interpret as pressure/control signal context.</footer>
+
+  <section class="journey-panel" aria-label="User journey example">
+    <h2>User Journey Example</h2>
+    <div class="journey-steps">
+      <article class="journey-step"><h3><span class="guide-number">1</span>Load Timeline</h3><p>Timeline shows the full match at a glance.</p><div class="mini-rail"><span class="mini-segment" style="width: 18%; background: var(--mtl-blue-control)"></span><span class="mini-segment" style="width: 20%; background: var(--mtl-contested)"></span><span class="mini-segment" style="width: 22%; background: var(--mtl-orange-control)"></span><span class="mini-segment" style="width: 12%; background: var(--mtl-neutral)"></span></div></article>
+      <article class="journey-step"><h3><span class="guide-number">2</span>Hover Band</h3><p>Hover to see segment info, confidence, and timing.</p><div class="mini-rail"><span class="mini-segment" style="width: 24%; background: var(--mtl-blue-control)"></span><span class="mini-segment" style="width: 42%; background: var(--mtl-orange-control)"></span><span class="mini-segment" style="width: 20%; background: var(--mtl-neutral)"></span></div></article>
+      <article class="journey-step"><h3><span class="guide-number">3</span>Select Range</h3><p>Click and drag to select a range.</p><div class="mini-rail"><span class="mini-segment" style="width: 20%; background: var(--mtl-contested)"></span><span class="mini-segment" style="width: 48%; background: var(--mtl-selected-range)"></span><span class="mini-segment" style="width: 22%; background: var(--mtl-orange-control)"></span></div></article>
+      <article class="journey-step"><h3><span class="guide-number">4</span>Review Moment</h3><p>Details update for selected moment or sequence.</p><div class="tag teal">Confidence: High</div></article>
+      <article class="journey-step"><h3><span class="guide-number">5</span>Click Event</h3><p>Click an event icon to focus that specific moment.</p><div class="mini-rail"><span class="mini-segment" style="width: 30%; background: var(--mtl-blue-control)"></span><span class="mini-segment" style="width: 18%; background: var(--mtl-orange-control)"></span><span class="mini-segment" style="width: 22%; background: var(--mtl-contested)"></span></div></article>
+      <article class="journey-step"><h3><span class="guide-number">6</span>Explore</h3><p>Use keyboard or mouse to explore the story.</p><div class="tag">Arrow keys / Enter</div></article>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -623,14 +897,14 @@ const fixture = {
 const constants = {
   padding: 40,
   railX: 56,
-  railY: 58,
+  railY: 54,
   railWidth: 1088,
-  railHeight: 22,
-  markerLaneY: 126,
-  selectedBadgeY: 148,
+  railHeight: 30,
+  markerLaneY: 132,
+  selectedBadgeY: 160,
   majorTickSpacing: 60,
-  markerSize: 28,
-  markerHitSize: 44
+  markerSize: 34,
+  markerHitSize: 50
 };
 
 const fallbackLabels = {
@@ -676,9 +950,9 @@ function selectedRangeToRect(startSecond, endSecond) {
   const x2 = secondToX(endSecond);
   return {
     x: Math.min(x1, x2),
-    y: constants.railY - 12,
+    y: constants.railY - 16,
     width: Math.max(2, Math.abs(x2 - x1)),
-    height: constants.railHeight + 42
+    height: constants.railHeight + 58
   };
 }
 
@@ -819,10 +1093,12 @@ function renderMarker(event, index, selectedId) {
   const y = markerY(markerLane(fixture.events, event, index));
   const label = fallbackLabels[event.type] || "EV";
   const selected = event.id === selectedId;
-  const points = x + "," + (y - 18) + " " + (x + 17) + "," + (y - 8) + " " + (x + 17) + "," + (y + 10) + " " + x + "," + (y + 20) + " " + (x - 17) + "," + (y + 10) + " " + (x - 17) + "," + (y - 8);
+  const markerRadius = selected ? 23 : 19;
+  const points = x + "," + (y - markerRadius) + " " + (x + markerRadius) + "," + (y - 10) + " " + (x + markerRadius) + "," + (y + 12) + " " + x + "," + (y + markerRadius + 3) + " " + (x - markerRadius) + "," + (y + 12) + " " + (x - markerRadius) + "," + (y - 10);
   const title = formatMatchClock(event.second) + " " + eventNames[event.type] + " by " + event.playerName;
   return svg("g", { class: "mtl-marker mtl-marker-" + event.type.replace("_", "-") + " " + markerClass(event.team) + " " + (selected ? "is-selected" : ""), "aria-label": title }, [
     svg("title", {}, html(title)),
+    svg("line", { class: "mtl-marker-stem", x1: x, x2: x, y1: constants.railY + constants.railHeight + 3, y2: y - markerRadius + 3 }),
     svg("polygon", { class: "mtl-marker-shape", points }),
     svg("text", { class: "mtl-marker-label", x, y: y + 5, "text-anchor": "middle" }, html(label))
   ].join(""));
@@ -874,10 +1150,11 @@ function renderCards() {
     '<h2>Selected Moment</h2>',
     '<div class="selected-hero">',
     '<div class="hero-marker">' + html(fallbackLabels[selected.type]) + '</div>',
-    '<div>',
-    '<h3>' + html(formatMatchClock(selected.second)) + ' - ' + html(eventNames[selected.type]) + '<span class="confidence-dot ' + html(selected.confidence) + '" aria-label="' + html(selected.confidence) + ' confidence"></span></h3>',
+    '<div class="selected-meta">',
+    '<div class="selected-time">' + html(formatMatchClock(selected.second)) + '</div>',
+    '<div class="selected-title">' + html(eventNames[selected.type]) + '<span class="confidence-dot ' + html(selected.confidence) + '" aria-label="' + html(selected.confidence) + ' confidence"></span></div>',
     '<p class="team ' + teamClass(selected.team) + '">' + html(selected.playerName) + '</p>',
-    '<p class="muted">' + html(selected.summary) + '</p>',
+    '<p class="selected-summary">' + html(selected.summary) + '</p>',
     '<div class="tag-row"><span class="tag ' + teamClass(selected.team) + '">' + html(segment.summary) + '</span><span class="tag">Event-derived pressure/control signal</span></div>',
     '</div>',
     '</div>'
