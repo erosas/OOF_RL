@@ -970,9 +970,9 @@ const fixture = {
     selectionType: "event",
     segmentId: "s4",
     eventId: "e5",
-    rangeStartSecond: 140,
-    rangeEndSecond: 166,
-    badgeSecond: 145
+    rangeStartSecond: 128,
+    rangeEndSecond: 160,
+    badgeSecond: 146
   },
   contributions: [
     { playerName: "ZPH Rixxy", team: "blue", pressureContribution: 72, momentumInfluence: 0.72, contestInvolvement: 0.38, source: "event_derived" },
@@ -1071,11 +1071,12 @@ function syncSelectedMoment(event) {
   selectedEventId = event.id;
   fixture.selectedMoment.eventId = event.id;
   fixture.selectedMoment.segmentId = event.segmentId;
-  fixture.selectedMoment.rangeStartSecond = Math.max(0, event.second - 13);
-  fixture.selectedMoment.rangeEndSecond = Math.min(totalSeconds(), event.second + 13);
   if (segment) {
-    fixture.selectedMoment.rangeStartSecond = Math.max(0, Math.min(fixture.selectedMoment.rangeStartSecond, segment.startSecond));
-    fixture.selectedMoment.rangeEndSecond = Math.min(totalSeconds(), Math.max(fixture.selectedMoment.rangeEndSecond, segment.endSecond));
+    fixture.selectedMoment.rangeStartSecond = segment.startSecond;
+    fixture.selectedMoment.rangeEndSecond = segment.endSecond;
+  } else {
+    fixture.selectedMoment.rangeStartSecond = Math.max(0, event.second - 13);
+    fixture.selectedMoment.rangeEndSecond = Math.min(totalSeconds(), event.second + 13);
   }
   fixture.selectedMoment.badgeSecond = event.second;
 }
@@ -1170,7 +1171,10 @@ function renderDividers() {
 
 function renderSelection() {
   const selected = fixture.selectedMoment;
-  const rect = selectedRangeToRect(selected.rangeStartSecond, selected.rangeEndSecond);
+  const selectedSegment = fixture.segments.find((item) => item.id === selected.segmentId);
+  const rangeStart = selectedSegment ? selectedSegment.startSecond : selected.rangeStartSecond;
+  const rangeEnd = selectedSegment ? selectedSegment.endSecond : selected.rangeEndSecond;
+  const rect = selectedRangeToRect(rangeStart, rangeEnd);
   const badgeX = secondToX(selected.badgeSecond);
   const c = Math.min(16, Math.max(8, rect.width / 4));
   return [
