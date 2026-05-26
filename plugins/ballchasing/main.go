@@ -16,14 +16,14 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
 		ID:     "ballchasing",
 		NavTab: sdk.NavTabMeta{ID: "bc", Label: "Ballchasing", Order: 40},
-		Routes: []string{
-			"/api/ballchasing/ping",
-			"/api/ballchasing/local-replays/purge",
-			"/api/ballchasing/matches",
-			"/api/ballchasing/sync",
-			"/api/ballchasing/replays",
-			"/api/ballchasing/groups",
-			"/api/ballchasing/upload",
+		Routes: []sdk.RouteMeta{
+			{Path: "/api/ballchasing/ping", Method: "GET"},
+			{Path: "/api/ballchasing/local-replays/purge", Method: "POST"},
+			{Path: "/api/ballchasing/matches", Method: "GET"},
+			{Path: "/api/ballchasing/sync", Method: "POST"},
+			{Path: "/api/ballchasing/replays", Method: "GET"},
+			{Path: "/api/ballchasing/groups", Method: "GET"},
+			{Path: "/api/ballchasing/upload", Method: "POST"},
 		},
 		Events: []string{"match.ended"},
 		Settings: []sdk.SettingSchema{

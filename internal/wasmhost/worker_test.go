@@ -208,7 +208,7 @@ func TestPlugin_Assets(t *testing.T) {
 // and that requests without fnHandleHTTP get a 501 Not Implemented.
 func TestPlugin_Routes_NoHandler(t *testing.T) {
 	p := &Plugin{
-		meta: sdk.PluginMeta{Routes: []string{"/api/wasm-test"}},
+		meta: sdk.PluginMeta{Routes: []sdk.RouteMeta{{Path: "/api/wasm-test", Method: "GET"}}},
 	}
 	mux := http.NewServeMux()
 	p.Routes(mux)
@@ -219,6 +219,85 @@ func TestPlugin_Routes_NoHandler(t *testing.T) {
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("serveHTTP without handler: got %d, want 501", w.Code)
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/wasm-test", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("method guard: got %d, want 405", w.Code)
+	}
+}
+
+func TestValidateRouteMeta(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{
+			{Path: "/api/a", Method: "GET"},
+			{Path: "/api/b"},
+		})
+		if err != nil {
+			t.Fatalf("validateRouteMeta: %v", err)
+		}
+	})
+
+	t.Run("duplicate path", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{
+			{Path: "/api/a", Method: "GET"},
+			{Path: "/api/a", Method: "POST"},
+		})
+		if err == nil {
+			t.Fatal("expected duplicate path error")
+		}
+	})
+
+	t.Run("invalid method", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{{Path: "/api/a", Method: "BREW"}})
+		if err == nil {
+			t.Fatal("expected invalid method error")
+		}
+	})
+
+	t.Run("empty path", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{{Method: "GET"}})
+		if err == nil {
+			t.Fatal("expected empty path error")
+		}
+	})
+}
+
+func TestValidateDeclaredEventsMeta(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{
+			{Type: "example.changed", Certainty: sdk.Authoritative},
+			{Type: "example.signal", Certainty: sdk.Signal},
+		})
+		if err != nil {
+			t.Fatalf("validateDeclaredEventsMeta: %v", err)
+		}
+	})
+
+	t.Run("duplicate type", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{
+			{Type: "example.changed", Certainty: sdk.Authoritative},
+			{Type: "example.changed", Certainty: sdk.Inferred},
+		})
+		if err == nil {
+			t.Fatal("expected duplicate declared event type error")
+		}
+	})
+
+	t.Run("empty type", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{{Type: "", Certainty: sdk.Authoritative}})
+		if err == nil {
+			t.Fatal("expected empty type error")
+		}
+	})
+
+	t.Run("invalid certainty", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{{Type: "example.changed", Certainty: sdk.Certainty(99)}})
+		if err == nil {
+			t.Fatal("expected invalid certainty error")
+		}
+	})
 }
 
 // TestPlugin_HostPublishEvent_NilBus ensures the nil-bus guard does not panic.
@@ -328,8 +407,20 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 	p := &Plugin{
 		meta: sdk.PluginMeta{
 			Settings: []sdk.SettingSchema{
-				{Key: "api_key", Description: "My API key", Secret: true},
-				{Key: "mode", Description: "Mode flag", Secret: false},
+				{Key: "api_key", Label: "API key", Description: "My API key", Secret: true},
+				{
+					Key:         "mode",
+					Label:       "Mode",
+					Description: "Mode flag",
+					Type:        "select",
+					Default:     "full",
+					Placeholder: "Choose mode",
+					Developer:   true,
+					Options: []sdk.SelectOption{
+						{Value: "full", Label: "Full"},
+						{Value: "lite", Label: "Lite"},
+					},
+				},
 			},
 		},
 	}
@@ -340,8 +431,14 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 	if schema[0].Key != "api_key" || schema[0].Type != plugin.SettingTypePassword {
 		t.Errorf("first setting: got key=%q type=%q", schema[0].Key, schema[0].Type)
 	}
-	if schema[1].Key != "mode" || schema[1].Type != plugin.SettingTypeText {
+	if schema[1].Key != "mode" || schema[1].Type != plugin.SettingTypeSelect {
 		t.Errorf("second setting: got key=%q type=%q", schema[1].Key, schema[1].Type)
+	}
+	if schema[1].Label != "Mode" || schema[1].Default != "full" || schema[1].Placeholder != "Choose mode" || !schema[1].Developer {
+		t.Errorf("second setting metadata: got %+v", schema[1])
+	}
+	if len(schema[1].Options) != 2 || schema[1].Options[0].Value != "full" {
+		t.Errorf("second setting options: got %+v", schema[1].Options)
 	}
 }
 

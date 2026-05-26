@@ -54,6 +54,8 @@ type Registry interface {
 // Subscribe to events, emit events, optionally persist data.
 type Analyzer interface {
 	ID() string
+	// Deprecated: DBPrefix is kept for compatibility and may be removed in a future API revision.
+	// New plugins should avoid relying on this field for behavior.
 	DBPrefix() string
 	Requires() []string
 	Init(bus oofevents.PluginBus, registry Registry, db *db.DB) error

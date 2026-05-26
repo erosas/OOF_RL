@@ -126,11 +126,14 @@ Use a namespaced type string (e.g. `live.state.changed`) to avoid colliding with
 
 - `id` (`PluginID`): canonical runtime identity; used for init, view loading, assets, and plugin data paths.
 - `nav_tab.id` (`ViewID`): UI navigation slug only.
-- `routes`: plugin-owned HTTP routes handled via `plugin_handle_http`.
+- `routes`: plugin-owned HTTP routes handled via `plugin_handle_http`, declared as `{ "path": "...", "method": "GET|POST|..." }`. `method` is optional when a route supports multiple methods.
 - `requires`: dependency plugin IDs for startup ordering/validation.
-- `settings`: keys surfaced in settings schema for the plugin.
+- `declared_events`: optional event declarations for plugin-emitted event types; types must be non-empty/unique and certainty must be valid.
+- `settings`: plugin settings metadata surfaced in settings schema (`key`, `label`, `type`, `default`, `options`, `placeholder`, `developer`, `description`).
 
 Single-page plugin model: one `view.html` + one `view.js` per plugin.
+
+`DBPrefix` exists as a compatibility surface in the broader plugin API and is not required for typical WASM plugin behavior.
 
 ## SDK (`plugins/sdk/`)
 

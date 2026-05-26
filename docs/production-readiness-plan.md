@@ -262,19 +262,19 @@ The target state is:
 - [x] Deprecate `HTTPResponse.BodyBytes` in SDK and docs
 
 #### 2.3 Evolve route metadata
-- [ ] Replace `PluginMeta.Routes []string` with richer route definitions
-- [ ] Include at least method information in route metadata
+- [x] Replace `PluginMeta.Routes []string` with richer route definitions
+- [x] Include at least method information in route metadata
 - [ ] Review whether content type / route kind should also be explicit
 
 #### 2.4 Unify settings schema model
-- [ ] Align WASM plugin settings metadata with native `plugin.Setting`
-- [ ] Support consistent labels, defaults, placeholders, and field types
-- [ ] Remove drift between host and WASM plugin settings capabilities
+- [x] Align WASM plugin settings metadata with native `plugin.Setting`
+- [x] Support consistent labels, defaults, placeholders, and field types
+- [x] Remove drift between host and WASM plugin settings capabilities
 
 #### 2.5 Review/remove weak API surface
-- [ ] Review whether `DBPrefix()` should be removed
-- [ ] Review whether `DeclaredEvents()` should be removed or made first-class
-- [ ] Review whether plugin route declarations should be validated more strictly on load
+- [x] Review whether `DBPrefix()` should be removed
+- [x] Review whether `DeclaredEvents()` should be removed or made first-class
+- [x] Review whether plugin route declarations should be validated more strictly on load
 
 ### Target files
 - `internal/wasmhost/host.go`
@@ -592,6 +592,11 @@ Before calling the platform production-ready, all of the following should be tru
 - [x] Removed response-side `HTTPResponse.BodyBytes` from SDK ABI and host response writer path while keeping request-side upload `BodyBytes`
 - [x] Enforced host-core history semantics: history cannot be runtime-disabled, disabled config entries for `history` are sanitized, settings show history as always-on, and API/docs now describe history as host-owned
 - [x] Locked `history` as host-core in runtime semantics: disabling `history` in config is sanitized/ignored, history remains enabled in nav/schema, and settings UI marks it as always-on
+- [x] Upgraded WASM route metadata from string-only paths to typed route declarations with explicit method support and host-side method guards
+- [x] Expanded WASM settings metadata to align with host settings model (labels/types/defaults/options/placeholders/developer flags)
+- [x] Added strict WASM route metadata validation on load (required/absolute path, supported methods, duplicate path rejection)
+- [x] Reviewed weak API surface: `DBPrefix` retained as deprecated compatibility; `DeclaredEvents` retained as first-class with load-time metadata validation
+- [x] Migrated WASM route metadata to typed method+path definitions (`RouteMeta`) and added host-side method guards (405 on mismatch when method is declared)
 
 ---
 

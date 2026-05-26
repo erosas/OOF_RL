@@ -16,7 +16,7 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
 		ID:     "dashboard",
 		NavTab: sdk.NavTabMeta{ID: "dashboard", Label: "Dashboard", Order: 50},
-		Routes: []string{"/api/dashboard/layout"},
+		Routes: []sdk.RouteMeta{{Path: "/api/dashboard/layout"}},
 	}
 	b, _ := json.Marshal(meta)
 	return sdk.WriteOutput(b, outPtr, outMax)

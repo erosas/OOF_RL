@@ -214,7 +214,16 @@ func (p *Plugin) NavTab() plugin.NavTab {
 
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	for _, route := range p.meta.Routes {
-		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
+		path := route.Path
+		if path == "" {
+			continue
+		}
+		method := strings.ToUpper(strings.TrimSpace(route.Method))
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			if method != "" && r.Method != method {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
 			p.serveHTTP(w, r)
 		})
 	}
@@ -226,11 +235,29 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 	}
 	out := make([]plugin.Setting, len(p.meta.Settings))
 	for i, s := range p.meta.Settings {
-		t := plugin.SettingTypeText
-		if s.Secret {
+		t := plugin.SettingType(s.Type)
+		switch t {
+		case plugin.SettingTypeText, plugin.SettingTypeNumber, plugin.SettingTypeCheckbox, plugin.SettingTypePassword, plugin.SettingTypeSelect:
+		default:
+			t = plugin.SettingTypeText
+		}
+		if s.Secret && s.Type == "" {
 			t = plugin.SettingTypePassword
 		}
-		out[i] = plugin.Setting{Key: s.Key, Description: s.Description, Type: t}
+		options := make([]plugin.SelectOption, 0, len(s.Options))
+		for _, opt := range s.Options {
+			options = append(options, plugin.SelectOption{Value: opt.Value, Label: opt.Label})
+		}
+		out[i] = plugin.Setting{
+			Key:         s.Key,
+			Label:       s.Label,
+			Description: s.Description,
+			Type:        t,
+			Default:     s.Default,
+			Options:     options,
+			Placeholder: s.Placeholder,
+			Developer:   s.Developer,
+		}
 	}
 	return out
 }
@@ -370,6 +397,57 @@ func (p *Plugin) readMeta() error {
 
 	if err := json.Unmarshal(data, &p.meta); err != nil {
 		return fmt.Errorf("wasmhost: plugin_metadata unmarshal: %w", err)
+	}
+	if err := validateRouteMeta(p.meta.Routes); err != nil {
+		return fmt.Errorf("wasmhost: plugin_metadata routes: %w", err)
+	}
+	if err := validateDeclaredEventsMeta(p.meta.DeclaredEvents); err != nil {
+		return fmt.Errorf("wasmhost: plugin_metadata declared_events: %w", err)
+	}
+	return nil
+}
+
+func validateRouteMeta(routes []sdk.RouteMeta) error {
+	seenPath := make(map[string]struct{}, len(routes))
+	for _, r := range routes {
+		path := strings.TrimSpace(r.Path)
+		if path == "" {
+			return fmt.Errorf("route path is required")
+		}
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("route path must start with '/': %q", path)
+		}
+		if _, exists := seenPath[path]; exists {
+			return fmt.Errorf("duplicate route path %q", path)
+		}
+		seenPath[path] = struct{}{}
+		method := strings.ToUpper(strings.TrimSpace(r.Method))
+		if method == "" {
+			continue
+		}
+		switch method {
+		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions:
+		default:
+			return fmt.Errorf("unsupported route method %q for %q", method, path)
+		}
+	}
+	return nil
+}
+
+func validateDeclaredEventsMeta(events []sdk.DeclaredEvent) error {
+	seen := make(map[string]struct{}, len(events))
+	for _, e := range events {
+		typeName := strings.TrimSpace(e.Type)
+		if typeName == "" {
+			return fmt.Errorf("declared event type is required")
+		}
+		if _, exists := seen[typeName]; exists {
+			return fmt.Errorf("duplicate declared event type %q", typeName)
+		}
+		seen[typeName] = struct{}{}
+		if e.Certainty < sdk.Authoritative || e.Certainty > sdk.Signal {
+			return fmt.Errorf("invalid certainty %d for declared event %q", e.Certainty, typeName)
+		}
 	}
 	return nil
 }

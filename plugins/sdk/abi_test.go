@@ -11,7 +11,7 @@ func TestPluginMetaRoundTrip(t *testing.T) {
 	meta := sdk.PluginMeta{
 		ID:     "live",
 		NavTab: sdk.NavTabMeta{ID: "live", Label: "Live", Order: 10},
-		Routes: []string{"/api/live/state"},
+		Routes: []sdk.RouteMeta{{Path: "/api/live/state", Method: "GET"}},
 		Events: []string{"state.updated", "match.destroyed"},
 	}
 
@@ -28,7 +28,7 @@ func TestPluginMetaRoundTrip(t *testing.T) {
 	if got.ID != meta.ID {
 		t.Errorf("ID: got %q, want %q", got.ID, meta.ID)
 	}
-	if len(got.Routes) != 1 || got.Routes[0] != "/api/live/state" {
+	if len(got.Routes) != 1 || got.Routes[0].Path != "/api/live/state" || got.Routes[0].Method != "GET" {
 		t.Errorf("Routes: got %v", got.Routes)
 	}
 	if len(got.Events) != 2 {

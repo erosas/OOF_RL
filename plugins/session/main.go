@@ -16,13 +16,13 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
 		ID:       "session",
 		NavTab:   sdk.NavTabMeta{ID: "session", Label: "Session", Order: 25},
-		Routes: []string{
-			"/api/session/stats",
-			"/api/session/start",
-			"/api/session/new",
-			"/api/session/suggest-player",
-			"/api/session/history/",
-			"/api/session/history",
+		Routes: []sdk.RouteMeta{
+			{Path: "/api/session/stats", Method: "GET"},
+			{Path: "/api/session/start"},
+			{Path: "/api/session/new", Method: "POST"},
+			{Path: "/api/session/suggest-player", Method: "GET"},
+			{Path: "/api/session/history/"},
+			{Path: "/api/session/history", Method: "GET"},
 		},
 		Events: []string{"match.started"},
 	}

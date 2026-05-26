@@ -19,12 +19,12 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
 		ID:     "debugassistant",
 		NavTab: sdk.NavTabMeta{ID: "debugassistant", Label: "Debug", Order: 90},
-		Routes: []string{
-			"/api/debug-assistant/events",
-			"/api/debug-assistant/context",
-			"/api/debug-assistant/screenshots",
-			"/api/debug-assistant/export-report",
-			"/api/debug-assistant/reset",
+		Routes: []sdk.RouteMeta{
+			{Path: "/api/debug-assistant/events", Method: "GET"},
+			{Path: "/api/debug-assistant/context", Method: "GET"},
+			{Path: "/api/debug-assistant/screenshots", Method: "GET"},
+			{Path: "/api/debug-assistant/export-report", Method: "POST"},
+			{Path: "/api/debug-assistant/reset", Method: "POST"},
 		},
 		Events: []string{
 			"match.started",
