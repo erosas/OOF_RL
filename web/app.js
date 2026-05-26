@@ -684,12 +684,12 @@ function renderPluginAccordion(blobs, cfg) {
       dot.className = `plugin-item-dot ${enabled ? 'on' : 'off'}`;
       nameEl.className = `plugin-item-name${enabled ? '' : ' disabled'}`;
 
-      if (blob.nav_tab_id) {
-        const navBtn = document.querySelector(`.nav-btn[data-view="${blob.nav_tab_id}"]`);
+      if (blob.view_id) {
+        const navBtn = document.querySelector(`.nav-btn[data-view="${blob.view_id}"]`);
         if (navBtn) navBtn.style.display = enabled ? '' : 'none';
         if (!enabled) {
           const active = document.querySelector('.view.active');
-          if (active && active.id === 'view-' + blob.nav_tab_id) showView('settings');
+          if (active && active.id === 'view-' + blob.view_id) showView('settings');
         }
       }
 
@@ -804,33 +804,40 @@ function buildNav(enabledTabs, allSchema) {
   const nav = document.getElementById('plugin-nav');
   const enabledIds = new Set(enabledTabs.map(t => t.id));
   const pluginBtns = allSchema
-    .filter(b => b.nav_tab_id)
+    .filter(b => b.view_id)
     .map(b => {
-      const visible = enabledIds.has(b.nav_tab_id);
-      return `<button class="nav-btn" data-view="${esc(b.nav_tab_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
+      const visible = enabledIds.has(b.view_id);
+      return `<button class="nav-btn" data-view="${esc(b.view_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
     })
     .join('');
   nav.innerHTML = pluginBtns + '<button class="nav-btn" data-view="settings">Settings</button>';
   nav.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 }
 
-async function injectPluginViews(allSchema) {
+function enabledViews(enabledTabs, allSchema) {
+  const navEnabled = new Set((enabledTabs || []).map(t => t.id));
+  return (allSchema || [])
+    .filter(b => b.plugin_id && b.view_id && b.enabled && navEnabled.has(b.view_id))
+    .map(b => ({ pluginID: b.plugin_id, viewID: b.view_id }));
+}
+
+async function injectPluginViews(enabledTabs, allSchema) {
   const container = document.getElementById('plugin-views');
-  const ids = allSchema.filter(b => b.nav_tab_id).map(b => b.nav_tab_id);
-  const htmls = await Promise.all(ids.map(id =>
-    fetch(`/api/plugins/${id}/view`)
+  const views = enabledViews(enabledTabs, allSchema);
+  const htmls = await Promise.all(views.map(v =>
+    fetch(`/api/plugins/${v.pluginID}/view`)
       .then(r => r.ok ? r.text() : '')
       .catch(() => '')
   ));
-  for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
+  for (let i = 0; i < views.length; i++) {
+    const { pluginID, viewID } = views[i];
     const section = document.createElement('section');
-    section.id = 'view-' + id;
+    section.id = 'view-' + viewID;
     section.className = 'view';
     section.innerHTML = htmls[i];
     container.appendChild(section);
-    try { await loadScript(`/plugins/${id}/view.js`); } catch (_) {}
-    const init = window[`pluginInit_${id}`];
+    try { await loadScript(`/plugins/${pluginID}/view.js`); } catch (_) {}
+    const init = window[`pluginInit_${pluginID}`];
     if (typeof init === 'function') init();
   }
 }
@@ -841,7 +848,7 @@ async function initApp() {
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
   ]);
   buildNav(tabs, schema);
-  await injectPluginViews(schema);
+  await injectPluginViews(tabs, schema);
   showView(tabs[0]?.id || 'settings');
   connectWS();
 }

@@ -2,6 +2,22 @@
 
 Plugins can be compiled to `.wasm` and dropped into `%LOCALAPPDATA%\OOF_RL\plugins\` without recompiling the host. The host loads them at startup and treats them identically to built-in Go plugins — same nav tab, same routing, same event bus.
 
+## Identity contract
+
+WASM plugins use the same identity rules as native plugins:
+
+- `PluginID` is canonical runtime/API/assets identity (`PluginMeta.ID`).
+- `ViewID` is frontend navigation identity only (`PluginMeta.NavTab.ID`).
+
+Use them like this:
+
+- View HTML endpoint: `/api/plugins/{pluginID}/view`
+- View script endpoint: `/plugins/{pluginID}/view.js`
+- Frontend init hook: `window.pluginInit_<pluginID>()`
+- Nav/showView state: `view_id`
+
+There are no compatibility aliases for ViewID-based backend loading.
+
 ## Building a plugin
 
 ```sh
@@ -26,7 +42,7 @@ make wasm/live
     view.js
 ```
 
-The host serves everything under `live\` at `/plugins/live/`.
+The host serves everything under `live\` at `/plugins/live/` where `live` is the plugin ID.
 
 ## Lifecycle
 
@@ -50,7 +66,11 @@ shutdown
   plugin_shutdown()        →     cleanup
 ```
 
-`InitPlugins` runs a topological sort before the loop, so if plugin B declares `Requires: ["a"]`, plugin A is always initialized first. A cycle or an unknown plugin ID is a startup error.
+`InitPlugins` runs a topological sort before the loop, so if plugin B declares `Requires: ["a"]`, plugin A is always initialized first. A cycle or unknown plugin ID is a startup error.
+
+If an enabled plugin requires a disabled plugin, startup also fails with a dependency error.
+
+Disabled plugins are runtime-inactive for init/routes/assets, but still appear in settings schema with `enabled=false`.
 
 ## ABI
 
@@ -75,6 +95,15 @@ All parameters are `uint32` — pointers or byte lengths in the module's linear 
 | `env.host_log` | `(level, ptr, len u32)` | Write to the host's logger |
 | `env.host_publish_event` | `(certainty, typePtr, typeLen, payloadPtr, payloadLen u32)` | Publish onto the event bus |
 
+## Host mounts and sandbox paths
+
+At load time the host mounts two directories into the plugin sandbox:
+
+- `/replays` -> configured replay directory
+- `/data` -> `<data_dir>/plugin_data/<pluginID>/`
+
+Use normal file APIs in guest code against those mount points.
+
 ## Memory model
 
 The host calls `malloc` to allocate a buffer in the plugin's linear memory, writes data into it, calls an exported function with the pointer, then calls `free`. The plugin's `malloc`/`free` shims keep a GC-protection map so the Go GC doesn't collect slices whose raw pointers have been handed out.
@@ -88,6 +117,18 @@ Inside exported functions, `sdk.ReadBytes(ptr, len)` returns a slice backed dire
 **Publishing:** call `sdk.PublishEvent(certainty, eventType, payloadJSON)`. The host wraps it as a `oofevents.RawEvent` on the bus. Any native or WASM plugin can subscribe to that event type string.
 
 Use a namespaced type string (e.g. `live.state.changed`) to avoid colliding with native event types defined in `internal/oofevents/eventtypes.go`.
+
+## Metadata guidance
+
+`PluginMeta` fields are interpreted as follows:
+
+- `id` (`PluginID`): canonical runtime identity; used for init, view loading, assets, and plugin data paths.
+- `nav_tab.id` (`ViewID`): UI navigation slug only.
+- `routes`: plugin-owned HTTP routes handled via `plugin_handle_http`.
+- `requires`: dependency plugin IDs for startup ordering/validation.
+- `settings`: keys surfaced in settings schema for the plugin.
+
+Single-page plugin model: one `view.html` + one `view.js` per plugin.
 
 ## SDK (`plugins/sdk/`)
 

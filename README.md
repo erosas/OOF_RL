@@ -29,6 +29,8 @@ Full setup details: [docs/install.md](docs/install.md)
 
 | Page | Description |
 |------|-------------|
+| [Architecture RFC](docs/architecture-rfc.md) | Locked platform decisions for plugin identity, lifecycle, and ownership |
+| [Production Readiness Plan](docs/production-readiness-plan.md) | Living architecture, cleanup, hardening, and rollout checklist |
 | [Install & Setup](docs/install.md) | Full setup, RL Stats API configuration, settings reference |
 | [Writing a Plugin](docs/plugins.md) | How to add a new tab or feature to OOF RL |
 | [Configuration](docs/configuration.md) | All `config.toml` fields explained |

@@ -3,12 +3,14 @@ package core_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"OOF_RL/internal/config"
@@ -18,6 +20,7 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
+	"OOF_RL/internal/plugin"
 	_ "OOF_RL/internal/plugins/overlayhud"
 )
 
@@ -67,6 +70,70 @@ func newTestServer(t *testing.T) (*core.Server, oofevents.Bus) {
 	srv := core.NewServer(filepath.Join(tmpDir, "config.toml"), &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
 	return srv, bus
 }
+
+func newTestServerWithConfig(t *testing.T, cfg config.Config) (*core.Server, *config.Config) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	database, err := db.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	h := hub.New()
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+
+	srv := core.NewServer(filepath.Join(tmpDir, "config.toml"), &cfg, database, h, http.NotFoundHandler(), func() {}, nil, bus)
+	return srv, &cfg
+}
+
+type testPlugin struct {
+	plugin.BasePlugin
+	id        string
+	nav       plugin.NavTab
+	assets    fstest.MapFS
+	routeOK   bool
+	requires  []string
+	initCount int
+	initErr   error
+}
+
+func (p *testPlugin) ID() string { return p.id }
+
+func (p *testPlugin) DBPrefix() string { return p.id }
+
+func (p *testPlugin) Requires() []string { return p.requires }
+
+func (p *testPlugin) Init(_ oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
+	p.initCount++
+	return p.initErr
+}
+
+func (p *testPlugin) NavTab() plugin.NavTab { return p.nav }
+
+func (p *testPlugin) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/test/"+p.id, func(w http.ResponseWriter, _ *http.Request) {
+		p.routeOK = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func (p *testPlugin) Assets() fs.FS {
+	if p.assets == nil {
+		return nil
+	}
+	return p.assets
+}
+
+func (p *testPlugin) SettingsSchema() []plugin.Setting {
+	return []plugin.Setting{{Key: p.id + ".enabled", Label: "Enabled", Type: plugin.SettingTypeCheckbox, Default: "true"}}
+}
+
+func (p *testPlugin) ApplySettings(map[string]string) error { return nil }
 
 func get(mux *http.ServeMux, path string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -285,6 +352,31 @@ func TestGetNav(t *testing.T) {
 	}
 }
 
+func TestGetNavExcludesDisabledPluginByPluginID(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"test_disabled"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	srv.Use(&testPlugin{id: "test_enabled", nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1}})
+	srv.Use(&testPlugin{id: "test_disabled", nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2}})
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := get(mux, "/api/nav")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d", w.Code)
+	}
+	var tabs []plugin.NavTab
+	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(tabs) != 1 {
+		t.Fatalf("tab count: got %d, want 1", len(tabs))
+	}
+	if tabs[0].ID != "enabled-view" {
+		t.Fatalf("nav id: got %q, want %q", tabs[0].ID, "enabled-view")
+	}
+}
+
 // --- /api/settings/schema ---
 
 func TestGetSettingsSchema(t *testing.T) {
@@ -296,6 +388,45 @@ func TestGetSettingsSchema(t *testing.T) {
 	var blobs []map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
 		t.Fatalf("parse: %v", err)
+	}
+}
+
+func TestGetSettingsSchemaMarksDisabledPluginButKeepsItListed(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"test_disabled"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	srv.Use(&testPlugin{id: "test_enabled", nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1}})
+	srv.Use(&testPlugin{id: "test_disabled", nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2}})
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := get(mux, "/api/settings/schema")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d", w.Code)
+	}
+	var blobs []plugin.PluginSettingsBlob
+	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	byID := make(map[string]plugin.PluginSettingsBlob, len(blobs))
+	for _, b := range blobs {
+		byID[b.PluginID] = b
+	}
+
+	disabled, ok := byID["test_disabled"]
+	if !ok {
+		t.Fatal("missing disabled plugin in settings schema")
+	}
+	if disabled.Enabled {
+		t.Fatal("disabled plugin should be listed with enabled=false")
+	}
+	enabled, ok := byID["test_enabled"]
+	if !ok {
+		t.Fatal("missing enabled plugin in settings schema")
+	}
+	if !enabled.Enabled {
+		t.Fatal("enabled plugin should be listed with enabled=true")
 	}
 }
 
@@ -357,6 +488,50 @@ func TestInitPluginsAndShutdownPlugins(t *testing.T) {
 		t.Fatalf("InitPlugins: %v", err)
 	}
 	srv.ShutdownPlugins()
+}
+
+func TestInitPluginsSkipsDisabledPlugins(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"test_disabled"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	enabled := &testPlugin{id: "test_enabled", nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1}}
+	disabled := &testPlugin{id: "test_disabled", nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2}}
+	srv.Use(enabled)
+	srv.Use(disabled)
+
+	if err := srv.InitPlugins(); err != nil {
+		t.Fatalf("InitPlugins: %v", err)
+	}
+	if enabled.initCount != 1 {
+		t.Fatalf("enabled init count: got %d, want 1", enabled.initCount)
+	}
+	if disabled.initCount != 0 {
+		t.Fatalf("disabled init count: got %d, want 0", disabled.initCount)
+	}
+}
+
+func TestInitPluginsFailsWhenEnabledPluginRequiresDisabledPlugin(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"dep"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	dep := &testPlugin{id: "dep", nav: plugin.NavTab{ID: "dep-view", Label: "Dep", Order: 1}}
+	consumer := &testPlugin{id: "consumer", nav: plugin.NavTab{ID: "consumer-view", Label: "Consumer", Order: 2}, requires: []string{"dep"}}
+	srv.Use(dep)
+	srv.Use(consumer)
+
+	err := srv.InitPlugins()
+	if err == nil {
+		t.Fatal("expected InitPlugins to fail when enabled plugin requires disabled plugin")
+	}
+	if !strings.Contains(err.Error(), `requires disabled plugin "dep"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if consumer.initCount != 0 {
+		t.Fatalf("consumer init count: got %d, want 0", consumer.initCount)
+	}
+	if dep.initCount != 0 {
+		t.Fatalf("dep init count: got %d, want 0", dep.initCount)
+	}
 }
 
 func TestServerGet(t *testing.T) {
@@ -421,6 +596,116 @@ func TestHandlePluginView_NotFound(t *testing.T) {
 	w := get(mux, "/api/plugins/nonexistent-xyz/view")
 	if w.Code != http.StatusNotFound {
 		t.Errorf("not found: got %d, want 404", w.Code)
+	}
+}
+
+func TestHandlePluginViewResolvesByPluginID(t *testing.T) {
+	cfg := config.Defaults()
+	srv, _ := newTestServerWithConfig(t, cfg)
+	srv.Use(&testPlugin{
+		id:  "test_plugin",
+		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
+		assets: fstest.MapFS{
+			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
+		},
+	})
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := get(mux, "/api/plugins/test_plugin/view")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, body: %s", w.Code, w.Body.String())
+	}
+	if got := strings.TrimSpace(w.Body.String()); got != "<div>ok</div>" {
+		t.Fatalf("body: got %q", got)
+	}
+}
+
+func TestHandlePluginViewDisabledPluginReturnsNotFound(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"test_plugin"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	srv.Use(&testPlugin{
+		id:  "test_plugin",
+		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
+		assets: fstest.MapFS{
+			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
+		},
+	})
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := get(mux, "/api/plugins/test_plugin/view")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", w.Code)
+	}
+}
+
+func TestHandlePluginViewByViewIDReturnsNotFound(t *testing.T) {
+	cfg := config.Defaults()
+	srv, _ := newTestServerWithConfig(t, cfg)
+	srv.Use(&testPlugin{
+		id:  "test_plugin",
+		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
+		assets: fstest.MapFS{
+			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
+		},
+	})
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := get(mux, "/api/plugins/test-view/view")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", w.Code)
+	}
+}
+
+func TestRegisterSkipsDisabledPluginRoutesAndAssets(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.DisabledPlugins = []string{"test_disabled"}
+	srv, _ := newTestServerWithConfig(t, cfg)
+	enabled := &testPlugin{
+		id:  "test_enabled",
+		nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1},
+		assets: fstest.MapFS{
+			"asset.txt": &fstest.MapFile{Data: []byte("enabled")},
+		},
+	}
+	disabled := &testPlugin{
+		id:  "test_disabled",
+		nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2},
+		assets: fstest.MapFS{
+			"asset.txt": &fstest.MapFile{Data: []byte("disabled")},
+		},
+	}
+	srv.Use(enabled)
+	srv.Use(disabled)
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	enabledRoute := get(mux, "/api/test/test_enabled")
+	if enabledRoute.Code != http.StatusNoContent {
+		t.Fatalf("enabled route status: got %d, want 204", enabledRoute.Code)
+	}
+	disabledRoute := get(mux, "/api/test/test_disabled")
+	if disabledRoute.Code != http.StatusNotFound {
+		t.Fatalf("disabled route status: got %d, want 404", disabledRoute.Code)
+	}
+	if !enabled.routeOK {
+		t.Fatal("enabled route handler was not invoked")
+	}
+	if disabled.routeOK {
+		t.Fatal("disabled route handler should not be invoked")
+	}
+
+	enabledAsset := get(mux, "/plugins/test_enabled/asset.txt")
+	if enabledAsset.Code != http.StatusOK {
+		t.Fatalf("enabled asset status: got %d, want 200", enabledAsset.Code)
+	}
+	disabledAsset := get(mux, "/plugins/test_disabled/asset.txt")
+	if disabledAsset.Code != http.StatusNotFound {
+		t.Fatalf("disabled asset status: got %d, want 404", disabledAsset.Code)
 	}
 }
 

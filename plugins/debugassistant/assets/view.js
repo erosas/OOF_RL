@@ -451,7 +451,7 @@ const DBG_TRACK_D_SECTIONS = {
   'track-d-report-placement': 'Report evidence placement',
 };
 
-window.pluginInit_debug = function() {
+window.pluginInit_debugassistant = function() {
   dbgInitializeSessionState();
   dbgRenderScenarios();
   dbgLoadMeta();

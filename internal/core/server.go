@@ -89,14 +89,40 @@ func (s *Server) InitPlugins() error {
 	if s.histRecorder != nil {
 		s.histRecorder.Subscribe(s.bus.ForPlugin("history"))
 	}
-	sorted, err := topoSort(s.plugins)
+	active := s.activePlugins()
+	if err := s.validateActivePluginDependencies(active); err != nil {
+		return fmt.Errorf("plugin dependency: %w", err)
+	}
+	sorted, err := topoSort(active)
 	if err != nil {
 		return fmt.Errorf("plugin dependency: %w", err)
 	}
-	s.plugins = sorted
-	for _, p := range s.plugins {
+	for _, p := range sorted {
 		if err := p.Init(s.bus.ForPlugin(p.ID()), s, s.db); err != nil {
 			return fmt.Errorf("plugin %s Init: %w", p.ID(), err)
+		}
+	}
+	return nil
+}
+
+func (s *Server) validateActivePluginDependencies(active []plugin.Plugin) error {
+	disabled := s.disabledPluginSet()
+	activeSet := make(map[string]struct{}, len(active))
+	for _, p := range active {
+		activeSet[p.ID()] = struct{}{}
+	}
+	allSet := make(map[string]struct{}, len(s.plugins))
+	for _, p := range s.plugins {
+		allSet[p.ID()] = struct{}{}
+	}
+	for _, p := range active {
+		for _, req := range p.Requires() {
+			if _, ok := activeSet[req]; ok {
+				continue
+			}
+			if _, known := allSet[req]; known && isPluginDisabledInSet(req, disabled) {
+				return fmt.Errorf("plugin %q requires disabled plugin %q", p.ID(), req)
+			}
 		}
 	}
 	return nil
@@ -195,6 +221,44 @@ func (s *Server) Use(p plugin.Plugin) {
 	s.plugins = append(s.plugins, p)
 }
 
+func (s *Server) disabledPluginSet() map[string]struct{} {
+	disabled := make(map[string]struct{}, len(s.cfg.DisabledPlugins))
+	for _, id := range s.cfg.DisabledPlugins {
+		disabled[id] = struct{}{}
+	}
+	return disabled
+}
+
+func (s *Server) isPluginDisabled(pluginID string) bool {
+	return isPluginDisabledInSet(pluginID, s.disabledPluginSet())
+}
+
+func isPluginDisabledInSet(pluginID string, disabled map[string]struct{}) bool {
+	_, ok := disabled[pluginID]
+	return ok
+}
+
+func (s *Server) activePlugins() []plugin.Plugin {
+	disabled := s.disabledPluginSet()
+	active := make([]plugin.Plugin, 0, len(s.plugins))
+	for _, p := range s.plugins {
+		if _, off := disabled[p.ID()]; off {
+			continue
+		}
+		active = append(active, p)
+	}
+	return active
+}
+
+func (s *Server) findPluginTarget(pluginID string) plugin.Plugin {
+	for _, p := range s.activePlugins() {
+		if p.ID() == pluginID {
+			return p
+		}
+	}
+	return nil
+}
+
 func (s *Server) LoadPlugins() error {
 	for id, factory := range plugin.Factories() {
 		p := factory()
@@ -250,10 +314,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
-	for _, p := range s.plugins {
+	for _, p := range s.activePlugins() {
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
-			prefix := "/plugins/" + p.NavTab().ID + "/"
+			prefix := "/plugins/" + p.ID() + "/"
 			mux.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(assets))))
 		}
 	}
@@ -339,15 +403,8 @@ func (s *Server) handleINI(w http.ResponseWriter, r *http.Request) {
 // -- Plugin meta endpoints --
 
 func (s *Server) handleNav(w http.ResponseWriter, r *http.Request) {
-	disabled := make(map[string]bool, len(s.cfg.DisabledPlugins))
-	for _, id := range s.cfg.DisabledPlugins {
-		disabled[id] = true
-	}
 	tabs := make([]plugin.NavTab, 0, len(s.plugins))
-	for _, p := range s.plugins {
-		if disabled[p.ID()] {
-			continue
-		}
+	for _, p := range s.activePlugins() {
 		if tab := p.NavTab(); tab.ID != "" {
 			tabs = append(tabs, tab)
 		}
@@ -356,23 +413,17 @@ func (s *Server) handleNav(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, tabs)
 }
 
-// handlePluginView serves GET /api/plugins/{id}/view — returns the plugin's
+// handlePluginView serves GET /api/plugins/{pluginID}/view — returns the plugin's
 // view.html fragment so the frontend can inject it into the page dynamically.
 func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/api/plugins/")
-	id = strings.TrimSuffix(id, "/view")
-	id = strings.Trim(id, "/")
-	if id == "" {
+	pluginID := strings.TrimPrefix(r.URL.Path, "/api/plugins/")
+	pluginID = strings.TrimSuffix(pluginID, "/view")
+	pluginID = strings.Trim(pluginID, "/")
+	if pluginID == "" {
 		http.Error(w, "missing plugin id", 400)
 		return
 	}
-	var target plugin.Plugin
-	for _, p := range s.plugins {
-		if p.NavTab().ID == id {
-			target = p
-			break
-		}
-	}
+	target := s.findPluginTarget(pluginID)
 	if target == nil {
 		http.Error(w, "plugin not found", 404)
 		return
@@ -420,10 +471,7 @@ func (s *Server) applyCoreSettings(values map[string]string) {
 }
 
 func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
-	disabled := make(map[string]bool, len(s.cfg.DisabledPlugins))
-	for _, id := range s.cfg.DisabledPlugins {
-		disabled[id] = true
-	}
+	disabled := s.disabledPluginSet()
 	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins)+1)
 	for _, p := range s.plugins {
 		tab := p.NavTab()
@@ -433,9 +481,9 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 		}
 		blobs = append(blobs, plugin.PluginSettingsBlob{
 			PluginID: p.ID(),
-			NavTabID: tab.ID,
+			ViewID:   tab.ID,
 			Title:    title,
-			Enabled:  !disabled[p.ID()],
+			Enabled:  !isPluginDisabledInSet(p.ID(), disabled),
 			Requires: p.Requires(),
 			Settings: p.SettingsSchema(),
 		})
