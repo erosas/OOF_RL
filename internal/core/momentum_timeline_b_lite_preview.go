@@ -1042,9 +1042,9 @@ function selectedRangeToRect(startSecond, endSecond) {
   const x2 = secondToX(endSecond);
   return {
     x: Math.min(x1, x2),
-    y: constants.railY - 16,
+    y: constants.railY - 3,
     width: Math.max(2, Math.abs(x2 - x1)),
-    height: constants.railHeight + 58
+    height: constants.railHeight + 6
   };
 }
 
@@ -1172,14 +1172,14 @@ function renderSelection() {
   const selected = fixture.selectedMoment;
   const rect = selectedRangeToRect(selected.rangeStartSecond, selected.rangeEndSecond);
   const badgeX = secondToX(selected.badgeSecond);
-  const c = 18;
+  const c = Math.min(16, Math.max(8, rect.width / 4));
   return [
     svg("rect", { class: "mtl-selection-box", x: rect.x, y: rect.y, width: rect.width, height: rect.height, rx: 6 }),
     svg("path", { class: "mtl-selection-corner", d: "M " + rect.x + " " + (rect.y + c) + " L " + rect.x + " " + rect.y + " L " + (rect.x + c) + " " + rect.y }),
     svg("path", { class: "mtl-selection-corner", d: "M " + (rect.x + rect.width - c) + " " + rect.y + " L " + (rect.x + rect.width) + " " + rect.y + " L " + (rect.x + rect.width) + " " + (rect.y + c) }),
     svg("path", { class: "mtl-selection-corner", d: "M " + rect.x + " " + (rect.y + rect.height - c) + " L " + rect.x + " " + (rect.y + rect.height) + " L " + (rect.x + c) + " " + (rect.y + rect.height) }),
     svg("path", { class: "mtl-selection-corner", d: "M " + (rect.x + rect.width - c) + " " + (rect.y + rect.height) + " L " + (rect.x + rect.width) + " " + (rect.y + rect.height) + " L " + (rect.x + rect.width) + " " + (rect.y + rect.height - c) }),
-    svg("line", { class: "mtl-focus-ring", x1: badgeX, x2: badgeX, y1: constants.railY + constants.railHeight, y2: constants.selectedBadgeY - 20 }),
+    svg("line", { class: "mtl-focus-ring", x1: badgeX, x2: badgeX, y1: constants.railY + constants.railHeight + 4, y2: constants.selectedBadgeY - 20 }),
     svg("rect", { class: "mtl-selection-badge", x: badgeX - 28, y: constants.selectedBadgeY - 18, width: 56, height: 26, rx: 5 }),
     svg("text", { class: "mtl-selection-badge-text", x: badgeX, y: constants.selectedBadgeY, "text-anchor": "middle" }, html(formatMatchClock(selected.badgeSecond)))
   ].join("");
