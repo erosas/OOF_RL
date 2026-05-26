@@ -604,21 +604,21 @@ h1 span {
   stroke-width: 1;
 }
 .mtl-selection-box {
-  fill: rgba(46, 233, 209, 0.12);
+  fill: rgba(72, 216, 111, 0.15);
   filter: url(#mtl-selection-glow);
-  stroke: var(--mtl-selected-range);
+  stroke: #48d86f;
   stroke-width: 2.5;
 }
 .mtl-selection-corner {
   fill: none;
-  stroke: #159f9a;
+  stroke: #48d86f;
   stroke-linecap: square;
   stroke-width: 3;
 }
 .mtl-selection-badge {
   fill: rgba(5, 12, 18, 0.92);
   filter: url(#mtl-selection-glow);
-  stroke: var(--mtl-selected-range);
+  stroke: #48d86f;
   stroke-width: 1.5;
 }
 .mtl-marker-shape {
@@ -666,7 +666,7 @@ h1 span {
 }
 .mtl-focus-ring {
   fill: none;
-  stroke: var(--mtl-selected-range);
+  stroke: #48d86f;
   filter: url(#mtl-selection-glow);
   stroke-width: 2.5;
 }
