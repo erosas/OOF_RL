@@ -1,0 +1,79 @@
+//go:build wasip1
+
+// debugassistant is an OOF_RL WASM plugin. Compile with:
+//
+//	GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o debugassistant.wasm .
+//
+// After compilation, copy view.html and view.js into a debugassistant/ subdirectory
+// next to the .wasm file so the host can serve them as plugin assets.
+package main
+
+import (
+	"encoding/json"
+
+	sdk "github.com/erosas/oof-plugin-sdk"
+)
+
+//go:wasmexport plugin_metadata
+func pluginMetadata(outPtr, outMax uint32) uint32 {
+	meta := sdk.PluginMeta{
+		ID:     "debugassistant",
+		NavTab: sdk.NavTabMeta{ID: "debugassistant", Label: "Debug", Order: 90},
+		Routes: []string{
+			"/api/debug-assistant/events",
+			"/api/debug-assistant/context",
+			"/api/debug-assistant/screenshots",
+			"/api/debug-assistant/screenshot/",
+			"/api/debug-assistant/export-report",
+			"/api/debug-assistant/reset",
+		},
+		Events: []string{
+			"match.started",
+			"state.updated",
+			"goal.scored",
+			"stat.feed",
+			"clock.updated",
+			"match.ended",
+			"match.destroyed",
+		},
+	}
+	b, _ := json.Marshal(meta)
+	return sdk.WriteOutput(b, outPtr, outMax)
+}
+
+//go:wasmexport plugin_init
+func pluginInit(_, _ uint32) uint32 {
+	return initPlugin()
+}
+
+//go:wasmexport plugin_on_event
+func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
+	onEvent(
+		string(sdk.ReadBytes(typePtr, typeLen)),
+		sdk.ReadBytes(payloadPtr, payloadLen),
+	)
+}
+
+//go:wasmexport plugin_handle_http
+func pluginHandleHTTP(reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+	var req sdk.HTTPRequest
+	if err := json.Unmarshal(sdk.ReadBytes(reqPtr, reqLen), &req); err != nil {
+		resp := sdk.HTTPResponse{Status: 500, Body: `{"error":"bad request"}`}
+		b, _ := json.Marshal(resp)
+		return sdk.WriteOutput(b, outPtr, outMax)
+	}
+	resp := handleHTTP(req)
+	b, _ := json.Marshal(resp)
+	return sdk.WriteOutput(b, outPtr, outMax)
+}
+
+//go:wasmexport plugin_shutdown
+func pluginShutdown() {}
+
+//go:wasmexport malloc
+func malloc(size uint32) uint32 { return sdk.Malloc(size) }
+
+//go:wasmexport free
+func free(ptr, size uint32) { sdk.Free(ptr, size) }
+
+func main() {}

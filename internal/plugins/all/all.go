@@ -4,6 +4,5 @@
 package all
 
 import (
-	_ "OOF_RL/internal/plugins/debugassistant"
 	_ "OOF_RL/internal/plugins/overlayhud"
 )

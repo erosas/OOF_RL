@@ -30,14 +30,6 @@ type SettingSchema struct {
 	Secret      bool   `json:"secret,omitempty"` // hint to UI: render as password field
 }
 
-// DirEntry is one item returned by ScanDir (the host's replay directory scanner).
-type DirEntry struct {
-	Name    string `json:"name"`
-	IsDir   bool   `json:"is_dir"`
-	Size    int64  `json:"size"`
-	ModTime string `json:"mod_time"` // RFC3339
-}
-
 // HTTPFetchRequest describes an outbound HTTP request sent via host_http_fetch.
 type HTTPFetchRequest struct {
 	Method    string            `json:"method"`
@@ -60,11 +52,11 @@ type HTTPFetchResult struct {
 // nav tabs, event subscriptions, and dependency ordering without calling any
 // other function first.
 type PluginMeta struct {
-	ID             string          `json:"id"`
-	NavTab         NavTabMeta      `json:"nav_tab"`
-	Routes         []string        `json:"routes"`
-	Events         []string        `json:"events"`                    // event types to subscribe to
-	Requires       []string        `json:"requires,omitempty"`        // plugin IDs that must init first
+	ID             string           `json:"id"`
+	NavTab         NavTabMeta       `json:"nav_tab"`
+	Routes         []string         `json:"routes"`
+	Events         []string         `json:"events"`                    // event types to subscribe to
+	Requires       []string         `json:"requires,omitempty"`        // plugin IDs that must init first
 	DeclaredEvents []DeclaredEvent `json:"declared_events,omitempty"` // event types this plugin may emit
 	Settings       []SettingSchema `json:"settings,omitempty"`        // config keys the plugin needs
 }
@@ -87,7 +79,8 @@ type HTTPRequest struct {
 
 // HTTPResponse is JSON-encoded by the plugin and written into the output buffer.
 type HTTPResponse struct {
-	Status  int               `json:"status"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Body    string            `json:"body"`
+	Status    int               `json:"status"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Body      string            `json:"body"`
+	BodyBytes []byte            `json:"body_bytes,omitempty"` // binary body; takes precedence over Body
 }

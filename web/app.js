@@ -872,6 +872,31 @@ if (new URLSearchParams(location.search).has('overlay')) {
 
 initApp();
 
+// Secret dev-mode toggle: click the logo 7 times within 3 seconds.
+(function() {
+  let clicks = 0, timer = null;
+  document.getElementById('app-logo').addEventListener('click', () => {
+    clicks++;
+    clearTimeout(timer);
+    timer = setTimeout(() => { clicks = 0; }, 3000);
+    if (clicks >= 7) {
+      clicks = 0;
+      clearTimeout(timer);
+      fetch('/api/config').then(r => r.json()).then(cfg => {
+        const next = !cfg.dev_mode;
+        return fetch('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({dev_mode: next ? 'true' : 'false'}),
+        }).then(() => {
+          console.info('[dev] dev_mode =', next);
+          location.reload();
+        });
+      }).catch(e => console.error('[dev] toggle failed:', e));
+    }
+  });
+})();
+
 // Shared match detail renderer used by both history and session plugins.
 // data = { players, goals, events }; panel = DOM element to render into; activeMatchId = guard variable.
 window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {

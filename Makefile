@@ -2,7 +2,7 @@
         all-plugins test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
-PLUGINS := live ballchasing ranks session history dashboard
+PLUGINS := live ballchasing ranks session history dashboard debugassistant
 
 # WASM plugins are installed into the same data directory the app reads at runtime.
 # LOCALAPPDATA is inherited from the Windows environment (e.g. C:\Users\you\AppData\Local).

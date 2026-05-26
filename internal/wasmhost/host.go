@@ -29,8 +29,8 @@ import (
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
-const metaBufSize = 4 * 1024  // 4 KB â€” more than enough for metadata JSON
-const respBufSize = 64 * 1024 // 64 KB â€” max HTTP response size
+const metaBufSize = 4 * 1024       // 4 KB — more than enough for metadata JSON
+const respBufSize = 4 * 1024 * 1024 // 4 MB — large enough for binary payloads (e.g. screenshots)
 
 type eventMsg struct {
 	eventType string
@@ -73,12 +73,31 @@ type Plugin struct {
 // used to serve static assets (view.html, JS, etc).
 // database, h, and cfg may be nil (e.g. in tests) — host imports that require
 // them will be no-ops when their dependency is absent.
+//
+// Each plugin receives two WASI-mounted directories:
+//   - /replays → the configured Rocket League replay directory
+//   - /data    → <data_dir>/plugin_data/<plugin_id>/  (created if absent)
 func Load(path string, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("wasmhost: read %s: %w", path, err)
 	}
-	p, err := loadBytes(b, database, h, cfg)
+
+	// Derive plugin ID from filename convention (<id>.wasm) so we can create
+	// the per-plugin data directory before instantiation.
+	pluginID := strings.TrimSuffix(filepath.Base(path), ".wasm")
+
+	var replayDir, pluginDataDir string
+	if cfg != nil {
+		replayDir = cfg.Lookup("replay_dir")
+		pluginDataDir = filepath.Join(cfg.Lookup("data_dir"), "plugin_data", pluginID)
+		if mkErr := os.MkdirAll(pluginDataDir, 0755); mkErr != nil {
+			log.Printf("wasmhost: create plugin data dir %s: %v", pluginDataDir, mkErr)
+			pluginDataDir = ""
+		}
+	}
+
+	p, err := loadBytes(b, database, h, cfg, replayDir, pluginDataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +108,7 @@ func Load(path string, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin
 	return p, nil
 }
 
-func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin, error) {
+func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config, replayDir, pluginDataDir string) (*Plugin, error) {
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 
@@ -107,9 +126,6 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		NewFunctionBuilder().WithFunc(p.hostHTTPFetch).Export("host_http_fetch").
 		NewFunctionBuilder().WithFunc(p.hostBroadcastWS).Export("host_broadcast_ws").
 		NewFunctionBuilder().WithFunc(p.hostGetConfig).Export("host_get_config").
-		NewFunctionBuilder().WithFunc(p.hostScanDir).Export("host_scan_dir").
-		NewFunctionBuilder().WithFunc(p.hostReadFile).Export("host_read_file").
-		NewFunctionBuilder().WithFunc(p.hostDeleteFile).Export("host_delete_file").
 		Instantiate(ctx); err != nil {
 		r.Close(ctx)
 		return nil, fmt.Errorf("wasmhost: host module: %w", err)
@@ -121,13 +137,24 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		return nil, fmt.Errorf("wasmhost: compile: %w", err)
 	}
 
+	// Mount /replays and /data into the WASM sandbox. Plugins use standard os
+	// package calls to access these directories; no other paths are visible.
+	fsCfg := wazero.NewFSConfig()
+	if replayDir != "" {
+		fsCfg = fsCfg.WithDirMount(replayDir, "/replays")
+	}
+	if pluginDataDir != "" {
+		fsCfg = fsCfg.WithDirMount(pluginDataDir, "/data")
+	}
+
 	// Plugins must be built with -buildmode=c-shared (WASI reactor).
 	// _initialize fully starts the Go runtime; _start would exit the module
 	// after main() returns, preventing subsequent exported-function calls.
-	// Omit WithStdout/WithStderr â€” plugin logging goes through host_log.
+	// Omit WithStdout/WithStderr — plugin logging goes through host_log.
 	mod, err := r.InstantiateModule(ctx, compiled,
 		wazero.NewModuleConfig().
 			WithStartFunctions("_initialize").
+			WithFSConfig(fsCfg).
 			WithName(""))
 	if err != nil {
 		r.Close(ctx)
@@ -435,7 +462,11 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(k, v)
 	}
 	w.WriteHeader(resp.Status)
-	fmt.Fprint(w, resp.Body)
+	if len(resp.BodyBytes) > 0 {
+		w.Write(resp.BodyBytes)
+	} else {
+		fmt.Fprint(w, resp.Body)
+	}
 }
 
 // hostPublishEvent is called by the guest via the "host_publish_event" import.
@@ -639,105 +670,6 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 	}
 	out, _ := json.Marshal(result)
 	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostScanDir lists the host's replay directory and writes JSON []sdk.DirEntry to outPtr.
-func (p *Plugin) hostScanDir(_ context.Context, m api.Module, outPtr, outMax uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		log.Printf("[wasm:%s] host_scan_dir: %v", p.meta.ID, err)
-		return 0
-	}
-	var dirEntries []sdk.DirEntry
-	for _, e := range entries {
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		dirEntries = append(dirEntries, sdk.DirEntry{
-			Name:    e.Name(),
-			IsDir:   e.IsDir(),
-			Size:    info.Size(),
-			ModTime: info.ModTime().UTC().Format(time.RFC3339),
-		})
-	}
-	if dirEntries == nil {
-		dirEntries = []sdk.DirEntry{}
-	}
-	out, err := json.Marshal(dirEntries)
-	if err != nil {
-		return 0
-	}
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostReadFile reads a file by basename from the replay directory into outPtr.
-// Returns bytes written, or 0 if the file is missing, invalid, or too large for outMax.
-func (p *Plugin) hostReadFile(_ context.Context, m api.Module, namePtr, nameLen, outPtr, outMax uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
-	if !ok {
-		return 0
-	}
-	name := string(nameBytes)
-	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		log.Printf("[wasm:%s] host_read_file: invalid name %q", p.meta.ID, name)
-		return 0
-	}
-	fullPath := filepath.Join(dir, name)
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		return 0
-	}
-	if uint32(info.Size()) > outMax {
-		log.Printf("[wasm:%s] host_read_file: %s (%d bytes) exceeds outMax %d", p.meta.ID, name, info.Size(), outMax)
-		return 0
-	}
-	data, err := os.ReadFile(fullPath)
-	if err != nil {
-		log.Printf("[wasm:%s] host_read_file: read %s: %v", p.meta.ID, name, err)
-		return 0
-	}
-	return p.writeResult(m, data, outPtr, outMax)
-}
-
-// hostDeleteFile removes a file by basename from the replay directory.
-// Returns 1 on success, 0 on failure.
-func (p *Plugin) hostDeleteFile(_ context.Context, m api.Module, namePtr, nameLen uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
-	if !ok {
-		return 0
-	}
-	name := string(nameBytes)
-	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		log.Printf("[wasm:%s] host_delete_file: invalid name %q", p.meta.ID, name)
-		return 0
-	}
-	if err := os.Remove(filepath.Join(dir, name)); err != nil {
-		log.Printf("[wasm:%s] host_delete_file: %s: %v", p.meta.ID, name, err)
-		return 0
-	}
-	return 1
 }
 
 func (p *Plugin) writeHTTPFetchError(m api.Module, msg string, outPtr, outMax uint32) uint32 {
