@@ -611,7 +611,7 @@ h1 span {
 }
 .mtl-selection-corner {
   fill: none;
-  stroke: #d9fff9;
+  stroke: #159f9a;
   stroke-linecap: square;
   stroke-width: 3;
 }
