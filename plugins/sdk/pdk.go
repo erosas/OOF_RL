@@ -95,6 +95,27 @@ func WriteOutput(data []byte, outPtr, maxLen uint32) uint32 {
 	return n
 }
 
+// WriteJSONOutput marshals v to JSON and writes it into the output buffer.
+func WriteJSONOutput(v any, outPtr, outMax uint32) uint32 {
+	b, _ := json.Marshal(v)
+	return WriteOutput(b, outPtr, outMax)
+}
+
+// WriteMetadata writes PluginMeta JSON into the output buffer.
+func WriteMetadata(meta PluginMeta, outPtr, outMax uint32) uint32 {
+	return WriteJSONOutput(meta, outPtr, outMax)
+}
+
+// HandleHTTPExport decodes HTTPRequest from guest memory, invokes handler, and
+// writes the JSON-encoded HTTPResponse to the output buffer.
+func HandleHTTPExport(reqPtr, reqLen, outPtr, outMax uint32, handler func(HTTPRequest) HTTPResponse) uint32 {
+	var req HTTPRequest
+	if err := json.Unmarshal(ReadBytes(reqPtr, reqLen), &req); err != nil {
+		return WriteJSONOutput(HTTPResponse{Status: 500, Body: `{"error":"bad request"}`}, outPtr, outMax)
+	}
+	return WriteJSONOutput(handler(req), outPtr, outMax)
+}
+
 // keep prevents the GC from collecting malloc'd slices whose pointers
 // have been handed to the host.
 var keep = map[uint32][]byte{}

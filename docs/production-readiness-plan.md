@@ -294,7 +294,7 @@ The target state is:
 
 ## Phase 3 — Remove Duplicate Logic and Boilerplate
 
-**Status:** [ ] Not started
+**Status:** [~] In progress
 
 ### Goals
 - reduce repetition across plugins and host code
@@ -303,14 +303,14 @@ The target state is:
 ### Tasks
 
 #### 3.1 Consolidate WASM plugin export boilerplate
-- [ ] Inventory duplicate `main.go` export patterns across plugins
+- [x] Inventory duplicate `main.go` export patterns across plugins
 - [ ] Create shared helpers/patterns in `plugins/sdk` for:
-  - [ ] metadata write
-  - [ ] HTTP request decode / response encode
+  - [x] metadata write
+  - [x] HTTP request decode / response encode
   - [ ] common error responses
   - [ ] event dispatch wrappers
   - [ ] init/apply settings wrappers where feasible
-- [ ] Reduce repeated `malloc`/`free`/`plugin_handle_http` patterns across plugins
+- [x] Reduce repeated `malloc`/`free`/`plugin_handle_http` patterns across plugins
 
 #### 3.2 Consolidate plugin helper duplication
 - [ ] Replace local `jsonOK` / `jsonError` duplicates with `plugins/sdk/helpers.go`
@@ -597,6 +597,7 @@ Before calling the platform production-ready, all of the following should be tru
 - [x] Added strict WASM route metadata validation on load (required/absolute path, supported methods, duplicate path rejection)
 - [x] Reviewed weak API surface: `DBPrefix` retained as deprecated compatibility; `DeclaredEvents` retained as first-class with load-time metadata validation
 - [x] Migrated WASM route metadata to typed method+path definitions (`RouteMeta`) and added host-side method guards (405 on mismatch when method is declared)
+- [x] Added SDK export helpers (`WriteMetadata`, `WriteJSONOutput`, `HandleHTTPExport`) and migrated WASM plugin mains to remove repeated metadata/HTTP marshal boilerplate
 
 ---
 

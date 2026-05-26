@@ -5,11 +5,7 @@
 //	GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ranks.wasm .
 package main
 
-import (
-	"encoding/json"
-
-	sdk "github.com/erosas/oof-plugin-sdk"
-)
+import sdk "github.com/erosas/oof-plugin-sdk"
 
 //go:wasmexport plugin_metadata
 func pluginMetadata(outPtr, outMax uint32) uint32 {
@@ -19,8 +15,7 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 		Routes: []sdk.RouteMeta{{Path: "/api/ranks/players", Method: "GET"}},
 		Events: []string{"state.updated", "match.destroyed"},
 	}
-	b, _ := json.Marshal(meta)
-	return sdk.WriteOutput(b, outPtr, outMax)
+	return sdk.WriteMetadata(meta, outPtr, outMax)
 }
 
 //go:wasmexport plugin_init
@@ -36,9 +31,9 @@ func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
 
 //go:wasmexport plugin_handle_http
 func pluginHandleHTTP(reqPtr, reqLen, outPtr, outMax uint32) uint32 {
-	resp := handleHTTP()
-	b, _ := json.Marshal(resp)
-	return sdk.WriteOutput(b, outPtr, outMax)
+	return sdk.HandleHTTPExport(reqPtr, reqLen, outPtr, outMax, func(_ sdk.HTTPRequest) sdk.HTTPResponse {
+		return handleHTTP()
+	})
 }
 
 //go:wasmexport plugin_shutdown

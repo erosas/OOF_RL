@@ -140,6 +140,6 @@ Single-page plugin model: one `view.html` + one `view.js` per plugin.
 | File | Build target | Contents |
 |---|---|---|
 | `abi.go` | both | `PluginMeta`, `HTTPRequest`, `HTTPResponse`, `Certainty`, `DeclaredEvent` |
-| `pdk.go` | wasip1 only | `Log`, `ReadBytes`, `WriteOutput`, `PublishEvent`, `Malloc`, `Free` |
+| `pdk.go` | wasip1 only | `Log`, `ReadBytes`, `WriteOutput`, `WriteJSONOutput`, `WriteMetadata`, `HandleHTTPExport`, `PublishEvent`, `Malloc`, `Free` |
 
 The host imports `abi.go` types to drive the protocol. Plugin code imports the whole package for both.

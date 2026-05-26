@@ -9,11 +9,7 @@
 // internal/histstore package, which runs independently of this plugin.
 package main
 
-import (
-	"encoding/json"
-
-	sdk "github.com/erosas/oof-plugin-sdk"
-)
+import sdk "github.com/erosas/oof-plugin-sdk"
 
 //go:wasmexport plugin_metadata
 func pluginMetadata(outPtr, outMax uint32) uint32 {
@@ -21,8 +17,7 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 		ID:     "history",
 		NavTab: sdk.NavTabMeta{ID: "history", Label: "History", Order: 20},
 	}
-	b, _ := json.Marshal(meta)
-	return sdk.WriteOutput(b, outPtr, outMax)
+	return sdk.WriteMetadata(meta, outPtr, outMax)
 }
 
 //go:wasmexport plugin_init
@@ -33,9 +28,9 @@ func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {}
 
 //go:wasmexport plugin_handle_http
 func pluginHandleHTTP(reqPtr, reqLen, outPtr, outMax uint32) uint32 {
-	resp := sdk.HTTPResponse{Status: 404, Body: `{"error":"not found"}`}
-	b, _ := json.Marshal(resp)
-	return sdk.WriteOutput(b, outPtr, outMax)
+	return sdk.HandleHTTPExport(reqPtr, reqLen, outPtr, outMax, func(_ sdk.HTTPRequest) sdk.HTTPResponse {
+		return sdk.HTTPResponse{Status: 404, Body: `{"error":"not found"}`}
+	})
 }
 
 //go:wasmexport plugin_shutdown
