@@ -7,6 +7,8 @@ Plugins are the primary extension point. A plugin can contribute:
 - optional settings fields
 - one browser view (`view.html` + `view.js`)
 
+Note: `history` is treated as a host-core page/feature, not an optional plugin.
+
 ## Identity Contract (Important)
 
 OOF RL now uses two identities with different purposes:

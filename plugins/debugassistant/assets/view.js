@@ -1927,11 +1927,11 @@ function dbgCleanImageName(name) {
 }
 
 function dbgScreenshotURL(name) {
-  return `/api/debug-assistant/screenshot/${encodeURIComponent(dbgCleanImageName(name))}`;
+  return `/api/plugins/debugassistant/data/screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgExportScreenshotPath(name) {
-  return `../debug_screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
+  return `/api/plugins/debugassistant/data/screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgFailureGroups(state) {

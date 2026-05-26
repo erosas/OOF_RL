@@ -50,6 +50,10 @@ type Server struct {
 	histRecorder *histstore.Recorder
 }
 
+func isHostCorePluginID(pluginID string) bool {
+	return pluginID == "history"
+}
+
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
 	momentumService := momentum.NewService(momentum.DefaultConfig())
@@ -234,15 +238,41 @@ func (s *Server) isPluginDisabled(pluginID string) bool {
 }
 
 func isPluginDisabledInSet(pluginID string, disabled map[string]struct{}) bool {
+	if isHostCorePluginID(pluginID) {
+		return false
+	}
 	_, ok := disabled[pluginID]
 	return ok
+}
+
+func sanitizeDisabledPlugins(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || isHostCorePluginID(id) {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (s *Server) activePlugins() []plugin.Plugin {
 	disabled := s.disabledPluginSet()
 	active := make([]plugin.Plugin, 0, len(s.plugins))
 	for _, p := range s.plugins {
-		if _, off := disabled[p.ID()]; off {
+		if isPluginDisabledInSet(p.ID(), disabled) {
 			continue
 		}
 		active = append(active, p)
@@ -354,6 +384,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 400)
 			return
 		}
+		s.cfg.DisabledPlugins = sanitizeDisabledPlugins(s.cfg.DisabledPlugins)
 		if err := config.Save(s.cfgPath, *s.cfg); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -416,6 +447,11 @@ func (s *Server) handleNav(w http.ResponseWriter, r *http.Request) {
 // handlePluginView serves GET /api/plugins/{pluginID}/view — returns the plugin's
 // view.html fragment so the frontend can inject it into the page dynamically.
 func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
+	if pluginID, relPath, ok := parsePluginDataPath(r.URL.Path); ok {
+		s.handlePluginData(w, r, pluginID, relPath)
+		return
+	}
+
 	pluginID := strings.TrimPrefix(r.URL.Path, "/api/plugins/")
 	pluginID = strings.TrimSuffix(pluginID, "/view")
 	pluginID = strings.Trim(pluginID, "/")
@@ -440,6 +476,52 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(b)
+}
+
+func parsePluginDataPath(path string) (pluginID string, relPath string, ok bool) {
+	const prefix = "/api/plugins/"
+	if !strings.HasPrefix(path, prefix) {
+		return "", "", false
+	}
+	tail := strings.TrimPrefix(path, prefix)
+	parts := strings.SplitN(tail, "/data/", 2)
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	pluginID = strings.Trim(parts[0], "/")
+	relPath = strings.Trim(parts[1], "/")
+	if pluginID == "" || relPath == "" {
+		return "", "", false
+	}
+	return pluginID, relPath, true
+}
+
+func (s *Server) handlePluginData(w http.ResponseWriter, r *http.Request, pluginID, relPath string) {
+	if s.findPluginTarget(pluginID) == nil {
+		http.Error(w, "plugin not found", http.StatusNotFound)
+		return
+	}
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
+	for _, seg := range strings.Split(relPath, "/") {
+		if seg == ".." {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+	}
+	base := filepath.Join(s.cfg.DataDir, "plugin_data", pluginID, "public")
+	baseClean := filepath.Clean(base)
+	full := filepath.Join(baseClean, filepath.FromSlash(relPath))
+	fullClean := filepath.Clean(full)
+	if fullClean != baseClean && !strings.HasPrefix(fullClean, baseClean+string(os.PathSeparator)) {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	info, err := os.Stat(fullClean)
+	if err != nil || info.IsDir() {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, fullClean)
 }
 
 func (s *Server) coreSettingsSchema() []plugin.Setting {

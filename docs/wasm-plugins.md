@@ -88,6 +88,8 @@ All parameters are `uint32` — pointers or byte lengths in the module's linear 
 | `malloc` | `(size u32) → ptr u32` | Host calls this to allocate guest memory |
 | `free` | `(ptr, size u32)` | Host calls this to release guest memory |
 
+`HTTPResponse` is intended for JSON/text payloads. For binary file delivery (for example images), write files under `/data/public/...` and let the host serve them from `/api/plugins/{pluginID}/data/{path...}`.
+
 ### Imports (plugin → host)
 
 | Import | Signature | Notes |

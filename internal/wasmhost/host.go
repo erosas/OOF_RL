@@ -26,6 +26,7 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
+
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
@@ -462,11 +463,7 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(k, v)
 	}
 	w.WriteHeader(resp.Status)
-	if len(resp.BodyBytes) > 0 {
-		w.Write(resp.BodyBytes)
-	} else {
-		fmt.Fprint(w, resp.Body)
-	}
+	fmt.Fprint(w, resp.Body)
 }
 
 // hostPublishEvent is called by the guest via the "host_publish_event" import.

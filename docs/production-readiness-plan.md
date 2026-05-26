@@ -25,7 +25,7 @@ It is designed to be updated as work is completed. Every phase includes:
 ### Verified code health
 - [x] Host tests pass with `go test ./...`
 - [x] Plugin tests pass for `plugins/sdk`, `plugins/live`, `plugins/ranks`, `plugins/session`, and `plugins/dashboard`
-- [!] `make test-plugins` currently fails on `plugins/debugassistant`
+- [x] `make test-plugins` now passes end to end (debugassistant test scaffold added)
 - [!] `plugins/ballchasing` has no meaningful tests
 - [!] `plugins/history` has no tests
 
@@ -145,8 +145,8 @@ The target state is:
 - Only expose a declared public subtree or allowlisted paths
 
 ### Migration path
-- [ ] Add host public data route
-- [ ] Migrate `debugassistant` screenshot serving first
+- [x] Add host public data route
+- [x] Migrate `debugassistant` screenshot serving first
 - [ ] Keep `HTTPResponse.BodyBytes` temporarily for compatibility
 - [ ] Remove/deprecate response-side `BodyBytes` after migration
 
@@ -217,10 +217,10 @@ The target state is:
 - [x] Add tests for disabled plugin behavior
 
 #### 1.3 Resolve `history` ownership
-- [ ] Decide and document whether `history` is host-core
-- [ ] If host-core, stop modeling it like a normal WASM plugin
-- [ ] Update routes/settings/nav behavior to reflect the decision
-- [ ] Update docs accordingly
+- [x] Decide and document whether `history` is host-core
+- [x] If host-core, stop modeling it like a normal WASM plugin
+- [x] Update routes/settings/nav behavior to reflect the decision
+- [x] Update docs accordingly
 
 ### Target files
 - `internal/core/server.go`
@@ -240,7 +240,7 @@ The target state is:
 
 ## Phase 2 — Simplify Plugin API and Remove Awkward Boundaries
 
-**Status:** [ ] Not started
+**Status:** [~] In progress
 
 ### Goals
 - reduce API confusion
@@ -250,16 +250,16 @@ The target state is:
 ### Tasks
 
 #### 2.1 Public file route
-- [ ] Add host-level plugin public data route
-- [ ] Restrict serving to public subtrees / allowlisted files
-- [ ] Add traversal/path normalization protections
-- [ ] Add tests for valid, invalid, and traversal requests
+- [x] Add host-level plugin public data route
+- [x] Restrict serving to public subtrees / allowlisted files
+- [x] Add traversal/path normalization protections
+- [x] Add tests for valid, invalid, and traversal requests
 
 #### 2.2 Deprecate response-side binary transport
-- [ ] Migrate `debugassistant` screenshots to public route serving
-- [ ] Audit all `BodyBytes` response usage
-- [ ] Leave request-side `HTTPFetchRequest.BodyBytes` intact for outbound uploads such as `ballchasing`
-- [ ] Deprecate `HTTPResponse.BodyBytes` in SDK and docs
+- [x] Migrate `debugassistant` screenshots to public route serving
+- [x] Audit all `BodyBytes` response usage
+- [x] Leave request-side `HTTPFetchRequest.BodyBytes` intact for outbound uploads such as `ballchasing`
+- [x] Deprecate `HTTPResponse.BodyBytes` in SDK and docs
 
 #### 2.3 Evolve route metadata
 - [ ] Replace `PluginMeta.Routes []string` with richer route definitions
@@ -411,8 +411,8 @@ The target state is:
 ### Tasks
 
 #### 5.1 Fix current test workflow issues
-- [ ] Make `plugins/debugassistant` testable in the same way as other plugins
-- [ ] Make `make test-plugins` pass end to end
+- [x] Make `plugins/debugassistant` testable in the same way as other plugins
+- [x] Make `make test-plugins` pass end to end
 - [ ] Decide whether every plugin must support native test builds via `stub_main.go` + module wiring
 
 #### 5.2 Raise plugin test coverage
@@ -442,7 +442,7 @@ The target state is:
 
 ## Phase 6 — Documentation and Developer Experience
 
-**Status:** [ ] Not started
+**Status:** [~] In progress
 
 ### Goals
 - make the architecture understandable to future contributors
@@ -451,7 +451,7 @@ The target state is:
 ### Tasks
 - [x] Rewrite `docs/plugins.md` to match the current event bus + plugin model
 - [x] Update `docs/wasm-plugins.md` to match actual ABI and host imports
-- [ ] Update `docs/api.md` to reflect canonical plugin IDs and public data routes
+- [x] Update `docs/api.md` to reflect canonical plugin IDs and public data routes
 - [ ] Update `README.md` prerequisites and plugin/system descriptions
 - [ ] Add a short “how to build/test a plugin” guide that matches current tooling
 - [ ] Add a “host-owned vs plugin-owned features” reference
@@ -585,6 +585,13 @@ Before calling the platform production-ready, all of the following should be tru
 - [x] Rewrote `docs/plugins.md` for the current plugin lifecycle, strict PluginID/ViewID identity split, and PluginID-based view/script loading
 - [x] Updated `docs/wasm-plugins.md` for strict PluginID/ViewID identity, PluginID-based loading paths, host mounts, and current dependency/runtime semantics
 - [x] Completed single-pass identity cutover with no backward compatibility: `/api/plugins/{pluginID}/view` and `/plugins/{pluginID}/...` are canonical, settings schema now exposes `view_id`, and frontend uses `plugin_id` for loading and `view_id` for navigation
+- [x] Implemented host public file route `/api/plugins/{pluginID}/data/{path...}` backed by `plugin_data/{pluginID}/public/...` with traversal protection and regression tests
+- [x] Migrated Debug Assistant screenshots to host public route serving via `/api/plugins/debugassistant/data/screenshots/...` and removed plugin-side binary screenshot HTTP responses
+- [x] Audited `BodyBytes` usage: response-side binary path now avoided for screenshots; request-side upload path remains in `ballchasing`
+- [x] Added native `stub_main.go` scaffold for `plugins/debugassistant`; `make test-plugins` now passes
+- [x] Removed response-side `HTTPResponse.BodyBytes` from SDK ABI and host response writer path while keeping request-side upload `BodyBytes`
+- [x] Enforced host-core history semantics: history cannot be runtime-disabled, disabled config entries for `history` are sanitized, settings show history as always-on, and API/docs now describe history as host-owned
+- [x] Locked `history` as host-core in runtime semantics: disabling `history` in config is sanitized/ignored, history remains enabled in nav/schema, and settings UI marks it as always-on
 
 ---
 

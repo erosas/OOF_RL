@@ -23,7 +23,6 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 			"/api/debug-assistant/events",
 			"/api/debug-assistant/context",
 			"/api/debug-assistant/screenshots",
-			"/api/debug-assistant/screenshot/",
 			"/api/debug-assistant/export-report",
 			"/api/debug-assistant/reset",
 		},

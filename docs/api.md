@@ -62,6 +62,14 @@ Returns the ordered list of enabled plugin tabs:
 ### `GET /api/plugins/{pluginID}/view`
 Returns the raw `view.html` fragment for plugin `{pluginID}`. Used by the frontend to inject plugin views on demand.
 
+### `GET /api/plugins/{pluginID}/data/{path...}`
+Serves plugin public files from `<data_dir>/plugin_data/{pluginID}/public/{path...}`.
+
+Notes:
+- Only files under each plugin's `public/` subtree are served.
+- Path traversal segments like `..` are rejected.
+- Disabled or unknown plugins return `404`.
+
 ### `GET /api/settings/schema`
 Returns all plugin settings definitions, used to render the Settings page:
 ```json
@@ -89,6 +97,8 @@ Dependency behavior:
 ---
 
 ## History
+
+History is a host-core page/feature. Its data routes remain host-owned and are not treated as optional plugin routes.
 
 ### `GET /api/players`
 All players ever seen: `[{ "PrimaryID": "steam|...", "Name": "...", "LastSeen": "..." }]`

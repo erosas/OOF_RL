@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/json"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,8 +27,9 @@ type recentEvent struct {
 var events []recentEvent
 
 func initPlugin() uint32 {
-	// Pre-create the screenshots directory so the user knows where to drop files.
-	os.MkdirAll("/data/screenshots", 0o755)
+	// Pre-create and migrate to the public screenshots folder used by host data route.
+	os.MkdirAll("/data/public/screenshots", 0o755)
+	migrateLegacyScreenshots()
 	appendEvent("PluginLoaded", "", "Debug Assistant ready")
 	return 0
 }
@@ -158,13 +158,6 @@ func handleHTTP(req sdk.HTTPRequest) sdk.HTTPResponse {
 		return handleReset()
 	}
 
-	if strings.HasPrefix(req.Path, "/api/debug-assistant/screenshot/") {
-		if req.Method != "GET" {
-			return sdk.JSONError(405, "method not allowed")
-		}
-		return handleScreenshot(req.Path)
-	}
-
 	return sdk.JSONError(404, "not found")
 }
 
@@ -193,7 +186,7 @@ func handleContext() sdk.HTTPResponse {
 }
 
 func handleListScreenshots() sdk.HTTPResponse {
-	entries, err := os.ReadDir("/data/screenshots")
+	entries, err := os.ReadDir("/data/public/screenshots")
 	if err != nil {
 		b, _ := json.Marshal(map[string]any{"screenshots": []string{}})
 		return sdk.JSONResponse(b)
@@ -206,27 +199,6 @@ func handleListScreenshots() sdk.HTTPResponse {
 	}
 	b, _ := json.Marshal(map[string]any{"screenshots": names})
 	return sdk.JSONResponse(b)
-}
-
-func handleScreenshot(path string) sdk.HTTPResponse {
-	rawName := strings.TrimPrefix(path, "/api/debug-assistant/screenshot/")
-	decoded, err := url.PathUnescape(rawName)
-	if err != nil {
-		return sdk.JSONError(404, "not found")
-	}
-	name := filepath.Base(decoded)
-	if name == "." || name == "" || !isImage(name) {
-		return sdk.JSONError(404, "not found")
-	}
-	data, err := os.ReadFile("/data/screenshots/" + name)
-	if err != nil {
-		return sdk.JSONError(404, "not found")
-	}
-	return sdk.HTTPResponse{
-		Status:    200,
-		Headers:   map[string]string{"Content-Type": imageContentType(name)},
-		BodyBytes: data,
-	}
 }
 
 func handleExportReport(req sdk.HTTPRequest) sdk.HTTPResponse {
@@ -311,21 +283,6 @@ func isImage(name string) bool {
 	return false
 }
 
-func imageContentType(name string) string {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".webp":
-		return "image/webp"
-	case ".gif":
-		return "image/gif"
-	default:
-		return "application/octet-stream"
-	}
-}
-
 func safeExportID(id string) string {
 	id = strings.ToLower(strings.TrimSpace(id))
 	var b strings.Builder
@@ -350,4 +307,26 @@ func playerSummary(name, action string) string {
 		return action
 	}
 	return name + ": " + action
+}
+
+func migrateLegacyScreenshots() {
+	legacyDir := "/data/screenshots"
+	publicDir := "/data/public/screenshots"
+	entries, err := os.ReadDir(legacyDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !isImage(e.Name()) {
+			continue
+		}
+		src := filepath.Join(legacyDir, e.Name())
+		dst := filepath.Join(publicDir, e.Name())
+		if fileExists(dst) {
+			continue
+		}
+		if b, readErr := os.ReadFile(src); readErr == nil {
+			_ = os.WriteFile(dst, b, 0o644)
+		}
+	}
 }

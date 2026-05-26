@@ -628,6 +628,7 @@ function renderPluginAccordion(blobs, cfg) {
     const msgId    = `plugin-msg-${blob.plugin_id}`;
     const hasFields = (blob.settings || []).length > 0;
     const isEnabled = blob.enabled;
+    const hostCore = blob.plugin_id === 'history';
 
     const normalSettings = (blob.settings || []).filter(s => !s.developer);
     const devSettings    = (blob.settings || []).filter(s => s.developer);
@@ -654,6 +655,7 @@ function renderPluginAccordion(blobs, cfg) {
                Enable ${esc(blob.title)}
              </label>
            </div>
+            ${hostCore ? '<div class="text-xs text-gray-500" style="padding:0 18px 10px">History is a host-core feature and is always enabled.</div>' : ''}
            ${fieldRows}${devRows}
            ${hasFields ? `<div class="settings-footer">
              <button class="btn-action plugin-save-btn">Save</button>
@@ -673,9 +675,11 @@ function renderPluginAccordion(blobs, cfg) {
 
     // Enable / disable — immediately update nav button without reload
     const cb     = item.querySelector('.plugin-enabled-cb');
+    if (hostCore) cb.disabled = true;
     const dot    = item.querySelector('.plugin-item-dot');
     const nameEl = item.querySelector('.plugin-item-name');
     cb.addEventListener('change', async () => {
+      if (hostCore) return;
       const enabled = cb.checked;
       _disabledPlugins = enabled
         ? _disabledPlugins.filter(id => id !== blob.plugin_id)

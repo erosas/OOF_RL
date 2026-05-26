@@ -79,8 +79,7 @@ type HTTPRequest struct {
 
 // HTTPResponse is JSON-encoded by the plugin and written into the output buffer.
 type HTTPResponse struct {
-	Status    int               `json:"status"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	Body      string            `json:"body"`
-	BodyBytes []byte            `json:"body_bytes,omitempty"` // binary body; takes precedence over Body
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Body    string            `json:"body"`
 }
