@@ -244,7 +244,7 @@ func handleBCMatches(_ sdk.HTTPRequest) sdk.HTTPResponse {
 		guid, _ := row["match_guid"].(string)
 		arena, _ := row["arena"].(string)
 		startedAtStr, _ := row["started_at"].(string)
-		matches = append(matches, matchInfo{MatchGUID: guid, Arena: arena, StartedAt: parseTime(startedAtStr)})
+		matches = append(matches, matchInfo{MatchGUID: guid, Arena: arena, StartedAt: sdk.ParseTime(startedAtStr)})
 	}
 
 	uploadRows := sdk.DBQuery(`SELECT replay_name, ballchasing_id FROM bc_uploads`, nil)
@@ -390,13 +390,4 @@ func matchReplayFiles(files []replayFileEntry, matches []matchInfo) map[int]stri
 
 func normalizeGUID(s string) string {
 	return strings.ToUpper(strings.ReplaceAll(s, "-", ""))
-}
-
-func parseTime(s string) time.Time {
-	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05Z", "2006-01-02 15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
 }

@@ -212,6 +212,16 @@ func (p *Plugin) NavTab() plugin.NavTab {
 	}
 }
 
+func (p *Plugin) RoutePaths() []string {
+	paths := make([]string, 0, len(p.meta.Routes))
+	for _, r := range p.meta.Routes {
+		if r.Path != "" {
+			paths = append(paths, r.Path)
+		}
+	}
+	return paths
+}
+
 func (p *Plugin) Routes(mux *http.ServeMux) {
 	for _, route := range p.meta.Routes {
 		path := route.Path

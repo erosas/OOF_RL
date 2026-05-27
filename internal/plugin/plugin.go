@@ -70,6 +70,10 @@ type Plugin interface {
 	Analyzer
 	NavTab() NavTab
 	Routes(mux *http.ServeMux)
+	// RoutePaths returns the URL paths this plugin handles. Used for conflict
+	// detection at registration time. WASM plugins return their declared routes;
+	// native plugins that embed BasePlugin return nil (they are trusted).
+	RoutePaths() []string
 	Assets() fs.FS
 }
 
@@ -81,6 +85,7 @@ type BasePlugin struct {
 	Cfg  *config.Config
 }
 
+func (p *BasePlugin) RoutePaths() []string                                  { return nil }
 func (p *BasePlugin) Init(_ oofevents.PluginBus, _ Registry, _ *db.DB) error { return nil }
 
 func (p *BasePlugin) Shutdown() error {

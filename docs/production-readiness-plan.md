@@ -313,10 +313,10 @@ The target state is:
 - [x] Reduce repeated `malloc`/`free`/`plugin_handle_http` patterns across plugins
 
 #### 3.2 Consolidate plugin helper duplication
-- [ ] Replace local `jsonOK` / `jsonError` duplicates with `plugins/sdk/helpers.go`
-- [ ] Create shared query-param helper if still needed
+- [x] Replace local `jsonOK` / `jsonError` duplicates with `plugins/sdk/helpers.go` (`dashboard`, `session`, `live`)
+- [x] Create shared query-param helper (`sdk.QueryParam`) and migrate `session`
 - [ ] Create shared bool parsing helper for config/settings values
-- [ ] Create shared time parsing helper if plugin-side date parsing remains necessary
+- [x] Create shared time parsing helper (`sdk.ParseTime`) and migrate `session` and `ballchasing`
 
 #### 3.3 Consolidate event payload handling
 - [ ] Identify repeated event payload DTOs like `state.updated`
@@ -324,9 +324,9 @@ The target state is:
 - [ ] Remove duplicated payload-shape structs where practical
 
 #### 3.4 Consolidate host HTTP utilities
-- [ ] Standardize JSON error responses in host handlers
-- [ ] Replace mixed `http.Error`/JSON behavior where APIs are intended to be JSON
-- [ ] Review shared handler helpers under `internal/httputil`
+- [x] Standardize JSON error responses in host handlers
+- [x] Replace mixed `http.Error`/JSON behavior where APIs are intended to be JSON (all `http.Error` calls in `server.go` now use `httputil.JSONError`)
+- [x] Review shared handler helpers under `internal/httputil`
 
 ### Known duplication hotspots already identified
 - [ ] WASM plugin `main.go` exports
@@ -352,7 +352,7 @@ The target state is:
 
 ## Phase 4 — Security, Reliability, and Runtime Hardening
 
-**Status:** [ ] Not started
+**Status:** [~] In progress
 
 ### Goals
 - make the local server safer and more predictable
@@ -361,26 +361,26 @@ The target state is:
 ### Tasks
 
 #### 4.1 Harden local server defaults
-- [ ] Bind explicitly to `127.0.0.1` by default unless configuration says otherwise
-- [ ] Add `http.Server` timeouts:
-  - [ ] `ReadHeaderTimeout`
-  - [ ] `ReadTimeout`
-  - [ ] `WriteTimeout`
-  - [ ] `IdleTimeout`
-- [ ] Gate pprof/statsviz behind `DevMode`
+- [x] Bind explicitly to `127.0.0.1` by default unless configuration says otherwise
+- [x] Add `http.Server` timeouts:
+  - [x] `ReadHeaderTimeout` (10s)
+  - [ ] `ReadTimeout` (intentionally skipped — large replay uploads via ballchasing would be clipped)
+  - [x] `WriteTimeout` (30s)
+  - [x] `IdleTimeout` (120s)
+- [x] Gate pprof/statsviz behind `DevMode`
 - [ ] Review whether app port fallback/binding behavior should be more explicit
 
 #### 4.2 Harden WebSocket handling
-- [ ] Replace `CheckOrigin: return true` with explicit localhost/app-origin checks
-- [ ] Rework `internal/hub/hub.go` so one slow client cannot block all clients
-- [ ] Add tests for unregistering dead clients and blocking client behavior
+- [x] Replace `CheckOrigin: return true` with explicit localhost/app-origin checks
+- [x] Rework `internal/hub/hub.go` so one slow client cannot block all clients
+- [x] Add tests for unregistering dead clients and blocking client behavior
 
 #### 4.3 Harden WASM/plugin host boundary
-- [ ] Validate duplicate plugin IDs on load
-- [ ] Validate route conflicts on load
+- [x] Validate duplicate plugin IDs on load (`LoadPlugins` returns error; `LoadWASMPlugins` logs and skips)
+- [x] Validate route conflicts on load (pre-check via `RoutePaths()` before any mux registration; conflicting plugin routes are skipped with a clear log)
 - [ ] Improve diagnostics for oversized host/plugin message buffers
 - [ ] Review whether outbound HTTP, DB access, config access, and WS broadcast should be capability-scoped
-- [ ] Add clear logging around plugin init/apply-settings failures and route conflicts
+- [x] Add clear logging around plugin init/apply-settings failures and route conflicts
 
 #### 4.4 Review trust model
 - [ ] Decide whether external WASM plugins are trusted extensions or semi-trusted sandboxed code
@@ -416,8 +416,8 @@ The target state is:
 - [ ] Decide whether every plugin must support native test builds via `stub_main.go` + module wiring
 
 #### 5.2 Raise plugin test coverage
-- [ ] Add tests for `plugins/ballchasing`
-- [ ] Add tests for `plugins/history` or reclassify it as host-owned and test the host feature instead
+- [x] Add tests for `plugins/ballchasing` (`normalizeGUID`, `matchReplayFiles`, `applySettings`)
+- [x] `plugins/history` reclassified: plugin is a nav-tab shell only; all history functionality is tested via `internal/histstore`
 - [ ] Add tests for plugin public file route behavior
 - [ ] Add tests for disabled plugin behavior
 - [ ] Add tests for route conflict detection and plugin ID conflict detection
@@ -573,6 +573,31 @@ Before calling the platform production-ready, all of the following should be tru
 - [x] This progress-tracking plan created
 - [x] Verified that host tests pass
 - [x] Verified that `make test-plugins` currently fails on `debugassistant`
+
+### 2026-05-27 (continued, fourth pass)
+- [x] Added `RoutePaths() []string` to `plugin.Plugin` interface and `plugin.BasePlugin` (nil default)
+- [x] Implemented `RoutePaths()` in `wasmhost.Plugin` from declared route metadata
+- [x] `LoadPlugins()` now returns an error on duplicate plugin IDs
+- [x] `LoadWASMPlugins()` now logs and skips WASM plugins whose ID is already registered
+- [x] `Register()` pre-checks each plugin's declared route paths against a core-route set; plugins with conflicting routes are skipped entirely with a clear log message
+- [x] Replaced all `http.Error` calls in `internal/core/server.go` with `httputil.JSONError` — all `/api/*` handlers now return consistent JSON errors
+
+### 2026-05-27 (continued, third pass)
+- [x] Added `sdk.ParseTime` and `sdk.QueryParam` to `plugins/sdk/helpers.go`
+- [x] Removed local `jsonOK`/`jsonError` duplicates from `dashboard`, `session`, `live`; replaced with `sdk.JSONResponse`/`sdk.JSONError`
+- [x] Removed local `parseTime` from `session` and `ballchasing`; replaced with `sdk.ParseTime`
+- [x] Removed local `queryParam` from `session`; replaced with `sdk.QueryParam`
+- [x] Updated `session` tests to use SDK functions
+- [x] Added `plugins/ballchasing/logic_test.go` covering `normalizeGUID`, `applySettings`, and `matchReplayFiles` (5 sub-cases)
+- [x] Reclassified `plugins/history` test item: plugin is a nav-tab shell; histstore tests cover the actual functionality
+
+### 2026-05-27 (continued, second pass)
+- [x] Reworked `hub.Broadcast` to snapshot client list before writing, set a per-write deadline (10s), and auto-remove dead clients — one slow or dead client can no longer block delivery to all others
+- [x] Added `TestHubBroadcastDropsDeadClient` test covering the dead-conn auto-removal path
+- [x] Bound server to `127.0.0.1` (was all interfaces); prevents LAN-reachable exposure
+- [x] Added `http.Server` timeouts: `ReadHeaderTimeout` 10s, `WriteTimeout` 30s, `IdleTimeout` 120s
+- [x] Gated pprof and statsviz behind `cfg.DevMode`
+- [x] Replaced `CheckOrigin: return true` with an explicit localhost/127.0.0.1 hostname check
 
 ### 2026-05-26
 - [x] Locked Phase 0 decisions: `PluginID` + `ViewID`, runtime-inactive disabled semantics, host-core `history`, and host-served plugin public data route
