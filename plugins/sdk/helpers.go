@@ -3,6 +3,7 @@ package sdk
 import (
 	"encoding/json"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -39,6 +40,16 @@ func ParseTime(s string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// ParseBool returns true for "true", "1", or "on" (case-insensitive).
+// Any other value, including empty string, returns false.
+func ParseBool(s string) bool {
+	switch strings.ToLower(s) {
+	case "true", "1", "on":
+		return true
+	}
+	return false
 }
 
 // QueryParam extracts a single value from a URL-encoded query string.

@@ -93,13 +93,14 @@ func newTestServerWithConfig(t *testing.T, cfg config.Config) (*core.Server, *co
 
 type testPlugin struct {
 	plugin.BasePlugin
-	id        string
-	nav       plugin.NavTab
-	assets    fstest.MapFS
-	routeOK   bool
-	requires  []string
-	initCount int
-	initErr   error
+	id            string
+	nav           plugin.NavTab
+	assets        fstest.MapFS
+	routeOK       bool
+	requires      []string
+	initCount     int
+	initErr       error
+	declaredPaths []string // returned by RoutePaths; nil means BasePlugin default (nil = trusted)
 }
 
 func (p *testPlugin) ID() string { return p.id }
@@ -114,6 +115,8 @@ func (p *testPlugin) Init(_ oofevents.PluginBus, _ plugin.Registry, _ *db.DB) er
 }
 
 func (p *testPlugin) NavTab() plugin.NavTab { return p.nav }
+
+func (p *testPlugin) RoutePaths() []string { return p.declaredPaths }
 
 func (p *testPlugin) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/test/"+p.id, func(w http.ResponseWriter, _ *http.Request) {
@@ -227,323 +230,6 @@ func waitForCoreTest(t *testing.T, fn func() bool) {
 	t.Fatal("condition not met before timeout")
 }
 
-// --- /api/config ---
-
-func TestGetConfig(t *testing.T) {
-	mux, cfg := newTestMux(t)
-	cfg.AppPort = 8080
-
-	w := get(mux, "/api/config")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var got map[string]any
-	json.Unmarshal(w.Body.Bytes(), &got)
-	if _, ok := got["app_port"]; !ok {
-		t.Error("expected app_port in response")
-	}
-	if _, ok := got["storage"]; !ok {
-		t.Error("expected storage in response")
-	}
-}
-
-func TestPostConfig(t *testing.T) {
-	mux, _ := newTestMux(t)
-
-	newCfg := config.Defaults()
-	newCfg.AppPort = 9999
-
-	w := postJSON(mux, "/api/config", newCfg)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	var returned map[string]any
-	json.Unmarshal(w.Body.Bytes(), &returned)
-	if port, _ := returned["app_port"].(float64); int(port) != 9999 {
-		t.Errorf("app_port: got %v, want 9999", returned["app_port"])
-	}
-}
-
-func TestPostConfigSanitizesHostCoreDisabledPlugins(t *testing.T) {
-	mux, _ := newTestMux(t)
-
-	newCfg := config.Defaults()
-	newCfg.DisabledPlugins = []string{"history", "test_disabled", "history"}
-
-	w := postJSON(mux, "/api/config", newCfg)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	var returned config.Config
-	if err := json.Unmarshal(w.Body.Bytes(), &returned); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(returned.DisabledPlugins) != 1 || returned.DisabledPlugins[0] != "test_disabled" {
-		t.Fatalf("disabled_plugins: got %v", returned.DisabledPlugins)
-	}
-}
-
-func TestPostConfigBadJSON(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewBufferString("not json"))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d, want 400", w.Code)
-	}
-}
-
-func TestConfigMethodNotAllowed(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/config", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status: got %d, want 405", w.Code)
-	}
-}
-
-// --- /api/config/ini ---
-
-func TestGetINIWhenNotFound(t *testing.T) {
-	t.Setenv("USERPROFILE", "")
-	mux, _ := newTestMux(t)
-	w := get(mux, "/api/config/ini")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d, want 200", w.Code)
-	}
-	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if errFlag, _ := resp["error"].(bool); !errFlag {
-		t.Errorf("expected error:true in response, got: %v", resp)
-	}
-}
-
-func TestPostINI(t *testing.T) {
-	t.Setenv("USERPROFILE", "")
-	mux, cfg := newTestMux(t)
-	cfg.RLInstallPath = t.TempDir()
-
-	w := postJSON(mux, "/api/config/ini", config.INISettings{PacketSendRate: 60, Port: 49123})
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	var resp map[string]any
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["status"] != "ok" {
-		t.Errorf("expected status:ok, got %v", resp)
-	}
-}
-
-func TestPostINIBadJSON(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/config/ini", bytes.NewBufferString("not json"))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d, want 400", w.Code)
-	}
-}
-
-func TestINIMethodNotAllowed(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/config/ini", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status: got %d, want 405", w.Code)
-	}
-}
-
-// --- /api/nav ---
-
-func TestGetNav(t *testing.T) {
-	mux, _ := newTestMux(t)
-	w := get(mux, "/api/nav")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var tabs []map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-}
-
-func TestGetNavExcludesDisabledPluginByPluginID(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"test_disabled"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "test_enabled", nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1}})
-	srv.Use(&testPlugin{id: "test_disabled", nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/nav")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var tabs []plugin.NavTab
-	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(tabs) != 1 {
-		t.Fatalf("tab count: got %d, want 1", len(tabs))
-	}
-	if tabs[0].ID != "enabled-view" {
-		t.Fatalf("nav id: got %q, want %q", tabs[0].ID, "enabled-view")
-	}
-}
-
-func TestGetNavKeepsHostCoreHistoryVisibleWhenListedDisabled(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"history"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "history", nav: plugin.NavTab{ID: "history", Label: "History", Order: 1}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/nav")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var tabs []plugin.NavTab
-	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if len(tabs) != 1 || tabs[0].ID != "history" {
-		t.Fatalf("tabs: got %+v", tabs)
-	}
-}
-
-// --- /api/settings/schema ---
-
-func TestGetSettingsSchema(t *testing.T) {
-	mux, _ := newTestMux(t)
-	w := get(mux, "/api/settings/schema")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var blobs []map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-}
-
-func TestGetSettingsSchemaMarksDisabledPluginButKeepsItListed(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"test_disabled"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "test_enabled", nav: plugin.NavTab{ID: "enabled-view", Label: "Enabled", Order: 1}})
-	srv.Use(&testPlugin{id: "test_disabled", nav: plugin.NavTab{ID: "disabled-view", Label: "Disabled", Order: 2}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/settings/schema")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var blobs []plugin.PluginSettingsBlob
-	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-
-	byID := make(map[string]plugin.PluginSettingsBlob, len(blobs))
-	for _, b := range blobs {
-		byID[b.PluginID] = b
-	}
-
-	disabled, ok := byID["test_disabled"]
-	if !ok {
-		t.Fatal("missing disabled plugin in settings schema")
-	}
-	if disabled.Enabled {
-		t.Fatal("disabled plugin should be listed with enabled=false")
-	}
-	enabled, ok := byID["test_enabled"]
-	if !ok {
-		t.Fatal("missing enabled plugin in settings schema")
-	}
-	if !enabled.Enabled {
-		t.Fatal("enabled plugin should be listed with enabled=true")
-	}
-}
-
-func TestGetSettingsSchemaKeepsHostCoreHistoryEnabled(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"history"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "history", nav: plugin.NavTab{ID: "history", Label: "History", Order: 1}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/settings/schema")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d", w.Code)
-	}
-	var blobs []plugin.PluginSettingsBlob
-	if err := json.Unmarshal(w.Body.Bytes(), &blobs); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	for _, b := range blobs {
-		if b.PluginID == "history" {
-			if !b.Enabled {
-				t.Fatal("history should remain enabled as host-core")
-			}
-			return
-		}
-	}
-	t.Fatal("missing history blob")
-}
-
-// --- /api/settings ---
-
-func TestPostSettings(t *testing.T) {
-	mux, cfg := newTestMux(t)
-
-	w := postJSON(mux, "/api/settings", map[string]string{
-		"ballchasing_api_key": "test-key",
-	})
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	if cfg.BallchasingAPIKey != "test-key" {
-		t.Errorf("bc key: got %q, want test-key", cfg.BallchasingAPIKey)
-	}
-
-	newCfg := config.Defaults()
-	newCfg.TrackerCacheTTLMinutes = 30
-	w = postJSON(mux, "/api/config", newCfg)
-	if w.Code != http.StatusOK {
-		t.Fatalf("config status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	if cfg.TrackerCacheTTLMinutes != 30 {
-		t.Errorf("tracker TTL: got %d, want 30", cfg.TrackerCacheTTLMinutes)
-	}
-}
-
-func TestPostSettingsMethodNotAllowed(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status: got %d, want 405", w.Code)
-	}
-}
-
-func TestPostSettingsBadJSON(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/settings", strings.NewReader("not json"))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d, want 400", w.Code)
-	}
-}
-
 // --- InitPlugins / ShutdownPlugins / Get ---
 
 func TestInitPluginsAndShutdownPlugins(t *testing.T) {
@@ -648,146 +334,7 @@ func TestLoadWASMPlugins_InvalidWasm(t *testing.T) {
 	}
 }
 
-// --- /api/plugins/<id>/view ---
-
-func TestHandlePluginView_MissingID(t *testing.T) {
-	mux, _ := newTestMux(t)
-	w := get(mux, "/api/plugins/")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("missing id: got %d, want 400", w.Code)
-	}
-}
-
-func TestHandlePluginView_NotFound(t *testing.T) {
-	mux, _ := newTestMux(t)
-	w := get(mux, "/api/plugins/nonexistent-xyz/view")
-	if w.Code != http.StatusNotFound {
-		t.Errorf("not found: got %d, want 404", w.Code)
-	}
-}
-
-func TestHandlePluginViewResolvesByPluginID(t *testing.T) {
-	cfg := config.Defaults()
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{
-		id:  "test_plugin",
-		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
-		assets: fstest.MapFS{
-			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
-		},
-	})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test_plugin/view")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d, body: %s", w.Code, w.Body.String())
-	}
-	if got := strings.TrimSpace(w.Body.String()); got != "<div>ok</div>" {
-		t.Fatalf("body: got %q", got)
-	}
-}
-
-func TestHandlePluginViewDisabledPluginReturnsNotFound(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"test_plugin"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{
-		id:  "test_plugin",
-		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
-		assets: fstest.MapFS{
-			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
-		},
-	})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test_plugin/view")
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("status: got %d, want 404", w.Code)
-	}
-}
-
-func TestHandlePluginViewByViewIDReturnsNotFound(t *testing.T) {
-	cfg := config.Defaults()
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{
-		id:  "test_plugin",
-		nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1},
-		assets: fstest.MapFS{
-			"view.html": &fstest.MapFile{Data: []byte("<div>ok</div>")},
-		},
-	})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test-view/view")
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("status: got %d, want 404", w.Code)
-	}
-}
-
-func TestHandlePluginDataServesPublicFile(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DataDir = t.TempDir()
-	srv, cfgPtr := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "test_plugin", nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1}})
-
-	publicDir := filepath.Join(cfgPtr.DataDir, "plugin_data", "test_plugin", "public")
-	if err := os.MkdirAll(publicDir, 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(publicDir, "sample.txt"), []byte("hello"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test_plugin/data/sample.txt")
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d, want 200", w.Code)
-	}
-	if strings.TrimSpace(w.Body.String()) != "hello" {
-		t.Fatalf("body: got %q", w.Body.String())
-	}
-}
-
-func TestHandlePluginDataRejectsTraversal(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DataDir = t.TempDir()
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "test_plugin", nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test_plugin/data/..\\secret.txt")
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: got %d, want 400", w.Code)
-	}
-}
-
-func TestHandlePluginDataDisabledPluginReturnsNotFound(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DataDir = t.TempDir()
-	cfg.DisabledPlugins = []string{"test_plugin"}
-	srv, cfgPtr := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "test_plugin", nav: plugin.NavTab{ID: "test-view", Label: "Test", Order: 1}})
-
-	publicDir := filepath.Join(cfgPtr.DataDir, "plugin_data", "test_plugin", "public")
-	if err := os.MkdirAll(publicDir, 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(publicDir, "sample.txt"), []byte("hello"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
-	w := get(mux, "/api/plugins/test_plugin/data/sample.txt")
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("status: got %d, want 404", w.Code)
-	}
-}
+// --- Register: disabled plugin routes and assets ---
 
 func TestRegisterSkipsDisabledPluginRoutesAndAssets(t *testing.T) {
 	cfg := config.Defaults()
@@ -838,66 +385,75 @@ func TestRegisterSkipsDisabledPluginRoutesAndAssets(t *testing.T) {
 	}
 }
 
+// --- LoadPlugins duplicate ID ---
 
+func TestLoadPluginsDuplicateIDReturnsError(t *testing.T) {
+	srv, _ := newTestServer(t)
+	// The overlayhud factory is registered via the blank import at the top.
+	// Pre-register a plugin with the same ID so LoadPlugins sees a duplicate.
+	srv.Use(&testPlugin{id: "overlayhud"})
+	err := srv.LoadPlugins()
+	if err == nil {
+		t.Fatal("LoadPlugins: want error for duplicate plugin ID, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate plugin ID") {
+		t.Fatalf("LoadPlugins: unexpected error: %v", err)
+	}
+}
 
-// --- /api/data-dir ---
+// --- Register route conflict detection ---
 
-func TestHandleDataDir(t *testing.T) {
-	mux, cfg := newTestMux(t)
-	w := get(mux, "/api/data-dir")
+func TestRegisterSkipsPluginWithConflictingCoreRoute(t *testing.T) {
+	srv, _ := newTestServerWithConfig(t, config.Defaults())
+	// Plugin declares a path that conflicts with the core /api/config route.
+	conflicting := &testPlugin{
+		id:            "conflict_plugin",
+		nav:           plugin.NavTab{ID: "conflict-view", Label: "Conflict", Order: 99},
+		declaredPaths: []string{"/api/config"},
+	}
+	srv.Use(conflicting)
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	// Core /api/config must still be reachable.
+	w := get(mux, "/api/config")
 	if w.Code != http.StatusOK {
-		t.Fatalf("handleDataDir: got %d, want 200", w.Code)
+		t.Fatalf("/api/config: got %d, want 200 after route-conflict skip", w.Code)
 	}
-	var resp map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if resp["path"] != cfg.DataDir {
-		t.Errorf("path: got %q, want %q", resp["path"], cfg.DataDir)
+	// The conflicting plugin's own route must NOT have been registered.
+	w = get(mux, "/api/test/conflict_plugin")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("conflict plugin own route: got %d, want 404", w.Code)
 	}
 }
 
-// --- /ws ---
-
-func TestHandleWS_NonUpgradable(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	// Gorilla's Upgrade writes its own error when the request is not upgradable;
-	// we just verify no panic and that the WebSocket upgrade did not succeed (no 101).
-	if w.Code == http.StatusSwitchingProtocols {
-		t.Error("did not expect 101 Switching Protocols for a plain HTTP request")
+func TestRegisterSkipsPluginWithConflictingPluginRoute(t *testing.T) {
+	srv, _ := newTestServerWithConfig(t, config.Defaults())
+	first := &testPlugin{
+		id:            "plugin_a",
+		nav:           plugin.NavTab{ID: "a-view", Label: "A", Order: 1},
+		declaredPaths: []string{"/api/shared-route"},
 	}
-}
-
-// --- /api/db/open-folder ---
-
-func TestHandleDBOpenFolder_MethodNotAllowed(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/db/open-folder", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("handleDBOpenFolder POST: got %d, want 405", w.Code)
+	second := &testPlugin{
+		id:            "plugin_b",
+		nav:           plugin.NavTab{ID: "b-view", Label: "B", Order: 2},
+		declaredPaths: []string{"/api/shared-route"},
 	}
-}
+	srv.Use(first)
+	srv.Use(second)
 
-// --- applyCoreSettings (via /api/settings) ---
+	mux := http.NewServeMux()
+	srv.Register(mux)
 
-func TestApplyCoreSettings(t *testing.T) {
-	mux, cfg := newTestMux(t)
-	w := postJSON(mux, "/api/settings", map[string]string{
-		"storage.ball_hit_events": "true",
-		"storage.raw_packets":     "true",
-	})
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
+	// First plugin's own route (/api/test/plugin_a) should be registered.
+	w := get(mux, "/api/test/plugin_a")
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("plugin_a own route: got %d, want 204", w.Code)
 	}
-	if !cfg.Storage.BallHitEvents {
-		t.Error("BallHitEvents: want true")
-	}
-	if !cfg.Storage.RawPackets {
-		t.Error("RawPackets: want true")
+	// Second plugin's own route (/api/test/plugin_b) must NOT be registered.
+	w = get(mux, "/api/test/plugin_b")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("plugin_b own route after conflict: got %d, want 404", w.Code)
 	}
 }

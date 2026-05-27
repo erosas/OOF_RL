@@ -39,7 +39,7 @@ func applySettings(data []byte) uint32 {
 		apiKey = v
 	}
 	if v, ok := settings["ballchasing_delete_after_upload"]; ok {
-		deleteAfterUpload = v == "true" || v == "1" || v == "on"
+		deleteAfterUpload = sdk.ParseBool(v)
 	}
 	return 0
 }

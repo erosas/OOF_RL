@@ -63,3 +63,55 @@ func TestHTTPResponseRoundTrip(t *testing.T) {
 		t.Errorf("got %+v", got)
 	}
 }
+
+func TestParseBool(t *testing.T) {
+	truthy := []string{"true", "1", "on", "TRUE", "ON", "True", "On"}
+	for _, s := range truthy {
+		if !sdk.ParseBool(s) {
+			t.Errorf("ParseBool(%q) = false, want true", s)
+		}
+	}
+	falsy := []string{"false", "0", "off", "", "yes", "t"}
+	for _, s := range falsy {
+		if sdk.ParseBool(s) {
+			t.Errorf("ParseBool(%q) = true, want false", s)
+		}
+	}
+}
+
+func TestQueryParam(t *testing.T) {
+	cases := []struct{ query, key, want string }{
+		{"foo=bar&baz=qux", "foo", "bar"},
+		{"foo=bar&baz=qux", "baz", "qux"},
+		{"foo=bar", "missing", ""},
+		{"", "foo", ""},
+		{"%%%", "foo", ""},
+	}
+	for _, c := range cases {
+		if got := sdk.QueryParam(c.query, c.key); got != c.want {
+			t.Errorf("QueryParam(%q, %q) = %q, want %q", c.query, c.key, got, c.want)
+		}
+	}
+}
+
+func TestParseTime(t *testing.T) {
+	// Valid formats
+	valid := []string{
+		"2024-01-15T10:30:00.123456789Z",
+		"2024-01-15T10:30:00Z",
+		"2024-01-15T10:30:00Z",
+		"2024-01-15 10:30:05",
+	}
+	for _, s := range valid {
+		if sdk.ParseTime(s).IsZero() {
+			t.Errorf("ParseTime(%q) returned zero time", s)
+		}
+	}
+	// Invalid input returns zero value
+	if !sdk.ParseTime("").IsZero() {
+		t.Error("ParseTime(\"\") should return zero time")
+	}
+	if !sdk.ParseTime("not-a-date").IsZero() {
+		t.Error("ParseTime(\"not-a-date\") should return zero time")
+	}
+}
