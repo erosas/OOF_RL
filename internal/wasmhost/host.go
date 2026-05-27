@@ -89,7 +89,7 @@ func Load(path string, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin
 		replayDir = cfg.Lookup("replay_dir")
 		pluginDataDir = filepath.Join(cfg.Lookup("data_dir"), "plugin_data", pluginID)
 		if mkErr := os.MkdirAll(pluginDataDir, 0755); mkErr != nil {
-			log.Printf("wasmhost: create plugin data dir %s: %v", pluginDataDir, mkErr)
+			log.Printf("wasmhost: create plugin data dir for plugin %q failed: %v", pluginID, mkErr)
 			pluginDataDir = ""
 		}
 	}
