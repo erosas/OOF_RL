@@ -136,6 +136,62 @@ func TestHubUnregisterStopsDelivery(t *testing.T) {
 	h.Broadcast([]byte(`{"Event":"post-unregister"}`))
 }
 
+func TestHubBroadcastDropsDeadClient(t *testing.T) {
+	h := hub.New()
+	alive := dialHub(t, h)
+
+	// Register a connection whose server-side conn we can close directly to
+	// simulate a dead client that is still in the hub map.
+	serverConnCh := make(chan *websocket.Conn, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		h.Register(conn)
+		serverConnCh <- conn
+		// No Unregister defer — let Broadcast detect and clean up the dead conn.
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	deadURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	deadClient, _, err := websocket.DefaultDialer.Dial(deadURL, nil)
+	if err != nil {
+		t.Fatalf("dial dead client: %v", err)
+	}
+	t.Cleanup(func() { deadClient.Close() })
+
+	serverConn := <-serverConnCh
+	serverConn.Close() // make the server-side conn fail on next write
+
+	msg := []byte(`{"Event":"after-dead"}`)
+	done := make(chan struct{})
+	go func() {
+		h.Broadcast(msg)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Broadcast blocked on dead client")
+	}
+
+	// Alive client must still receive the message.
+	alive.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, got, err := alive.ReadMessage()
+	if err != nil {
+		t.Fatalf("alive client ReadMessage: %v", err)
+	}
+	if string(got) != string(msg) {
+		t.Errorf("got %s, want %s", got, msg)
+	}
+}
+
 func TestHubMultipleBroadcasts(t *testing.T) {
 	h := hub.New()
 	client := dialHub(t, h)

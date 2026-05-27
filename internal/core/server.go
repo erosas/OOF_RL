@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,7 +31,21 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	// Accept only connections from localhost. An absent Origin header (e.g.
+	// from the embedded WebView2) is allowed; any explicit non-localhost origin
+	// is rejected to prevent cross-site WebSocket hijacking.
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		h := u.Hostname()
+		return h == "localhost" || h == "127.0.0.1"
+	},
 }
 
 type Server struct {
@@ -293,7 +308,10 @@ func (s *Server) LoadPlugins() error {
 	for id, factory := range plugin.Factories() {
 		p := factory()
 		if p.ID() != id {
-			log.Printf("[core] warning: plugin ID mismatch for %q: got %q", id, p.ID())
+			log.Printf("[core] plugin %q: ID mismatch (factory key %q vs plugin.ID() %q)", id, id, p.ID())
+		}
+		if _, exists := s.Get(p.ID()); exists {
+			return fmt.Errorf("duplicate plugin ID %q", p.ID())
 		}
 		s.Use(p)
 	}
@@ -320,6 +338,11 @@ func (s *Server) LoadWASMPlugins(dir string) error {
 			log.Printf("[core] wasm load %s: %v", e.Name(), err)
 			continue
 		}
+		if _, exists := s.Get(p.ID()); exists {
+			log.Printf("[core] wasm load %s: plugin ID %q already registered, skipping", e.Name(), p.ID())
+			p.Shutdown()
+			continue
+		}
 		s.Use(p)
 		log.Printf("[core] loaded wasm plugin %q from %s", p.ID(), e.Name())
 	}
@@ -329,6 +352,24 @@ func (s *Server) LoadWASMPlugins(dir string) error {
 // Register wires all routes onto mux: core endpoints first, then each plugin,
 // then the static file fallback.
 func (s *Server) Register(mux *http.ServeMux) {
+	// Seed the registered-routes set with every core pattern so plugins can be
+	// checked against it before their Routes() call touches the mux.
+	registered := map[string]string{
+		"/ws":                  "core",
+		"/api/config":          "core",
+		"/api/config/ini":      "core",
+		"/api/nav":             "core",
+		"/api/plugins/":        "core",
+		"/api/players":         "core",
+		"/api/matches":         "core",
+		"/api/matches/":        "core",
+		"/api/settings/schema": "core",
+		"/api/settings":        "core",
+		"/api/tracker/profile": "core",
+		"/api/db/open-folder":  "core",
+		"/api/data-dir":        "core",
+	}
+
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/config/ini", s.handleINI)
@@ -344,7 +385,26 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
+
 	for _, p := range s.activePlugins() {
+		// Plugins that declare their routes (WASM plugins) are checked for
+		// conflicts before any mux registration occurs. Native plugins return
+		// nil from RoutePaths() and are trusted without a pre-check.
+		conflict := false
+		for _, path := range p.RoutePaths() {
+			if owner, ok := registered[path]; ok {
+				log.Printf("[core] plugin %q: route %q conflicts with %q — plugin routes not registered", p.ID(), path, owner)
+				conflict = true
+				break
+			}
+		}
+		if conflict {
+			continue
+		}
+		for _, path := range p.RoutePaths() {
+			registered[path] = p.ID()
+		}
+
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
 			prefix := "/plugins/" + p.ID() + "/"
@@ -381,18 +441,18 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, s.cfg)
 	case http.MethodPost:
 		if err := json.NewDecoder(r.Body).Decode(s.cfg); err != nil {
-			http.Error(w, err.Error(), 400)
+			httputil.JSONError(w, 400, err.Error())
 			return
 		}
 		s.cfg.DisabledPlugins = sanitizeDisabledPlugins(s.cfg.DisabledPlugins)
 		if err := config.Save(s.cfgPath, *s.cfg); err != nil {
-			http.Error(w, err.Error(), 500)
+			httputil.JSONError(w, 500, err.Error())
 			return
 		}
 		s.reconnect()
 		httputil.WriteJSON(w, s.cfg)
 	default:
-		http.Error(w, "method not allowed", 405)
+		httputil.JSONError(w, 405, "method not allowed")
 	}
 }
 
@@ -427,7 +487,7 @@ func (s *Server) handleINI(w http.ResponseWriter, r *http.Request) {
 		s.reconnect()
 		httputil.WriteJSON(w, map[string]string{"status": "ok", "note": "INI saved. Restart Rocket League for changes to take effect."})
 	default:
-		http.Error(w, "method not allowed", 405)
+		httputil.JSONError(w, 405, "method not allowed")
 	}
 }
 
@@ -456,22 +516,22 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 	pluginID = strings.TrimSuffix(pluginID, "/view")
 	pluginID = strings.Trim(pluginID, "/")
 	if pluginID == "" {
-		http.Error(w, "missing plugin id", 400)
+		httputil.JSONError(w, 400, "missing plugin id")
 		return
 	}
 	target := s.findPluginTarget(pluginID)
 	if target == nil {
-		http.Error(w, "plugin not found", 404)
+		httputil.JSONError(w, 404, "plugin not found")
 		return
 	}
 	assets := target.Assets()
 	if assets == nil {
-		http.Error(w, "plugin has no assets", 404)
+		httputil.JSONError(w, 404, "plugin has no assets")
 		return
 	}
 	b, err := fs.ReadFile(assets, "view.html")
 	if err != nil {
-		http.Error(w, "view.html not found", 404)
+		httputil.JSONError(w, 404, "view.html not found")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -498,13 +558,13 @@ func parsePluginDataPath(path string) (pluginID string, relPath string, ok bool)
 
 func (s *Server) handlePluginData(w http.ResponseWriter, r *http.Request, pluginID, relPath string) {
 	if s.findPluginTarget(pluginID) == nil {
-		http.Error(w, "plugin not found", http.StatusNotFound)
+		httputil.JSONError(w, 404, "plugin not found")
 		return
 	}
 	relPath = strings.ReplaceAll(relPath, "\\", "/")
 	for _, seg := range strings.Split(relPath, "/") {
 		if seg == ".." {
-			http.Error(w, "invalid path", http.StatusBadRequest)
+			httputil.JSONError(w, 400, "invalid path")
 			return
 		}
 	}
@@ -513,12 +573,12 @@ func (s *Server) handlePluginData(w http.ResponseWriter, r *http.Request, plugin
 	full := filepath.Join(baseClean, filepath.FromSlash(relPath))
 	fullClean := filepath.Clean(full)
 	if fullClean != baseClean && !strings.HasPrefix(fullClean, baseClean+string(os.PathSeparator)) {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		httputil.JSONError(w, 400, "invalid path")
 		return
 	}
 	info, err := os.Stat(fullClean)
 	if err != nil || info.IsDir() {
-		http.Error(w, "file not found", http.StatusNotFound)
+		httputil.JSONError(w, 404, "file not found")
 		return
 	}
 	http.ServeFile(w, r, fullClean)
@@ -581,7 +641,7 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDBOpenFolder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", 405)
+		httputil.JSONError(w, 405, "method not allowed")
 		return
 	}
 	dir := s.cfg.DataDir
@@ -596,7 +656,7 @@ func (s *Server) handleDBOpenFolder(w http.ResponseWriter, r *http.Request) {
 // then persists config to disk. Used by the dynamic Settings page (Phase 9).
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", 405)
+		httputil.JSONError(w, 405, "method not allowed")
 		return
 	}
 	var values map[string]string
@@ -644,13 +704,13 @@ func (s *Server) handleTrackerProfile(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	playerName := r.URL.Query().Get("name")
 	if id == "" {
-		http.Error(w, "missing id", 400)
+		httputil.JSONError(w, 400, "missing id")
 		return
 	}
 
 	sep := strings.IndexAny(id, "|:_")
 	if sep < 1 {
-		http.Error(w, "invalid id format, expected platform|id", 400)
+		httputil.JSONError(w, 400, "invalid id format, expected platform|id")
 		return
 	}
 	rawPlatform := strings.ToLower(id[:sep])

@@ -97,9 +97,11 @@ func main() {
 		log.Fatalf("wasm plugin load: %v", err)
 	}
 	srv.Register(mux)
-	mux.Handle("/debug/pprof/", http.DefaultServeMux)
-	if err := statsviz.Register(mux); err != nil {
-		log.Printf("statsviz: %v", err)
+	if cfg.DevMode {
+		mux.Handle("/debug/pprof/", http.DefaultServeMux)
+		if err := statsviz.Register(mux); err != nil {
+			log.Printf("statsviz: %v", err)
+		}
 	}
 
 	if err := srv.InitPlugins(); err != nil {
@@ -117,7 +119,12 @@ func main() {
 	log.Printf("pprof     at %s/debug/pprof/", url)
 	log.Printf("statsviz  at %s/debug/statsviz/", url)
 
-	httpSrv := &http.Server{Handler: mux}
+	httpSrv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	go func() {
 		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
@@ -160,7 +167,7 @@ func bindAvailablePort(start int) (net.Listener, int) {
 		start = 8080
 	}
 	for port := start; port < start+20; port++ {
-		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err == nil {
 			return ln, port
 		}
