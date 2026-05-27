@@ -21,7 +21,7 @@ import (
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
-	_ "OOF_RL/internal/plugins/overlayhud"
+	_ "OOF_RL/internal/overlayhud"
 )
 
 func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
