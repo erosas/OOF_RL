@@ -52,6 +52,9 @@ type Server struct {
 	mmrProvider  mmr.Provider
 	plugins      []plugin.Plugin
 	disabled     map[string]struct{} // computed once from cfg.DisabledPlugins
+	activeCached []plugin.Plugin
+	activeByID   map[string]plugin.Plugin
+	activeDirty  bool
 	bus          oofevents.Bus
 	translator   *rlevents.Translator
 	momentum     *momentum.Service
@@ -80,6 +83,7 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		reconnect:   reconnect,
 		mmrProvider: mmrProvider,
 		disabled:    disabled,
+		activeDirty: true,
 		bus:         bus,
 		translator:  rlevents.New(rlBus),
 		momentum:    momentumService,
@@ -238,10 +242,7 @@ func (s *Server) List() []plugin.Plugin {
 // Use registers a plugin. Call before Register.
 func (s *Server) Use(p plugin.Plugin) {
 	s.plugins = append(s.plugins, p)
-}
-
-func (s *Server) isPluginDisabled(pluginID string) bool {
-	return isPluginDisabledInSet(pluginID, s.disabled)
+	s.activeDirty = true
 }
 
 func isPluginDisabledInSet(pluginID string, disabled map[string]struct{}) bool {
@@ -273,24 +274,33 @@ func sanitizeDisabledPlugins(ids []string) []string {
 }
 
 func (s *Server) activePlugins() []plugin.Plugin {
-	disabled := s.disabled
-	active := make([]plugin.Plugin, 0, len(s.plugins))
-	for _, p := range s.plugins {
-		if isPluginDisabledInSet(p.ID(), disabled) {
-			continue
-		}
-		active = append(active, p)
+	if s.activeDirty {
+		s.rebuildActivePluginCache()
 	}
-	return active
+	return s.activeCached
 }
 
 func (s *Server) findPluginTarget(pluginID string) plugin.Plugin {
-	for _, p := range s.activePlugins() {
-		if p.ID() == pluginID {
-			return p
-		}
+	s.activePlugins()
+	if p, ok := s.activeByID[pluginID]; ok {
+		return p
 	}
 	return nil
+}
+
+func (s *Server) rebuildActivePluginCache() {
+	active := make([]plugin.Plugin, 0, len(s.plugins))
+	byID := make(map[string]plugin.Plugin, len(s.plugins))
+	for _, p := range s.plugins {
+		if isPluginDisabledInSet(p.ID(), s.disabled) {
+			continue
+		}
+		active = append(active, p)
+		byID[p.ID()] = p
+	}
+	s.activeCached = active
+	s.activeByID = byID
+	s.activeDirty = false
 }
 
 func (s *Server) LoadPlugins() error {
@@ -403,7 +413,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 		p.Routes(mux)
 		if assets := p.Assets(); assets != nil {
 			prefix := "/plugins/" + p.ID() + "/"
-			mux.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(assets))))
+			if owner, ok := registered[prefix]; ok {
+				log.Printf("[core] plugin %q: asset prefix %q conflicts with %q — plugin assets not registered", p.ID(), prefix, owner)
+			} else {
+				registered[prefix] = p.ID()
+				mux.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(assets))))
+			}
 		}
 	}
 	mux.Handle("/", s.fs)

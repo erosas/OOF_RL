@@ -23,8 +23,8 @@ func pluginMetadata(outPtr, outMax uint32) uint32 {
 		},
 		Events: []string{"match.ended"},
 		Settings: []sdk.SettingSchema{
-			{Key: "ballchasing_api_key", Description: "Your Ballchasing.com API key. Get one at ballchasing.com/upload.", Secret: true},
-			{Key: "ballchasing_delete_after_upload", Description: "Automatically delete the local .replay file after successful upload.", Secret: false},
+			{Key: "ballchasing_api_key", Label: "API key", Description: "Your Ballchasing.com API key. Get one at ballchasing.com/upload.", Secret: true},
+			{Key: "ballchasing_delete_after_upload", Label: "Delete after upload", Description: "Automatically delete the local .replay file after successful upload.", Type: "checkbox"},
 		},
 	}
 	return sdk.WriteMetadata(meta, outPtr, outMax)
@@ -43,10 +43,7 @@ func pluginApplySettings(cfgPtr, cfgLen uint32) uint32 {
 
 //go:wasmexport plugin_on_event
 func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
-	onEvent(
-		string(sdk.ReadBytes(typePtr, typeLen)),
-		sdk.ReadBytes(payloadPtr, payloadLen),
-	)
+	sdk.HandleEventExport(typePtr, typeLen, payloadPtr, payloadLen, onEvent)
 }
 
 //go:wasmexport plugin_handle_http

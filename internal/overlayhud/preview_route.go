@@ -3,6 +3,8 @@ package overlayhud
 import (
 	"net/http"
 	"time"
+
+	"OOF_RL/internal/httputil"
 )
 
 const (
@@ -12,13 +14,13 @@ const (
 
 func (p *Plugin) handlePreview(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		httputil.JSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	html, ok := NewDisplayAdapter(p.momentum).RenderHTML(time.Now())
 	if !ok {
-		http.Error(w, "momentum snapshot provider unavailable", http.StatusServiceUnavailable)
+		httputil.JSONError(w, http.StatusServiceUnavailable, "momentum snapshot provider unavailable")
 		return
 	}
 
@@ -28,13 +30,13 @@ func (p *Plugin) handlePreview(w http.ResponseWriter, r *http.Request) {
 
 func (p *Plugin) handlePreviewSVG(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		httputil.JSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
 	svg, ok := NewDisplayAdapter(p.momentum).RenderSVG(time.Now())
 	if !ok {
-		http.Error(w, "momentum snapshot provider unavailable", http.StatusServiceUnavailable)
+		httputil.JSONError(w, http.StatusServiceUnavailable, "momentum snapshot provider unavailable")
 		return
 	}
 

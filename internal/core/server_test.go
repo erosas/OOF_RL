@@ -18,6 +18,7 @@ import (
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
+	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
@@ -134,6 +135,45 @@ func (p *testPlugin) SettingsSchema() []plugin.Setting {
 }
 
 func (p *testPlugin) ApplySettings(map[string]string) error { return nil }
+
+// mockMMRProvider is a test double for mmr.Provider.
+type mockMMRProvider struct {
+	name  string
+	ranks []mmr.PlaylistRank
+	err   error
+	calls int
+}
+
+func (m *mockMMRProvider) Name() string                                           { return m.name }
+func (m *mockMMRProvider) Supports(_ mmr.Platform) bool                           { return true }
+func (m *mockMMRProvider) Lookup(_ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+	m.calls++
+	return m.ranks, m.err
+}
+
+// newTestMuxWithMMR creates a test mux wired to an mmr.Provider.
+func newTestMuxWithMMR(t *testing.T, provider mmr.Provider) *http.ServeMux {
+	t.Helper()
+	tmpDir := t.TempDir()
+	database, err := db.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	cfg := config.Defaults()
+	h := hub.New()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+	bus := oofevents.New()
+	if err := bus.Start(); err != nil {
+		t.Fatalf("bus.Start: %v", err)
+	}
+	t.Cleanup(bus.Stop)
+	srv := core.NewServer(cfgPath, &cfg, database, h, http.NotFoundHandler(), func() {}, provider, bus)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	return mux
+}
 
 func get(mux *http.ServeMux, path string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, path, nil)

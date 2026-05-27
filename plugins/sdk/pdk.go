@@ -48,8 +48,8 @@ func hostGetConfig(keyPtr, keyLen, outPtr, outMax uint32) uint32
 
 // Output buffer sizes for each host call.
 const (
-	dbExecBufSize    = 32            // int64 JSON is at most 20 chars
-	dbQueryBufSize   = 256 * 1024   // 256 KB
+	dbExecBufSize    = 32              // int64 JSON is at most 20 chars
+	dbQueryBufSize   = 256 * 1024      // 256 KB
 	httpFetchBufSize = 4 * 1024 * 1024 // 4 MB — external APIs can return large payloads
 	getConfigBufSize = 4096
 )
@@ -114,6 +114,11 @@ func HandleHTTPExport(reqPtr, reqLen, outPtr, outMax uint32, handler func(HTTPRe
 		return WriteJSONOutput(HTTPResponse{Status: 500, Body: `{"error":"bad request"}`}, outPtr, outMax)
 	}
 	return WriteJSONOutput(handler(req), outPtr, outMax)
+}
+
+// HandleEventExport decodes plugin_on_event ABI pointers and forwards them to handler.
+func HandleEventExport(typePtr, typeLen, payloadPtr, payloadLen uint32, handler func(eventType string, payload []byte)) {
+	handler(string(ReadBytes(typePtr, typeLen)), ReadBytes(payloadPtr, payloadLen))
 }
 
 // keep prevents the GC from collecting malloc'd slices whose pointers

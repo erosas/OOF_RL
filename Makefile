@@ -1,5 +1,5 @@
 .PHONY: build run test cover icon profile profile-heap profile-goroutine \
-        all-plugins test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
+        all-plugins test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
 PLUGINS := live ballchasing ranks session dashboard debugassistant

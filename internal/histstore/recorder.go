@@ -1,6 +1,7 @@
 package histstore
 
 import (
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -99,7 +100,9 @@ func (r *Recorder) onStateUpdated(e oofevents.OOFEvent) {
 
 	if r.matchID != 0 && ev.Game.Playlist != nil && r.playlistType == nil {
 		r.playlistType = ev.Game.Playlist
-		_ = r.store.UpdateMatchPlaylist(r.matchID, *ev.Game.Playlist)
+		if err := r.store.UpdateMatchPlaylist(r.matchID, *ev.Game.Playlist); err != nil {
+			log.Printf("[histstore] UpdateMatchPlaylist %d: %v", r.matchID, err)
+		}
 	}
 }
 
@@ -123,10 +126,12 @@ func (r *Recorder) onGoalScored(e oofevents.OOFEvent) {
 		assisterName = ev.Assister
 	}
 	lastTouchID := r.findPlayerByShortcut(ev.LastTouchShortcut)
-	_ = r.store.InsertGoal(r.matchID,
+	if err := r.store.InsertGoal(r.matchID,
 		scorerID, ev.Scorer, assisterID, assisterName, lastTouchID,
 		ev.GoalSpeed, ev.GoalTime,
-		ev.ImpactX, ev.ImpactY, ev.ImpactZ)
+		ev.ImpactX, ev.ImpactY, ev.ImpactZ); err != nil {
+		log.Printf("[histstore] InsertGoal match %d: %v", r.matchID, err)
+	}
 }
 
 func (r *Recorder) onBallHit(e oofevents.OOFEvent) {
@@ -138,9 +143,11 @@ func (r *Recorder) onBallHit(e oofevents.OOFEvent) {
 		return
 	}
 	playerID := resolvePlayerID(ev.MatchGUID(), ev.PlayerPrimaryID, ev.PlayerShortcut, ev.PlayerName)
-	_ = r.store.InsertBallHit(r.matchID, playerID,
+	if err := r.store.InsertBallHit(r.matchID, playerID,
 		ev.PreHitSpeed, ev.PostHitSpeed,
-		ev.LocX, ev.LocY, ev.LocZ)
+		ev.LocX, ev.LocY, ev.LocZ); err != nil {
+		log.Printf("[histstore] InsertBallHit match %d: %v", r.matchID, err)
+	}
 }
 
 func (r *Recorder) onClockUpdated(e oofevents.OOFEvent) {
@@ -170,7 +177,9 @@ func (r *Recorder) onStatFeed(e oofevents.OOFEvent) {
 		targetName = ev.SecondaryTarget
 	}
 	if r.matchID != 0 {
-		_ = r.store.InsertStatfeedEvent(r.matchID, actorID, ev.MainTarget, ev.MainTargetTeamNum, ev.EventName, targetID, targetName)
+		if err := r.store.InsertStatfeedEvent(r.matchID, actorID, ev.MainTarget, ev.MainTargetTeamNum, ev.EventName, targetID, targetName); err != nil {
+			log.Printf("[histstore] InsertStatfeedEvent match %d: %v", r.matchID, err)
+		}
 	}
 }
 
@@ -195,7 +204,9 @@ func (r *Recorder) onMatchDestroyed(_ oofevents.OOFEvent) {
 
 // flushMatch writes end-of-match state to the DB and resets in-memory state.
 func (r *Recorder) flushMatch(winnerTeamNum int, incomplete, forfeit bool) {
-	_ = r.store.EndMatch(r.matchID, winnerTeamNum, r.overtime, incomplete, forfeit)
+	if err := r.store.EndMatch(r.matchID, winnerTeamNum, r.overtime, incomplete, forfeit); err != nil {
+		log.Printf("[histstore] EndMatch %d: %v", r.matchID, err)
+	}
 
 	score0, score1 := -1, -1
 	for _, t := range r.lastTeams {
@@ -206,14 +217,20 @@ func (r *Recorder) flushMatch(winnerTeamNum int, incomplete, forfeit bool) {
 		}
 	}
 	if score0 >= 0 && score1 >= 0 {
-		_ = r.store.UpdateTeamScores(r.matchID, score0, score1)
+		if err := r.store.UpdateTeamScores(r.matchID, score0, score1); err != nil {
+			log.Printf("[histstore] UpdateTeamScores %d: %v", r.matchID, err)
+		}
 	}
 
 	for _, pl := range r.lastPlayers {
-		_ = r.store.UpsertPlayer(pl.PrimaryID, pl.Name)
-		_ = r.store.UpsertPlayerMatchStats(r.matchID, pl.PrimaryID,
+		if err := r.store.UpsertPlayer(pl.PrimaryID, pl.Name); err != nil {
+			log.Printf("[histstore] UpsertPlayer %s: %v", pl.PrimaryID, err)
+		}
+		if err := r.store.UpsertPlayerMatchStats(r.matchID, pl.PrimaryID,
 			pl.TeamNum, pl.Score, pl.Goals, pl.Shots, pl.Assists, pl.Saves,
-			pl.Touches, pl.CarTouches, pl.Demos)
+			pl.Touches, pl.CarTouches, pl.Demos); err != nil {
+			log.Printf("[histstore] UpsertPlayerMatchStats %s: %v", pl.PrimaryID, err)
+		}
 	}
 
 	r.resetMatchState()

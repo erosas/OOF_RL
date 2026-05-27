@@ -6,10 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +26,7 @@ import (
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
-const metaBufSize = 4 * 1024       // 4 KB — more than enough for metadata JSON
+const metaBufSize = 4 * 1024        // 4 KB — more than enough for metadata JSON
 const respBufSize = 4 * 1024 * 1024 // 4 MB — large enough for binary payloads (e.g. screenshots)
 
 type eventMsg struct {
@@ -209,33 +207,6 @@ func (p *Plugin) NavTab() plugin.NavTab {
 	}
 }
 
-func (p *Plugin) RoutePaths() []string {
-	paths := make([]string, 0, len(p.meta.Routes))
-	for _, r := range p.meta.Routes {
-		if r.Path != "" {
-			paths = append(paths, r.Path)
-		}
-	}
-	return paths
-}
-
-func (p *Plugin) Routes(mux *http.ServeMux) {
-	for _, route := range p.meta.Routes {
-		path := route.Path
-		if path == "" {
-			continue
-		}
-		method := strings.ToUpper(strings.TrimSpace(route.Method))
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			if method != "" && r.Method != method {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			p.serveHTTP(w, r)
-		})
-	}
-}
-
 func (p *Plugin) SettingsSchema() []plugin.Setting {
 	if len(p.meta.Settings) == 0 {
 		return nil
@@ -255,9 +226,13 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 		for _, opt := range s.Options {
 			options = append(options, plugin.SelectOption{Value: opt.Value, Label: opt.Label})
 		}
+		label := s.Label
+		if label == "" {
+			label = s.Key
+		}
 		out[i] = plugin.Setting{
 			Key:         s.Key,
-			Label:       s.Label,
+			Label:       label,
 			Description: s.Description,
 			Type:        t,
 			Default:     s.Default,
@@ -414,51 +389,6 @@ func (p *Plugin) readMeta() error {
 	return nil
 }
 
-func validateRouteMeta(routes []sdk.RouteMeta) error {
-	seenPath := make(map[string]struct{}, len(routes))
-	for _, r := range routes {
-		path := strings.TrimSpace(r.Path)
-		if path == "" {
-			return fmt.Errorf("route path is required")
-		}
-		if !strings.HasPrefix(path, "/") {
-			return fmt.Errorf("route path must start with '/': %q", path)
-		}
-		if _, exists := seenPath[path]; exists {
-			return fmt.Errorf("duplicate route path %q", path)
-		}
-		seenPath[path] = struct{}{}
-		method := strings.ToUpper(strings.TrimSpace(r.Method))
-		if method == "" {
-			continue
-		}
-		switch method {
-		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions:
-		default:
-			return fmt.Errorf("unsupported route method %q for %q", method, path)
-		}
-	}
-	return nil
-}
-
-func validateDeclaredEventsMeta(events []sdk.DeclaredEvent) error {
-	seen := make(map[string]struct{}, len(events))
-	for _, e := range events {
-		typeName := strings.TrimSpace(e.Type)
-		if typeName == "" {
-			return fmt.Errorf("declared event type is required")
-		}
-		if _, exists := seen[typeName]; exists {
-			return fmt.Errorf("duplicate declared event type %q", typeName)
-		}
-		seen[typeName] = struct{}{}
-		if e.Certainty < sdk.Authoritative || e.Certainty > sdk.Signal {
-			return fmt.Errorf("invalid certainty %d for declared event %q", e.Certainty, typeName)
-		}
-	}
-	return nil
-}
-
 func (p *Plugin) dispatchEvent(eventType string, payload []byte) {
 	if p.fnOnEvent == nil {
 		return
@@ -487,82 +417,6 @@ func (p *Plugin) dispatchEvent(eventType string, payload []byte) {
 	); err != nil {
 		log.Printf("[wasm:%s] plugin_on_event: %v", p.meta.ID, err)
 	}
-}
-
-func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	if p.fnHandleHTTP == nil {
-		http.Error(w, "plugin has no HTTP handler", http.StatusNotImplemented)
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	var bodyStr string
-	if r.Body != nil {
-		if b, err := io.ReadAll(r.Body); err == nil {
-			bodyStr = string(b)
-		}
-	}
-	req := sdk.HTTPRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: bodyStr}
-	reqJSON, _ := json.Marshal(req)
-
-	reqPtr, reqSize, err := p.writeGuest(reqJSON)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	defer p.free(reqPtr, reqSize)
-
-	outPtr, err := p.malloc(respBufSize)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	defer p.free(outPtr, respBufSize)
-
-	res, err := p.fnHandleHTTP.Call(p.ctx,
-		api.EncodeU32(reqPtr), api.EncodeU32(uint32(len(reqJSON))),
-		api.EncodeU32(outPtr), api.EncodeU32(respBufSize),
-	)
-	if err != nil {
-		log.Printf("[wasm:%s] plugin_handle_http: %v", p.meta.ID, err)
-		http.Error(w, "plugin error", http.StatusInternalServerError)
-		return
-	}
-
-	respData, ok := p.mod.Memory().Read(outPtr, api.DecodeU32(res[0]))
-	if !ok {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	var resp sdk.HTTPResponse
-	if err := json.Unmarshal(respData, &resp); err != nil {
-		log.Printf("[wasm:%s] parse response: %v", p.meta.ID, err)
-		http.Error(w, "plugin error", http.StatusInternalServerError)
-		return
-	}
-
-	for k, v := range resp.Headers {
-		w.Header().Set(k, v)
-	}
-	w.WriteHeader(resp.Status)
-	fmt.Fprint(w, resp.Body)
-}
-
-// writeResult copies data into guest memory at outPtr.
-// Returns the number of bytes written, or 0 if data exceeds outMax (truncation would
-// corrupt JSON-encoded results, so it is treated as an error).
-func (p *Plugin) writeResult(m api.Module, data []byte, outPtr, outMax uint32) uint32 {
-	if uint32(len(data)) > outMax {
-		log.Printf("[wasm:%s] writeResult: result size %d exceeds buffer %d", p.meta.ID, len(data), outMax)
-		return 0
-	}
-	if !m.Memory().Write(outPtr, data) {
-		return 0
-	}
-	return uint32(len(data))
 }
 
 func (p *Plugin) malloc(size uint32) (uint32, error) {

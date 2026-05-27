@@ -10,8 +10,8 @@ import sdk "github.com/erosas/oof-plugin-sdk"
 //go:wasmexport plugin_metadata
 func pluginMetadata(outPtr, outMax uint32) uint32 {
 	meta := sdk.PluginMeta{
-		ID:       "session",
-		NavTab:   sdk.NavTabMeta{ID: "session", Label: "Session", Order: 25},
+		ID:     "session",
+		NavTab: sdk.NavTabMeta{ID: "session", Label: "Session", Order: 25},
 		Routes: []sdk.RouteMeta{
 			{Path: "/api/session/stats", Method: "GET"},
 			{Path: "/api/session/start"},
@@ -32,7 +32,9 @@ func pluginInit(cfgPtr, cfgLen uint32) uint32 {
 
 //go:wasmexport plugin_on_event
 func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
-	onEvent(string(sdk.ReadBytes(typePtr, typeLen)))
+	sdk.HandleEventExport(typePtr, typeLen, payloadPtr, payloadLen, func(eventType string, _ []byte) {
+		onEvent(eventType)
+	})
 }
 
 //go:wasmexport plugin_handle_http

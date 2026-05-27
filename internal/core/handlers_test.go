@@ -3,12 +3,14 @@ package core_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"OOF_RL/internal/config"
+	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/plugin"
 )
 
@@ -328,5 +330,121 @@ func TestPostSettingsBadJSON(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+// --- /api/tracker/profile ---
+
+func TestTrackerProfileNoProvider(t *testing.T) {
+	// newTestMux wires mmrProvider=nil, so the handler must return 503.
+	mux, _ := newTestMux(t)
+	w := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status: got %d, want 503", w.Code)
+	}
+}
+
+func TestTrackerProfileMissingID(t *testing.T) {
+	mux := newTestMuxWithMMR(t, &mockMMRProvider{name: "mock"})
+	w := get(mux, "/api/tracker/profile")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+func TestTrackerProfileInvalidIDFormat(t *testing.T) {
+	mux := newTestMuxWithMMR(t, &mockMMRProvider{name: "mock"})
+	w := get(mux, "/api/tracker/profile?id=nocolon")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+func TestTrackerProfileMaskedSteamPlayer(t *testing.T) {
+	mux := newTestMuxWithMMR(t, &mockMMRProvider{name: "mock"})
+	w := get(mux, "/api/tracker/profile?id=steam|***")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+func TestTrackerProfileMaskedNonSteamPlayer(t *testing.T) {
+	// Non-steam with masked display name should also be rejected.
+	mux := newTestMuxWithMMR(t, &mockMMRProvider{name: "mock"})
+	w := get(mux, "/api/tracker/profile?id=epic|someepicid&name=***")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+func TestTrackerProfileLookupSuccess(t *testing.T) {
+	provider := &mockMMRProvider{
+		name: "mock",
+		ranks: []mmr.PlaylistRank{
+			{PlaylistID: 10, PlaylistName: "Ranked Duel 1v1", MMR: 800, TierName: "Gold III"},
+		},
+	}
+	mux := newTestMuxWithMMR(t, provider)
+	w := get(mux, "/api/tracker/profile?id=steam|76561198025501695&name=TestPlayer")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 — body: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if resp["cached"].(bool) {
+		t.Error("first call should not be cached")
+	}
+	if resp["source"] != "mock" {
+		t.Errorf("source: got %v, want mock", resp["source"])
+	}
+	if ranks, _ := resp["ranks"].([]any); len(ranks) != 1 {
+		t.Errorf("ranks count: got %d, want 1", len(ranks))
+	}
+	if provider.calls != 1 {
+		t.Errorf("provider calls: got %d, want 1", provider.calls)
+	}
+}
+
+func TestTrackerProfileLookupError(t *testing.T) {
+	provider := &mockMMRProvider{err: errors.New("network error")}
+	mux := newTestMuxWithMMR(t, provider)
+	w := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("status: got %d, want 502", w.Code)
+	}
+}
+
+func TestTrackerProfileCacheHit(t *testing.T) {
+	provider := &mockMMRProvider{
+		name:  "mock",
+		ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 800}},
+	}
+	mux := newTestMuxWithMMR(t, provider)
+
+	// First request — cold cache, goes to provider.
+	w1 := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first request: got %d — body: %s", w1.Code, w1.Body.String())
+	}
+	if provider.calls != 1 {
+		t.Fatalf("first request: provider calls: got %d, want 1", provider.calls)
+	}
+
+	// Second request — should hit cache, no additional provider call.
+	w2 := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
+	if w2.Code != http.StatusOK {
+		t.Fatalf("second request: got %d", w2.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !resp["cached"].(bool) {
+		t.Error("second call should be cached")
+	}
+	if provider.calls != 1 {
+		t.Errorf("provider calls: got %d, want 1 (second should use cache)", provider.calls)
 	}
 }

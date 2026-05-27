@@ -23,10 +23,7 @@ func pluginInit(cfgPtr, cfgLen uint32) uint32 { return 0 }
 
 //go:wasmexport plugin_on_event
 func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
-	onEvent(
-		string(sdk.ReadBytes(typePtr, typeLen)),
-		sdk.ReadBytes(payloadPtr, payloadLen),
-	)
+	sdk.HandleEventExport(typePtr, typeLen, payloadPtr, payloadLen, onEvent)
 }
 
 //go:wasmexport plugin_handle_http

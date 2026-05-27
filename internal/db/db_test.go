@@ -22,6 +22,45 @@ func TestMigrate(t *testing.T) {
 	}
 }
 
+func TestRunMigration(t *testing.T) {
+	d := newTestDB(t)
+	schema := `CREATE TABLE IF NOT EXISTS test_migration (id INTEGER PRIMARY KEY, name TEXT)`
+	if err := d.RunMigration(schema); err != nil {
+		t.Fatalf("RunMigration: %v", err)
+	}
+	// Verify the table exists by inserting a row.
+	if _, err := d.Conn().Exec(`INSERT INTO test_migration(name) VALUES(?)`, "hello"); err != nil {
+		t.Fatalf("insert after migration: %v", err)
+	}
+}
+
+func TestRunMigrationBadSQL(t *testing.T) {
+	d := newTestDB(t)
+	if err := d.RunMigration("THIS IS NOT SQL"); err == nil {
+		t.Fatal("expected error for invalid SQL")
+	}
+}
+
+func TestAddColumnIfNotExists(t *testing.T) {
+	d := newTestDB(t)
+	if err := d.RunMigration(`CREATE TABLE IF NOT EXISTS test_cols (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	// Add a new column — should succeed.
+	if err := d.AddColumnIfNotExists("test_cols", "nickname", "TEXT"); err != nil {
+		t.Fatalf("AddColumnIfNotExists new column: %v", err)
+	}
+	// Add the same column again — silently ignored.
+	if err := d.AddColumnIfNotExists("test_cols", "nickname", "TEXT"); err != nil {
+		t.Fatalf("AddColumnIfNotExists duplicate column: %v", err)
+	}
+	// Add column to a non-existent table — silently ignored.
+	if err := d.AddColumnIfNotExists("no_such_table", "col", "TEXT"); err != nil {
+		t.Fatalf("AddColumnIfNotExists nonexistent table: %v", err)
+	}
+}
+
 func TestTrackerCache(t *testing.T) {
 	d := newTestDB(t)
 

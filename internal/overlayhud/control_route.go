@@ -3,13 +3,15 @@ package overlayhud
 import (
 	"fmt"
 	"net/http"
+
+	"OOF_RL/internal/httputil"
 )
 
 const controlRoutePath = "/internal/momentum-overlay-control"
 
 func (p *Plugin) handleControl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		httputil.JSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
@@ -39,7 +41,7 @@ func (p *Plugin) handleControl(w http.ResponseWriter, r *http.Request) {
 			p.shellState = overlayShellDormant
 		}
 	default:
-		http.Error(w, "unknown action", http.StatusBadRequest)
+		httputil.JSONError(w, http.StatusBadRequest, "unknown action")
 		return
 	}
 

@@ -28,7 +28,7 @@ import (
 	"OOF_RL/internal/mmr/trackergg"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/overlay"
-	_ "OOF_RL/internal/plugins/all"
+	_ "OOF_RL/internal/overlayhud"
 	"OOF_RL/internal/rl"
 	"OOF_RL/internal/singleinstance"
 )
