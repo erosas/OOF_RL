@@ -315,7 +315,7 @@ The target state is:
 #### 3.2 Consolidate plugin helper duplication
 - [x] Replace local `jsonOK` / `jsonError` duplicates with `plugins/sdk/helpers.go` (`dashboard`, `session`, `live`)
 - [x] Create shared query-param helper (`sdk.QueryParam`) and migrate `session`
-- [ ] Create shared bool parsing helper for config/settings values
+- [x] Create shared bool parsing helper (`sdk.ParseBool`) and migrate `ballchasing`
 - [x] Create shared time parsing helper (`sdk.ParseTime`) and migrate `session` and `ballchasing`
 
 #### 3.3 Consolidate event payload handling
@@ -330,11 +330,11 @@ The target state is:
 
 ### Known duplication hotspots already identified
 - [ ] WASM plugin `main.go` exports
-- [ ] plugin JSON response helpers
-- [ ] ad-hoc `parseTime` helpers
-- [ ] query parsing helpers
+- [x] plugin JSON response helpers
+- [x] ad-hoc `parseTime` helpers
+- [x] query parsing helpers
 - [ ] raw string-based method/path dispatch patterns
-- [ ] repeated boolean parsing (`true` / `1` / `on`)
+- [x] repeated boolean parsing (`true` / `1` / `on`)
 
 ### Target files
 - `plugins/*/main.go`
@@ -418,9 +418,9 @@ The target state is:
 #### 5.2 Raise plugin test coverage
 - [x] Add tests for `plugins/ballchasing` (`normalizeGUID`, `matchReplayFiles`, `applySettings`)
 - [x] `plugins/history` reclassified: plugin is a nav-tab shell only; all history functionality is tested via `internal/histstore`
-- [ ] Add tests for plugin public file route behavior
-- [ ] Add tests for disabled plugin behavior
-- [ ] Add tests for route conflict detection and plugin ID conflict detection
+- [x] Add tests for plugin public file route behavior (serves file, disabled plugin 404, unknown plugin 404, missing file 404, traversal 400)
+- [x] Add tests for disabled plugin behavior (init skip, route/asset skip, nav exclusion, view 404)
+- [x] Add tests for route conflict detection and plugin ID conflict detection
 
 #### 5.3 Review workspace/module consistency
 - [ ] Normalize plugin module strategy
@@ -574,13 +574,12 @@ Before calling the platform production-ready, all of the following should be tru
 - [x] Verified that host tests pass
 - [x] Verified that `make test-plugins` currently fails on `debugassistant`
 
-### 2026-05-27 (continued, fourth pass)
-- [x] Added `RoutePaths() []string` to `plugin.Plugin` interface and `plugin.BasePlugin` (nil default)
-- [x] Implemented `RoutePaths()` in `wasmhost.Plugin` from declared route metadata
-- [x] `LoadPlugins()` now returns an error on duplicate plugin IDs
-- [x] `LoadWASMPlugins()` now logs and skips WASM plugins whose ID is already registered
-- [x] `Register()` pre-checks each plugin's declared route paths against a core-route set; plugins with conflicting routes are skipped entirely with a clear log message
-- [x] Replaced all `http.Error` calls in `internal/core/server.go` with `httputil.JSONError` — all `/api/*` handlers now return consistent JSON errors
+### 2026-05-26 (continued, fourth pass)
+- [x] Added `sdk.ParseBool` helper; migrated `ballchasing` off inline string compare; added `TestParseBool`, `TestQueryParam`, `TestParseTime` to `plugins/sdk/abi_test.go`
+- [x] Added tests for route conflict detection (`TestRegisterSkipsPluginWithConflictingCoreRoute`, `TestRegisterSkipsPluginWithConflictingPluginRoute`) and duplicate plugin ID (`TestLoadPluginsDuplicateIDReturnsError`)
+- [x] Added `RoutePaths() []string` override on `testPlugin` to enable declarative route conflict testing
+- [x] Split oversized source files: `internal/core/server.go` (773→392 lines) + `handlers.go` (333), `internal/wasmhost/host.go` (835→530 lines) + `imports.go` (237), `web/app.js` (896→764 lines) + `arena-names.js` (133)
+- [x] Split oversized test files: `internal/core/server_test.go` (878→458) + `handlers_test.go` (330) + `plugin_handlers_test.go` (239), `internal/wasmhost/worker_test.go` (718→480) + `imports_test.go` (249), `internal/rlevents/translator_test.go` (610→420) + `translator_gameactions_test.go` (198)
 
 ### 2026-05-27 (continued, third pass)
 - [x] Added `sdk.ParseTime` and `sdk.QueryParam` to `plugins/sdk/helpers.go`
