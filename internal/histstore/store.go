@@ -61,10 +61,15 @@ func (s *Store) UpsertMatch(matchGUID, arena string, startedAt time.Time) (int64
 		if err2 != nil {
 			return 0, err2
 		}
-		id, _ := res2.LastInsertId()
+		id, err2 := res2.LastInsertId()
+		if err2 != nil {
+			return 0, err2
+		}
 		if id == 0 {
 			var found int64
-			_ = s.conn.QueryRow(`SELECT id FROM hist_matches WHERE match_guid=?`, matchGUID).Scan(&found)
+			if serr := s.conn.QueryRow(`SELECT id FROM hist_matches WHERE match_guid=?`, matchGUID).Scan(&found); serr != nil {
+				return 0, serr
+			}
 			return found, nil
 		}
 		return id, nil

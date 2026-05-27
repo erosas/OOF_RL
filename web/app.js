@@ -1,160 +1,5 @@
 'use strict';
 
-// --- Arena name mapping ---
-// Keys are the internal RL/BC map codes (lowercased). Source: https://ballchasing.com/api/maps
-const ARENA_NAMES = {
-  // Champions Field
-  cs_p:                    'Champions Field',
-  cs_day_p:                'Champions Field (Day)',
-  cs_hw_p:                 'Rivals Arena',
-  swoosh_p:                'Champions Field (Nike FC)',
-  bb_p:                    'Champions Field (NFL)',
-
-  // Mannfield
-  eurostadium_p:           'Mannfield',
-  eurostadium_night_p:     'Mannfield (Night)',
-  eurostadium_rainy_p:     'Mannfield (Stormy)',
-  eurostadium_dusk_p:      'Mannfield (Dusk)',
-  eurostadium_snownight_p: 'Mannfield (Snowy)',
-
-  // Starbase ARC
-  arc_p:                   'Starbase ARC',
-  arc_standard_p:          'Starbase ARC (Standard)',
-  arc_darc_p:              'Starbase ARC (Aftermath)',
-
-  // DFH Stadium
-  stadium_p:               'DFH Stadium',
-  stadium_day_p:           'DFH Stadium (Day)',
-  stadium_winter_p:        'DFH Stadium (Snowy)',
-  stadium_foggy_p:         'DFH Stadium (Stormy)',
-  stadium_race_day_p:      'DFH Stadium (Circuit)',
-
-  // Urban Central
-  trainstation_p:          'Urban Central',
-  trainstation_dawn_p:     'Urban Central (Dawn)',
-  trainstation_night_p:    'Urban Central (Night)',
-  trainstation_spooky_p:   'Urban Central (Spooky)',
-  haunted_trainstation_p:  'Urban Central (Haunted)',
-
-  // Beckwith Park
-  park_p:                  'Beckwith Park',
-  park_night_p:            'Beckwith Park (Midnight)',
-  park_bman_p:             'Beckwith Park (Night)',
-  park_rainy_p:            'Beckwith Park (Stormy)',
-  park_snowy_p:            'Beckwith Park (Snowy)',
-
-  // Wasteland
-  wasteland_p:             'Wasteland',
-  wasteland_s_p:           'Wasteland (Standard)',
-  wasteland_night_p:       'Wasteland (Night)',
-  wasteland_night_s_p:     'Wasteland (Standard, Night)',
-  wasteland_grs_p:         'Wasteland (Pitched)',
-
-  // Neo Tokyo
-  neotokyo_p:              'Neo Tokyo',
-  neotokyo_standard_p:     'Neo Tokyo (Standard)',
-  neotokyo_arcade_p:       'Neo Tokyo (Arcade)',
-  neotokyo_hax_p:          'Neo Tokyo (Hacked)',
-  neotokyo_toon_p:         'Neo Tokyo (Comic)',
-
-  // Utopia Coliseum
-  utopiastadium_p:         'Utopia Coliseum',
-  utopiastadium_dusk_p:    'Utopia Coliseum (Dusk)',
-  utopiastadium_snow_p:    'Utopia Coliseum (Snowy)',
-  utopiastadium_lux_p:     'Utopia Coliseum (Gilded)',
-
-  // AquaDome
-  underwater_p:            'Aquadome',
-  underwater_grs_p:        'AquaDome (Salty Shallows)',
-
-  // Salty Shores
-  beach_p:                 'Salty Shores',
-  beach_night_p:           'Salty Shores (Night)',
-  beach_night_grs_p:       'Salty Shores (Salty Fest)',
-  beachvolley:             'Salty Shores (Volley)',
-
-  // Forbidden Temple
-  chn_stadium_p:           'Forbidden Temple',
-  chn_stadium_day_p:       'Forbidden Temple (Day)',
-  fni_stadium_p:           'Forbidden Temple (Fire & Ice)',
-
-  // Farmstead
-  farm_p:                  'Farmstead',
-  farm_night_p:            'Farmstead (Night)',
-  farm_grs_p:              'Farmstead (Pitched)',
-  farm_hw_p:               'Farmstead (Spooky)',
-  farm_upsidedown_p:       'Farmstead (The Upside Down)',
-
-  // Throwback Stadium
-  throwbackstadium_p:      'Throwback Stadium',
-  throwbackhockey_p:       'Throwback Stadium (Snowy)',
-
-  // Neon Fields
-  music_p:                 'Neon Fields',
-
-  // Dunk House / Hoops
-  hoopsstadium_p:          'Dunk House',
-  hoopsstreet_p:           'The Block (Dusk)',
-
-  // Deadeye Canyon
-  outlaw_p:                'Deadeye Canyon',
-  outlaw_oasis_p:          'Deadeye Canyon (Oasis)',
-
-  // Knockout arenas
-  ko_calavera_p:           'Calavera',
-  ko_carbon_p:             'Carbon',
-  ko_quadron_p:            'Quadron',
-
-  // Labs
-  labs_basin_p:            'Basin',
-  labs_circlepillars_p:    'Pillars',
-  labs_corridor_p:         'Corridor',
-  labs_cosmic_p:           'Cosmic',
-  labs_cosmic_v4_p:        'Cosmic',
-  labs_doublegoal_p:       'Double Goal',
-  labs_doublegoal_v2_p:    'Double Goal',
-  labs_galleon_p:          'Galleon',
-  labs_galleon_mast_p:     'Galleon Retro',
-  labs_holyfield_p:        'Loophole',
-  labs_octagon_p:          'Octagon',
-  labs_octagon_02_p:       'Octagon',
-  labs_pillarglass_p:      'Hourglass',
-  labs_pillarheat_p:       'Barricade',
-  labs_pillarwings_p:      'Colossus',
-  labs_underpass_p:        'Underpass',
-  labs_underpass_v0_p:     'Underpass',
-  labs_utopia_p:           'Utopia Retro',
-
-  // Other
-  shattershot_p:           'Core 707',
-  ff_dusk_p:               'Estadio Vida (Dusk)',
-  street_p:                'Sovereign Heights (Dusk)',
-  woods_p:                 'Drift Woods',
-  woods_night_p:           'Drift Woods (Night)',
-};
-
-function friendlyArena(code) {
-  if (!code) return '—';
-  const key = code.toLowerCase().trim();
-  return ARENA_NAMES[key] ||
-    key.replace(/_p$/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-const PLAYLIST_NAMES = {
-  1:  'Casual 1v1',  2:  'Casual 2v2',  3:  'Casual 3v3',
-  4:  'Custom',      6:  'Private',      10: 'Ranked 1v1',
-  11: 'Ranked 2v2',  13: 'Ranked 3v3',  14: 'Solo 3v3',
-  22: 'Tournament',  27: 'Rocket Labs',  28: 'Rumble',
-  29: 'Dropshot',    30: 'Hoops',        31: 'Snow Day',
-  34: 'Casual Chaos',35: 'Gridiron',     41: 'Heatseeker',
-  43: 'Spike Rush',
-};
-
-function friendlyPlaylist(id) {
-  if (id == null) return '';
-  return PLAYLIST_NAMES[id] || '';
-}
-
 function matchType(playerCount) {
   if (!playerCount) return '';
   const n = Math.ceil(playerCount / 2);
@@ -628,6 +473,7 @@ function renderPluginAccordion(blobs, cfg) {
     const msgId    = `plugin-msg-${blob.plugin_id}`;
     const hasFields = (blob.settings || []).length > 0;
     const isEnabled = blob.enabled;
+    const hostCore = blob.plugin_id === 'history';
 
     const normalSettings = (blob.settings || []).filter(s => !s.developer);
     const devSettings    = (blob.settings || []).filter(s => s.developer);
@@ -654,6 +500,7 @@ function renderPluginAccordion(blobs, cfg) {
                Enable ${esc(blob.title)}
              </label>
            </div>
+            ${hostCore ? '<div class="text-xs text-gray-500" style="padding:0 18px 10px">History is a host-core feature and is always enabled.</div>' : ''}
            ${fieldRows}${devRows}
            ${hasFields ? `<div class="settings-footer">
              <button class="btn-action plugin-save-btn">Save</button>
@@ -673,9 +520,11 @@ function renderPluginAccordion(blobs, cfg) {
 
     // Enable / disable — immediately update nav button without reload
     const cb     = item.querySelector('.plugin-enabled-cb');
+    if (hostCore) cb.disabled = true;
     const dot    = item.querySelector('.plugin-item-dot');
     const nameEl = item.querySelector('.plugin-item-name');
     cb.addEventListener('change', async () => {
+      if (hostCore) return;
       const enabled = cb.checked;
       _disabledPlugins = enabled
         ? _disabledPlugins.filter(id => id !== blob.plugin_id)
@@ -684,12 +533,12 @@ function renderPluginAccordion(blobs, cfg) {
       dot.className = `plugin-item-dot ${enabled ? 'on' : 'off'}`;
       nameEl.className = `plugin-item-name${enabled ? '' : ' disabled'}`;
 
-      if (blob.nav_tab_id) {
-        const navBtn = document.querySelector(`.nav-btn[data-view="${blob.nav_tab_id}"]`);
+      if (blob.view_id) {
+        const navBtn = document.querySelector(`.nav-btn[data-view="${blob.view_id}"]`);
         if (navBtn) navBtn.style.display = enabled ? '' : 'none';
         if (!enabled) {
           const active = document.querySelector('.view.active');
-          if (active && active.id === 'view-' + blob.nav_tab_id) showView('settings');
+          if (active && active.id === 'view-' + blob.view_id) showView('settings');
         }
       }
 
@@ -766,7 +615,12 @@ function showMsg(id, text, ok) {
 }
 
 function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function formatDate(d) {
@@ -804,33 +658,40 @@ function buildNav(enabledTabs, allSchema) {
   const nav = document.getElementById('plugin-nav');
   const enabledIds = new Set(enabledTabs.map(t => t.id));
   const pluginBtns = allSchema
-    .filter(b => b.nav_tab_id)
+    .filter(b => b.view_id)
     .map(b => {
-      const visible = enabledIds.has(b.nav_tab_id);
-      return `<button class="nav-btn" data-view="${esc(b.nav_tab_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
+      const visible = enabledIds.has(b.view_id);
+      return `<button class="nav-btn" data-view="${esc(b.view_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
     })
     .join('');
   nav.innerHTML = pluginBtns + '<button class="nav-btn" data-view="settings">Settings</button>';
   nav.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 }
 
-async function injectPluginViews(allSchema) {
+function enabledViews(enabledTabs, allSchema) {
+  const navEnabled = new Set((enabledTabs || []).map(t => t.id));
+  return (allSchema || [])
+    .filter(b => b.plugin_id && b.view_id && b.enabled && navEnabled.has(b.view_id))
+    .map(b => ({ pluginID: b.plugin_id, viewID: b.view_id }));
+}
+
+async function injectPluginViews(enabledTabs, allSchema) {
   const container = document.getElementById('plugin-views');
-  const ids = allSchema.filter(b => b.nav_tab_id).map(b => b.nav_tab_id);
-  const htmls = await Promise.all(ids.map(id =>
-    fetch(`/api/plugins/${id}/view`)
+  const views = enabledViews(enabledTabs, allSchema);
+  const htmls = await Promise.all(views.map(v =>
+    fetch(`/api/plugins/${v.pluginID}/view`)
       .then(r => r.ok ? r.text() : '')
       .catch(() => '')
   ));
-  for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
+  for (let i = 0; i < views.length; i++) {
+    const { pluginID, viewID } = views[i];
     const section = document.createElement('section');
-    section.id = 'view-' + id;
+    section.id = 'view-' + viewID;
     section.className = 'view';
     section.innerHTML = htmls[i];
     container.appendChild(section);
-    try { await loadScript(`/plugins/${id}/view.js`); } catch (_) {}
-    const init = window[`pluginInit_${id}`];
+    try { await loadScript(`/plugins/${pluginID}/view.js`); } catch (_) {}
+    const init = window[`pluginInit_${pluginID}`];
     if (typeof init === 'function') init();
   }
 }
@@ -841,7 +702,7 @@ async function initApp() {
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
   ]);
   buildNav(tabs, schema);
-  await injectPluginViews(schema);
+  await injectPluginViews(tabs, schema);
   showView(tabs[0]?.id || 'settings');
   connectWS();
 }
@@ -871,6 +732,31 @@ if (new URLSearchParams(location.search).has('overlay')) {
 }
 
 initApp();
+
+// Secret dev-mode toggle: click the logo 7 times within 3 seconds.
+(function() {
+  let clicks = 0, timer = null;
+  document.getElementById('app-logo').addEventListener('click', () => {
+    clicks++;
+    clearTimeout(timer);
+    timer = setTimeout(() => { clicks = 0; }, 3000);
+    if (clicks >= 7) {
+      clicks = 0;
+      clearTimeout(timer);
+      fetch('/api/config').then(r => r.json()).then(cfg => {
+        const next = !cfg.dev_mode;
+        return fetch('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({dev_mode: next ? 'true' : 'false'}),
+        }).then(() => {
+          console.info('[dev] dev_mode =', next);
+          location.reload();
+        });
+      }).catch(e => console.error('[dev] toggle failed:', e));
+    }
+  });
+})();
 
 // Shared match detail renderer used by both history and session plugins.
 // data = { players, goals, events }; panel = DOM element to render into; activeMatchId = guard variable.

@@ -20,7 +20,7 @@ func handleHTTP(req sdk.HTTPRequest) sdk.HTTPResponse {
 	case "/api/dashboard/layout":
 		return handleLayout(req)
 	default:
-		return jsonError(404, "not found")
+		return sdk.JSONError(404, "not found")
 	}
 }
 
@@ -43,11 +43,11 @@ func handleLayout(req sdk.HTTPRequest) sdk.HTTPResponse {
 	case "POST":
 		var raw json.RawMessage
 		if err := json.Unmarshal([]byte(req.Body), &raw); err != nil {
-			return jsonError(400, err.Error())
+			return sdk.JSONError(400, err.Error())
 		}
 		items, err := validateLayout(raw)
 		if err != nil {
-			return jsonError(400, err.Error())
+			return sdk.JSONError(400, err.Error())
 		}
 		encoded, _ := json.Marshal(items)
 		sdk.DBExec(`
@@ -55,10 +55,10 @@ func handleLayout(req sdk.HTTPRequest) sdk.HTTPResponse {
 			ON CONFLICT(id) DO UPDATE SET layout_json = excluded.layout_json`,
 			[]string{string(encoded)})
 		b, _ := json.Marshal(map[string]bool{"ok": true})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 
 	default:
-		return jsonError(405, "method not allowed")
+		return sdk.JSONError(405, "method not allowed")
 	}
 }
 
@@ -112,21 +112,4 @@ func validateLayout(raw json.RawMessage) ([]layoutItem, error) {
 		}
 	}
 	return items, nil
-}
-
-func jsonOK(body []byte) sdk.HTTPResponse {
-	return sdk.HTTPResponse{
-		Status:  200,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    string(body),
-	}
-}
-
-func jsonError(status int, msg string) sdk.HTTPResponse {
-	b, _ := json.Marshal(map[string]string{"error": msg})
-	return sdk.HTTPResponse{
-		Status:  status,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    string(b),
-	}
 }

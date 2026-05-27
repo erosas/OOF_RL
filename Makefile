@@ -1,8 +1,8 @@
 .PHONY: build run test cover icon profile profile-heap profile-goroutine \
-        all-plugins test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
+        all-plugins test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
-PLUGINS := live ballchasing ranks session history dashboard
+PLUGINS := live ballchasing ranks session dashboard debugassistant
 
 # WASM plugins are installed into the same data directory the app reads at runtime.
 # LOCALAPPDATA is inherited from the Windows environment (e.g. C:\Users\you\AppData\Local).

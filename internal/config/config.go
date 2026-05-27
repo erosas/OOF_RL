@@ -32,6 +32,7 @@ type Config struct {
 	OverlayHoldMode              bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
 	Storage                      StorageSettings `toml:"storage"                   json:"storage"`
 	DisabledPlugins              []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
+	DevMode                      bool            `toml:"dev_mode"                  json:"dev_mode"`
 }
 
 // defaultDataDir returns %LOCALAPPDATA%\OOF_RL — the Windows standard for
@@ -118,6 +119,8 @@ func (c *Config) Set(key, value string) {
 		c.BallchasingAPIKey = value
 	case "ballchasing_delete_after_upload":
 		c.BallchasingDeleteAfterUpload = value == "true" || value == "1" || value == "on"
+	case "dev_mode":
+		c.DevMode = value == "true" || value == "1" || value == "on"
 	}
 }
 
@@ -125,6 +128,13 @@ func (c *Config) Set(key, value string) {
 // Returns empty string for unknown keys.
 func (c *Config) Lookup(key string) string {
 	switch key {
+	case "data_dir":
+		return c.DataDir
+	case "dev_mode":
+		if c.DevMode {
+			return "true"
+		}
+		return "false"
 	case "ballchasing_api_key":
 		return c.BallchasingAPIKey
 	case "ballchasing_delete_after_upload":

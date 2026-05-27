@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,14 +52,14 @@ func handleHTTP(req sdk.HTTPRequest) sdk.HTTPResponse {
 		if strings.HasPrefix(req.Path, "/api/session/history/") {
 			return handleHistoryItem(req)
 		}
-		return jsonError(404, "not found")
+		return sdk.JSONError(404, "not found")
 	}
 }
 
 func handleStats(req sdk.HTTPRequest) sdk.HTTPResponse {
-	playerID := queryParam(req.Query, "player")
+	playerID := sdk.QueryParam(req.Query, "player")
 	if playerID == "" {
-		return jsonError(400, "player parameter required")
+		return sdk.JSONError(400, "player parameter required")
 	}
 
 	mu.RLock()
@@ -69,7 +68,7 @@ func handleStats(req sdk.HTTPRequest) sdk.HTTPResponse {
 
 	if s.IsZero() {
 		b, _ := json.Marshal(map[string]any{"matches": []any{}, "summary": struct{}{}})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 	}
 
 	matches, _ := sessionMatchesByPlayer(s, playerID)
@@ -104,7 +103,7 @@ func handleStats(req sdk.HTTPRequest) sdk.HTTPResponse {
 		matches = []SessionMatch{}
 	}
 	b, _ := json.Marshal(map[string]any{"matches": matches, "summary": sum})
-	return jsonOK(b)
+	return sdk.JSONResponse(b)
 }
 
 func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
@@ -117,7 +116,7 @@ func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
 			"since":  s.UTC().Format(time.RFC3339),
 			"active": !s.IsZero(),
 		})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 
 	case "POST":
 		var body struct {
@@ -130,7 +129,7 @@ func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
 			t, err := time.Parse(time.RFC3339Nano, body.Since)
 			if err != nil {
 				mu.Unlock()
-				return jsonError(400, "invalid since, use RFC3339")
+				return sdk.JSONError(400, "invalid since, use RFC3339")
 			}
 			since = t
 		} else {
@@ -143,16 +142,16 @@ func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
 			"since":  s.UTC().Format(time.RFC3339),
 			"active": true,
 		})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 
 	default:
-		return jsonError(405, "method not allowed")
+		return sdk.JSONError(405, "method not allowed")
 	}
 }
 
 func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 	if req.Method != "POST" {
-		return jsonError(405, "method not allowed")
+		return sdk.JSONError(405, "method not allowed")
 	}
 	var body struct {
 		PlayerID string `json:"player_id"`
@@ -177,40 +176,40 @@ func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 		"since":  newSince.UTC().Format(time.RFC3339),
 		"active": true,
 	})
-	return jsonOK(b)
+	return sdk.JSONResponse(b)
 }
 
 func handleHistory(req sdk.HTTPRequest) sdk.HTTPResponse {
 	if req.Method != "GET" {
-		return jsonError(405, "method not allowed")
+		return sdk.JSONError(405, "method not allowed")
 	}
-	playerID := queryParam(req.Query, "player")
+	playerID := sdk.QueryParam(req.Query, "player")
 	if playerID == "" {
-		return jsonError(400, "player parameter required")
+		return sdk.JSONError(400, "player parameter required")
 	}
 	sessions := listSessionsWithStats(playerID)
 	if sessions == nil {
 		sessions = []SavedSession{}
 	}
 	b, _ := json.Marshal(sessions)
-	return jsonOK(b)
+	return sdk.JSONResponse(b)
 }
 
 func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 	idStr := strings.TrimSuffix(strings.TrimPrefix(req.Path, "/api/session/history/"), "/")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		return jsonError(400, "invalid id")
+		return sdk.JSONError(400, "invalid id")
 	}
 	idArg := strconv.FormatInt(id, 10)
 
 	switch req.Method {
 	case "DELETE":
 		if sdk.DBExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
-			return jsonError(500, "delete failed")
+			return sdk.JSONError(500, "delete failed")
 		}
 		b, _ := json.Marshal(map[string]string{"status": "ok"})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 
 	case "PUT":
 		var body struct {
@@ -218,27 +217,27 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 			EndedAt   string `json:"ended_at"`
 		}
 		if err := json.Unmarshal([]byte(req.Body), &body); err != nil {
-			return jsonError(400, err.Error())
+			return sdk.JSONError(400, err.Error())
 		}
 		startedAt, err1 := time.Parse(time.RFC3339Nano, body.StartedAt)
 		endedAt, err2 := time.Parse(time.RFC3339Nano, body.EndedAt)
 		if err1 != nil || err2 != nil {
-			return jsonError(400, "invalid time format, use RFC3339")
+			return sdk.JSONError(400, "invalid time format, use RFC3339")
 		}
 		if !endedAt.After(startedAt) {
-			return jsonError(400, "ended_at must be after started_at")
+			return sdk.JSONError(400, "ended_at must be after started_at")
 		}
 		if sdk.DBExec(
 			`UPDATE sessions SET started_at=?, ended_at=? WHERE id=?`,
 			[]string{startedAt.UTC().Format(time.RFC3339), endedAt.UTC().Format(time.RFC3339), idArg},
 		) < 0 {
-			return jsonError(500, "update failed")
+			return sdk.JSONError(500, "update failed")
 		}
 		b, _ := json.Marshal(map[string]string{"status": "ok"})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 
 	default:
-		return jsonError(405, "method not allowed")
+		return sdk.JSONError(405, "method not allowed")
 	}
 }
 
@@ -253,13 +252,13 @@ func handleSuggestPlayer(_ sdk.HTTPRequest) sdk.HTTPResponse {
 
 	if len(rows) == 0 {
 		b, _ := json.Marshal(map[string]string{"primary_id": "", "name": ""})
-		return jsonOK(b)
+		return sdk.JSONResponse(b)
 	}
 	b, _ := json.Marshal(map[string]string{
 		"primary_id": rowStr(rows[0], "primary_id"),
 		"name":       rowStr(rows[0], "name"),
 	})
-	return jsonOK(b)
+	return sdk.JSONResponse(b)
 }
 
 // --- Models ---
@@ -312,8 +311,8 @@ func listSessionsWithStats(playerID string) []SavedSession {
 			StartedAt: rowStr(row, "started_at"),
 			EndedAt:   rowStr(row, "ended_at"),
 		}
-		start := parseTime(sess.StartedAt)
-		end := parseTime(sess.EndedAt)
+		start := sdk.ParseTime(sess.StartedAt)
+		end := sdk.ParseTime(sess.EndedAt)
 		for _, m := range sessionMatchesBetween(start, end, playerID) {
 			sess.Games++
 			sess.Goals += m.Goals
@@ -364,7 +363,7 @@ func sessionMatchesBetween(start, end time.Time, playerID string) []SessionMatch
 	var out []SessionMatch
 	for _, row := range rows {
 		startedAtStr := rowStr(row, "started_at")
-		startedAt := parseTime(startedAtStr)
+		startedAt := sdk.ParseTime(startedAtStr)
 		if startedAt.Before(start) {
 			continue
 		}
@@ -411,38 +410,4 @@ func rowStr(row map[string]any, key string) string {
 func rowBool(row map[string]any, key string) bool {
 	v, _ := row[key].(float64)
 	return v != 0
-}
-
-func parseTime(s string) time.Time {
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05Z", "2006-01-02 15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t
-		}
-	}
-	return time.Time{}
-}
-
-func queryParam(query, key string) string {
-	vals, err := url.ParseQuery(query)
-	if err != nil {
-		return ""
-	}
-	return vals.Get(key)
-}
-
-func jsonOK(body []byte) sdk.HTTPResponse {
-	return sdk.HTTPResponse{
-		Status:  200,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    string(body),
-	}
-}
-
-func jsonError(status int, msg string) sdk.HTTPResponse {
-	b, _ := json.Marshal(map[string]string{"error": msg})
-	return sdk.HTTPResponse{
-		Status:  status,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    string(b),
-	}
 }

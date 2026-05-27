@@ -451,7 +451,7 @@ const DBG_TRACK_D_SECTIONS = {
   'track-d-report-placement': 'Report evidence placement',
 };
 
-window.pluginInit_debug = function() {
+window.pluginInit_debugassistant = function() {
   dbgInitializeSessionState();
   dbgRenderScenarios();
   dbgLoadMeta();
@@ -1927,11 +1927,11 @@ function dbgCleanImageName(name) {
 }
 
 function dbgScreenshotURL(name) {
-  return `/api/debug-assistant/screenshot/${encodeURIComponent(dbgCleanImageName(name))}`;
+  return `/api/plugins/debugassistant/data/screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgExportScreenshotPath(name) {
-  return `../debug_screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
+  return `/api/plugins/debugassistant/data/screenshots/${encodeURIComponent(dbgCleanImageName(name))}`;
 }
 
 function dbgFailureGroups(state) {

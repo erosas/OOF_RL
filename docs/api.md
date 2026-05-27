@@ -57,15 +57,25 @@ Returns the ordered list of enabled plugin tabs:
 [{ "id": "live", "label": "Live", "order": 10 }, ...]
 ```
 
-### `GET /api/plugins/{id}/view`
-Returns the raw `view.html` fragment for plugin `{id}`. Used by the frontend to inject plugin views on demand.
+`id` is the plugin `view_id` used for frontend navigation state.
+
+### `GET /api/plugins/{pluginID}/view`
+Returns the raw `view.html` fragment for plugin `{pluginID}`. Used by the frontend to inject plugin views on demand.
+
+### `GET /api/plugins/{pluginID}/data/{path...}`
+Serves plugin public files from `<data_dir>/plugin_data/{pluginID}/public/{path...}`.
+
+Notes:
+- Only files under each plugin's `public/` subtree are served.
+- Path traversal segments like `..` are rejected.
+- Disabled or unknown plugins return `404`.
 
 ### `GET /api/settings/schema`
 Returns all plugin settings definitions, used to render the Settings page:
 ```json
 [{
   "plugin_id": "history",
-  "nav_tab_id": "history",
+  "view_id": "history",
   "title": "History",
   "enabled": true,
   "requires": [],
@@ -73,12 +83,22 @@ Returns all plugin settings definitions, used to render the Settings page:
 }]
 ```
 
+Notes:
+- Disabled plugins still appear in this schema with `"enabled": false` so they can be re-enabled and configured.
+- `requires` lists plugin dependencies declared by each plugin.
+- `plugin_id` is the canonical runtime/API identity; `view_id` is frontend navigation identity.
+
 ### `POST /api/settings`
 Accepts a flat `{ "key": "value" }` map and dispatches it to every plugin's `ApplySettings`. Saves `config.toml` and triggers a reconnect.
+
+Dependency behavior:
+- Plugin startup is strict for dependencies. If an enabled plugin requires a disabled plugin, plugin initialization fails with a dependency error.
 
 ---
 
 ## History
+
+History is a host-core page/feature. Its data routes remain host-owned and are not treated as optional plugin routes.
 
 ### `GET /api/players`
 All players ever seen: `[{ "PrimaryID": "steam|...", "Name": "...", "LastSeen": "..." }]`

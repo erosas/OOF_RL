@@ -3,19 +3,15 @@
 package wasmhost
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -26,11 +22,12 @@ import (
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
+
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
-const metaBufSize = 4 * 1024  // 4 KB â€” more than enough for metadata JSON
-const respBufSize = 64 * 1024 // 64 KB â€” max HTTP response size
+const metaBufSize = 4 * 1024        // 4 KB — more than enough for metadata JSON
+const respBufSize = 4 * 1024 * 1024 // 4 MB — large enough for binary payloads (e.g. screenshots)
 
 type eventMsg struct {
 	eventType string
@@ -73,12 +70,31 @@ type Plugin struct {
 // used to serve static assets (view.html, JS, etc).
 // database, h, and cfg may be nil (e.g. in tests) — host imports that require
 // them will be no-ops when their dependency is absent.
+//
+// Each plugin receives two WASI-mounted directories:
+//   - /replays → the configured Rocket League replay directory
+//   - /data    → <data_dir>/plugin_data/<plugin_id>/  (created if absent)
 func Load(path string, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("wasmhost: read %s: %w", path, err)
 	}
-	p, err := loadBytes(b, database, h, cfg)
+
+	// Derive plugin ID from filename convention (<id>.wasm) so we can create
+	// the per-plugin data directory before instantiation.
+	pluginID := strings.TrimSuffix(filepath.Base(path), ".wasm")
+
+	var replayDir, pluginDataDir string
+	if cfg != nil {
+		replayDir = cfg.Lookup("replay_dir")
+		pluginDataDir = filepath.Join(cfg.Lookup("data_dir"), "plugin_data", pluginID)
+		if mkErr := os.MkdirAll(pluginDataDir, 0755); mkErr != nil {
+			log.Printf("wasmhost: create plugin data dir for plugin %q failed: %v", pluginID, mkErr)
+			pluginDataDir = ""
+		}
+	}
+
+	p, err := loadBytes(b, database, h, cfg, replayDir, pluginDataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +105,7 @@ func Load(path string, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin
 	return p, nil
 }
 
-func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config) (*Plugin, error) {
+func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config, replayDir, pluginDataDir string) (*Plugin, error) {
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 
@@ -107,9 +123,6 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		NewFunctionBuilder().WithFunc(p.hostHTTPFetch).Export("host_http_fetch").
 		NewFunctionBuilder().WithFunc(p.hostBroadcastWS).Export("host_broadcast_ws").
 		NewFunctionBuilder().WithFunc(p.hostGetConfig).Export("host_get_config").
-		NewFunctionBuilder().WithFunc(p.hostScanDir).Export("host_scan_dir").
-		NewFunctionBuilder().WithFunc(p.hostReadFile).Export("host_read_file").
-		NewFunctionBuilder().WithFunc(p.hostDeleteFile).Export("host_delete_file").
 		Instantiate(ctx); err != nil {
 		r.Close(ctx)
 		return nil, fmt.Errorf("wasmhost: host module: %w", err)
@@ -121,13 +134,24 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		return nil, fmt.Errorf("wasmhost: compile: %w", err)
 	}
 
+	// Mount /replays and /data into the WASM sandbox. Plugins use standard os
+	// package calls to access these directories; no other paths are visible.
+	fsCfg := wazero.NewFSConfig()
+	if replayDir != "" {
+		fsCfg = fsCfg.WithDirMount(replayDir, "/replays")
+	}
+	if pluginDataDir != "" {
+		fsCfg = fsCfg.WithDirMount(pluginDataDir, "/data")
+	}
+
 	// Plugins must be built with -buildmode=c-shared (WASI reactor).
 	// _initialize fully starts the Go runtime; _start would exit the module
 	// after main() returns, preventing subsequent exported-function calls.
-	// Omit WithStdout/WithStderr â€” plugin logging goes through host_log.
+	// Omit WithStdout/WithStderr — plugin logging goes through host_log.
 	mod, err := r.InstantiateModule(ctx, compiled,
 		wazero.NewModuleConfig().
 			WithStartFunctions("_initialize").
+			WithFSConfig(fsCfg).
 			WithName(""))
 	if err != nil {
 		r.Close(ctx)
@@ -154,7 +178,6 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 // -- plugin.Plugin interface --
 
 func (p *Plugin) ID() string         { return p.meta.ID }
-func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return p.meta.Requires }
 
 func (p *Plugin) DeclaredEvents() []oofevents.EventDeclaration {
@@ -184,25 +207,39 @@ func (p *Plugin) NavTab() plugin.NavTab {
 	}
 }
 
-func (p *Plugin) Routes(mux *http.ServeMux) {
-	for _, route := range p.meta.Routes {
-		mux.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
-			p.serveHTTP(w, r)
-		})
-	}
-}
-
 func (p *Plugin) SettingsSchema() []plugin.Setting {
 	if len(p.meta.Settings) == 0 {
 		return nil
 	}
 	out := make([]plugin.Setting, len(p.meta.Settings))
 	for i, s := range p.meta.Settings {
-		t := plugin.SettingTypeText
-		if s.Secret {
+		t := plugin.SettingType(s.Type)
+		switch t {
+		case plugin.SettingTypeText, plugin.SettingTypeNumber, plugin.SettingTypeCheckbox, plugin.SettingTypePassword, plugin.SettingTypeSelect:
+		default:
+			t = plugin.SettingTypeText
+		}
+		if s.Secret && s.Type == "" {
 			t = plugin.SettingTypePassword
 		}
-		out[i] = plugin.Setting{Key: s.Key, Description: s.Description, Type: t}
+		options := make([]plugin.SelectOption, 0, len(s.Options))
+		for _, opt := range s.Options {
+			options = append(options, plugin.SelectOption{Value: opt.Value, Label: opt.Label})
+		}
+		label := s.Label
+		if label == "" {
+			label = s.Key
+		}
+		out[i] = plugin.Setting{
+			Key:         s.Key,
+			Label:       label,
+			Description: s.Description,
+			Type:        t,
+			Default:     s.Default,
+			Options:     options,
+			Placeholder: s.Placeholder,
+			Developer:   s.Developer,
+		}
 	}
 	return out
 }
@@ -343,6 +380,12 @@ func (p *Plugin) readMeta() error {
 	if err := json.Unmarshal(data, &p.meta); err != nil {
 		return fmt.Errorf("wasmhost: plugin_metadata unmarshal: %w", err)
 	}
+	if err := validateRouteMeta(p.meta.Routes); err != nil {
+		return fmt.Errorf("wasmhost: plugin_metadata routes: %w", err)
+	}
+	if err := validateDeclaredEventsMeta(p.meta.DeclaredEvents); err != nil {
+		return fmt.Errorf("wasmhost: plugin_metadata declared_events: %w", err)
+	}
 	return nil
 }
 
@@ -374,417 +417,6 @@ func (p *Plugin) dispatchEvent(eventType string, payload []byte) {
 	); err != nil {
 		log.Printf("[wasm:%s] plugin_on_event: %v", p.meta.ID, err)
 	}
-}
-
-func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	if p.fnHandleHTTP == nil {
-		http.Error(w, "plugin has no HTTP handler", http.StatusNotImplemented)
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	var bodyStr string
-	if r.Body != nil {
-		if b, err := io.ReadAll(r.Body); err == nil {
-			bodyStr = string(b)
-		}
-	}
-	req := sdk.HTTPRequest{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: bodyStr}
-	reqJSON, _ := json.Marshal(req)
-
-	reqPtr, reqSize, err := p.writeGuest(reqJSON)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	defer p.free(reqPtr, reqSize)
-
-	outPtr, err := p.malloc(respBufSize)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	defer p.free(outPtr, respBufSize)
-
-	res, err := p.fnHandleHTTP.Call(p.ctx,
-		api.EncodeU32(reqPtr), api.EncodeU32(uint32(len(reqJSON))),
-		api.EncodeU32(outPtr), api.EncodeU32(respBufSize),
-	)
-	if err != nil {
-		log.Printf("[wasm:%s] plugin_handle_http: %v", p.meta.ID, err)
-		http.Error(w, "plugin error", http.StatusInternalServerError)
-		return
-	}
-
-	respData, ok := p.mod.Memory().Read(outPtr, api.DecodeU32(res[0]))
-	if !ok {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	var resp sdk.HTTPResponse
-	if err := json.Unmarshal(respData, &resp); err != nil {
-		log.Printf("[wasm:%s] parse response: %v", p.meta.ID, err)
-		http.Error(w, "plugin error", http.StatusInternalServerError)
-		return
-	}
-
-	for k, v := range resp.Headers {
-		w.Header().Set(k, v)
-	}
-	w.WriteHeader(resp.Status)
-	fmt.Fprint(w, resp.Body)
-}
-
-// hostPublishEvent is called by the guest via the "host_publish_event" import.
-// It publishes a RawEvent onto the bus so other plugins can subscribe to it.
-func (p *Plugin) hostPublishEvent(_ context.Context, m api.Module, certainty, typePtr, typeLen, payloadPtr, payloadLen uint32) {
-	if p.bus == nil {
-		return
-	}
-	typeBytes, ok := m.Memory().Read(typePtr, typeLen)
-	if !ok {
-		log.Printf("[wasm:%s] host_publish_event: type read failed", p.meta.ID)
-		return
-	}
-	payload, ok := m.Memory().Read(payloadPtr, payloadLen)
-	if !ok {
-		log.Printf("[wasm:%s] host_publish_event: payload read failed", p.meta.ID)
-		return
-	}
-	e := oofevents.RawEvent{
-		Base: oofevents.Base{
-			EventType: string(typeBytes),
-			At:        time.Now(),
-			Cert:      oofevents.Certainty(certainty),
-		},
-		Payload: json.RawMessage(payload),
-	}
-	switch e.Cert {
-	case oofevents.Authoritative:
-		p.bus.PublishAuthoritative(e)
-	case oofevents.Inferred:
-		p.bus.PublishInferred(e)
-	case oofevents.Signal:
-		p.bus.PublishSignal(e)
-	default:
-		log.Printf("[wasm:%s] host_publish_event: unknown certainty %d, dropping", p.meta.ID, certainty)
-	}
-}
-
-// hostLog is called by the guest via the "host_log" import and writes to the host's logger.
-func (p *Plugin) hostLog(_ context.Context, m api.Module, _, ptr, length uint32) {
-	data, _ := m.Memory().Read(ptr, length)
-	log.Printf("[wasm:%s] %s", p.meta.ID, data)
-}
-
-// hostDBExec executes a SQL statement with JSON-encoded args ([]string).
-// Writes the rows-affected int64 as JSON to outPtr. Returns bytes written, 0 on error.
-func (p *Plugin) hostDBExec(_ context.Context, m api.Module, sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32 {
-	if p.database == nil {
-		return 0
-	}
-	sqlBytes, ok := m.Memory().Read(sqlPtr, sqlLen)
-	if !ok {
-		return 0
-	}
-	argsBytes, ok := m.Memory().Read(argsPtr, argsLen)
-	if !ok {
-		return 0
-	}
-	var args []any
-	if err := json.Unmarshal(argsBytes, &args); err != nil {
-		log.Printf("[wasm:%s] host_db_exec: parse args: %v", p.meta.ID, err)
-		return 0
-	}
-	result, err := p.database.Conn().Exec(string(sqlBytes), args...)
-	if err != nil {
-		log.Printf("[wasm:%s] host_db_exec: %v", p.meta.ID, err)
-		return 0
-	}
-	n, _ := result.RowsAffected()
-	out, err := json.Marshal(n)
-	if err != nil {
-		return 0
-	}
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostDBQuery executes a SQL query with JSON-encoded args and writes the result
-// rows as a JSON array of column→value maps to outPtr.
-func (p *Plugin) hostDBQuery(_ context.Context, m api.Module, sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32 {
-	if p.database == nil {
-		return 0
-	}
-	sqlBytes, ok := m.Memory().Read(sqlPtr, sqlLen)
-	if !ok {
-		return 0
-	}
-	argsBytes, ok := m.Memory().Read(argsPtr, argsLen)
-	if !ok {
-		return 0
-	}
-	var args []any
-	if err := json.Unmarshal(argsBytes, &args); err != nil {
-		log.Printf("[wasm:%s] host_db_query: parse args: %v", p.meta.ID, err)
-		return 0
-	}
-	rows, err := p.database.Conn().Query(string(sqlBytes), args...)
-	if err != nil {
-		log.Printf("[wasm:%s] host_db_query: %v", p.meta.ID, err)
-		return 0
-	}
-	defer rows.Close()
-
-	cols, err := rows.Columns()
-	if err != nil {
-		return 0
-	}
-	var result []map[string]any
-	for rows.Next() {
-		vals := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
-		for i := range vals {
-			ptrs[i] = &vals[i]
-		}
-		if err := rows.Scan(ptrs...); err != nil {
-			log.Printf("[wasm:%s] host_db_query: scan row: %v", p.meta.ID, err)
-			return 0
-		}
-		row := make(map[string]any, len(cols))
-		for i, col := range cols {
-			switch v := vals[i].(type) {
-			case []byte:
-				row[col] = string(v)
-			case time.Time:
-				row[col] = v.Format(time.RFC3339)
-			default:
-				row[col] = v
-			}
-		}
-		result = append(result, row)
-	}
-	if err := rows.Err(); err != nil {
-		log.Printf("[wasm:%s] host_db_query: rows: %v", p.meta.ID, err)
-		return 0
-	}
-	if result == nil {
-		result = []map[string]any{}
-	}
-	out, err := json.Marshal(result)
-	if err != nil {
-		return 0
-	}
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostHTTPFetch performs an outbound HTTP request.
-// reqPtr/reqLen is a JSON object: {method, url, headers?, body?}.
-// Writes a JSON-encoded HTTPFetchResult to outPtr.
-func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
-	reqBytes, ok := m.Memory().Read(reqPtr, reqLen)
-	if !ok {
-		return 0
-	}
-	var req sdk.HTTPFetchRequest
-	if err := json.Unmarshal(reqBytes, &req); err != nil {
-		log.Printf("[wasm:%s] host_http_fetch: parse req: %v", p.meta.ID, err)
-		return 0
-	}
-	if req.Method == "" {
-		req.Method = http.MethodGet
-	}
-
-	var bodyReader io.Reader
-	if len(req.BodyBytes) > 0 {
-		bodyReader = bytes.NewReader(req.BodyBytes)
-	} else if req.Body != "" {
-		bodyReader = strings.NewReader(req.Body)
-	}
-	httpReq, err := http.NewRequest(req.Method, req.URL, bodyReader)
-	if err != nil {
-		return p.writeHTTPFetchError(m, "bad request: "+err.Error(), outPtr, outMax)
-	}
-	for k, v := range req.Headers {
-		httpReq.Header.Set(k, v)
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return p.writeHTTPFetchError(m, err.Error(), outPtr, outMax)
-	}
-	defer resp.Body.Close()
-
-	limited := io.LimitReader(resp.Body, int64(outMax)+1)
-	bodyBuilder, err := io.ReadAll(limited)
-	if err != nil {
-		return p.writeHTTPFetchError(m, "read body: "+err.Error(), outPtr, outMax)
-	}
-	if uint32(len(bodyBuilder)) > outMax {
-		return p.writeHTTPFetchError(m, fmt.Sprintf("response body exceeds buffer (%d bytes)", outMax), outPtr, outMax)
-	}
-
-	respHeaders := make(map[string]string, len(resp.Header))
-	for k := range resp.Header {
-		respHeaders[k] = resp.Header.Get(k)
-	}
-
-	result := sdk.HTTPFetchResult{
-		Status:  resp.StatusCode,
-		Headers: respHeaders,
-		Body:    string(bodyBuilder),
-	}
-	out, _ := json.Marshal(result)
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostScanDir lists the host's replay directory and writes JSON []sdk.DirEntry to outPtr.
-func (p *Plugin) hostScanDir(_ context.Context, m api.Module, outPtr, outMax uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		log.Printf("[wasm:%s] host_scan_dir: %v", p.meta.ID, err)
-		return 0
-	}
-	var dirEntries []sdk.DirEntry
-	for _, e := range entries {
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		dirEntries = append(dirEntries, sdk.DirEntry{
-			Name:    e.Name(),
-			IsDir:   e.IsDir(),
-			Size:    info.Size(),
-			ModTime: info.ModTime().UTC().Format(time.RFC3339),
-		})
-	}
-	if dirEntries == nil {
-		dirEntries = []sdk.DirEntry{}
-	}
-	out, err := json.Marshal(dirEntries)
-	if err != nil {
-		return 0
-	}
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostReadFile reads a file by basename from the replay directory into outPtr.
-// Returns bytes written, or 0 if the file is missing, invalid, or too large for outMax.
-func (p *Plugin) hostReadFile(_ context.Context, m api.Module, namePtr, nameLen, outPtr, outMax uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
-	if !ok {
-		return 0
-	}
-	name := string(nameBytes)
-	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		log.Printf("[wasm:%s] host_read_file: invalid name %q", p.meta.ID, name)
-		return 0
-	}
-	fullPath := filepath.Join(dir, name)
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		return 0
-	}
-	if uint32(info.Size()) > outMax {
-		log.Printf("[wasm:%s] host_read_file: %s (%d bytes) exceeds outMax %d", p.meta.ID, name, info.Size(), outMax)
-		return 0
-	}
-	data, err := os.ReadFile(fullPath)
-	if err != nil {
-		log.Printf("[wasm:%s] host_read_file: read %s: %v", p.meta.ID, name, err)
-		return 0
-	}
-	return p.writeResult(m, data, outPtr, outMax)
-}
-
-// hostDeleteFile removes a file by basename from the replay directory.
-// Returns 1 on success, 0 on failure.
-func (p *Plugin) hostDeleteFile(_ context.Context, m api.Module, namePtr, nameLen uint32) uint32 {
-	dir := ""
-	if p.cfg != nil {
-		dir = p.cfg.Lookup("replay_dir")
-	}
-	if dir == "" {
-		return 0
-	}
-	nameBytes, ok := m.Memory().Read(namePtr, nameLen)
-	if !ok {
-		return 0
-	}
-	name := string(nameBytes)
-	if name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		log.Printf("[wasm:%s] host_delete_file: invalid name %q", p.meta.ID, name)
-		return 0
-	}
-	if err := os.Remove(filepath.Join(dir, name)); err != nil {
-		log.Printf("[wasm:%s] host_delete_file: %s: %v", p.meta.ID, name, err)
-		return 0
-	}
-	return 1
-}
-
-func (p *Plugin) writeHTTPFetchError(m api.Module, msg string, outPtr, outMax uint32) uint32 {
-	result := sdk.HTTPFetchResult{Error: msg}
-	out, _ := json.Marshal(result)
-	return p.writeResult(m, out, outPtr, outMax)
-}
-
-// hostBroadcastWS sends a raw byte message to all connected WebSocket clients.
-func (p *Plugin) hostBroadcastWS(_ context.Context, m api.Module, ptr, length uint32) {
-	if p.hub == nil {
-		return
-	}
-	data, ok := m.Memory().Read(ptr, length)
-	if !ok {
-		return
-	}
-	msg := make([]byte, len(data))
-	copy(msg, data)
-	p.hub.Broadcast(msg)
-}
-
-// hostGetConfig looks up a config key and writes the value string to outPtr.
-func (p *Plugin) hostGetConfig(_ context.Context, m api.Module, keyPtr, keyLen, outPtr, outMax uint32) uint32 {
-	if p.cfg == nil {
-		return 0
-	}
-	keyBytes, ok := m.Memory().Read(keyPtr, keyLen)
-	if !ok {
-		return 0
-	}
-	val := p.cfg.Lookup(string(keyBytes))
-	return p.writeResult(m, []byte(val), outPtr, outMax)
-}
-
-// writeResult copies data into guest memory at outPtr.
-// Returns the number of bytes written, or 0 if data exceeds outMax (truncation would
-// corrupt JSON-encoded results, so it is treated as an error).
-func (p *Plugin) writeResult(m api.Module, data []byte, outPtr, outMax uint32) uint32 {
-	if uint32(len(data)) > outMax {
-		log.Printf("[wasm:%s] writeResult: result size %d exceeds buffer %d", p.meta.ID, len(data), outMax)
-		return 0
-	}
-	if !m.Memory().Write(outPtr, data) {
-		return 0
-	}
-	return uint32(len(data))
 }
 
 func (p *Plugin) malloc(size uint32) (uint32, error) {

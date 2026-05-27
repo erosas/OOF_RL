@@ -34,7 +34,7 @@ type SelectOption struct {
 // PluginSettingsBlob is what the /api/settings/schema endpoint returns per plugin.
 type PluginSettingsBlob struct {
 	PluginID string    `json:"plugin_id"`
-	NavTabID string    `json:"nav_tab_id"`
+	ViewID   string    `json:"view_id"`
 	Title    string    `json:"title"`
 	Enabled  bool      `json:"enabled"`
 	Requires []string  `json:"requires,omitempty"`

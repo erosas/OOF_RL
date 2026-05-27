@@ -6,7 +6,7 @@ const BC_GROUPS_PAGE_SIZE   = 10;
 
 let _bcReminderTimer = null;
 
-// Tab-level controller refs (set by pluginInit_bc, used for purge/sync and loadBC)
+// Tab-level controller refs (set by pluginInit_ballchasing, used for purge/sync and loadBC)
 let _matchWidget    = null;
 let _uploadedWidget = null;
 let _groupsWidget   = null;
@@ -363,7 +363,7 @@ function renderPager(el, total, pageSize, currentPage, onPageChange) {
 
 // ── Plugin init ────────────────────────────────────────────────
 
-window.pluginInit_bc = function() {
+window.pluginInit_ballchasing = function() {
   const matchesContainer  = document.getElementById('bc-matches-widget');
   const uploadedContainer = document.getElementById('bc-uploaded-widget');
   const groupsContainer   = document.getElementById('bc-groups-widget');

@@ -225,13 +225,13 @@ func TestHandleNewResetsSince(t *testing.T) {
 // --- utilities ---
 
 func TestQueryParam(t *testing.T) {
-	if got := queryParam("player=abc&foo=bar", "player"); got != "abc" {
+	if got := sdk.QueryParam("player=abc&foo=bar", "player"); got != "abc" {
 		t.Errorf("got %q, want abc", got)
 	}
-	if got := queryParam("player=steam%7Calice%7C0", "player"); got != "steam|alice|0" {
+	if got := sdk.QueryParam("player=steam%7Calice%7C0", "player"); got != "steam|alice|0" {
 		t.Errorf("URL decode: got %q", got)
 	}
-	if got := queryParam("", "player"); got != "" {
+	if got := sdk.QueryParam("", "player"); got != "" {
 		t.Errorf("empty query: got %q", got)
 	}
 }
@@ -243,11 +243,11 @@ func TestParseTime(t *testing.T) {
 		"2024-01-15 10:30:00",
 	}
 	for _, s := range cases {
-		if parseTime(s).IsZero() {
-			t.Errorf("parseTime(%q) returned zero", s)
+		if sdk.ParseTime(s).IsZero() {
+			t.Errorf("sdk.ParseTime(%q) returned zero", s)
 		}
 	}
-	if !parseTime("not-a-time").IsZero() {
-		t.Error("parseTime(invalid) should return zero")
+	if !sdk.ParseTime("not-a-time").IsZero() {
+		t.Error("sdk.ParseTime(invalid) should return zero")
 	}
 }

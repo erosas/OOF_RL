@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,8 +12,6 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"OOF_RL/internal/config"
-	"OOF_RL/internal/db"
-	"OOF_RL/internal/hub"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	sdk "github.com/erosas/oof-plugin-sdk"
@@ -166,9 +162,6 @@ func TestPlugin_Getters(t *testing.T) {
 	if got := p.ID(); got != "test-plugin" {
 		t.Errorf("ID: got %q", got)
 	}
-	if got := p.DBPrefix(); got != "" {
-		t.Errorf("DBPrefix: got %q, want empty", got)
-	}
 	if got := p.Requires(); len(got) != 1 || got[0] != "dep-a" {
 		t.Errorf("Requires: got %v", got)
 	}
@@ -209,7 +202,7 @@ func TestPlugin_Assets(t *testing.T) {
 // and that requests without fnHandleHTTP get a 501 Not Implemented.
 func TestPlugin_Routes_NoHandler(t *testing.T) {
 	p := &Plugin{
-		meta: sdk.PluginMeta{Routes: []string{"/api/wasm-test"}},
+		meta: sdk.PluginMeta{Routes: []sdk.RouteMeta{{Path: "/api/wasm-test", Method: "GET"}}},
 	}
 	mux := http.NewServeMux()
 	p.Routes(mux)
@@ -220,6 +213,85 @@ func TestPlugin_Routes_NoHandler(t *testing.T) {
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("serveHTTP without handler: got %d, want 501", w.Code)
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/wasm-test", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("method guard: got %d, want 405", w.Code)
+	}
+}
+
+func TestValidateRouteMeta(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{
+			{Path: "/api/a", Method: "GET"},
+			{Path: "/api/b"},
+		})
+		if err != nil {
+			t.Fatalf("validateRouteMeta: %v", err)
+		}
+	})
+
+	t.Run("duplicate path", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{
+			{Path: "/api/a", Method: "GET"},
+			{Path: "/api/a", Method: "POST"},
+		})
+		if err == nil {
+			t.Fatal("expected duplicate path error")
+		}
+	})
+
+	t.Run("invalid method", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{{Path: "/api/a", Method: "BREW"}})
+		if err == nil {
+			t.Fatal("expected invalid method error")
+		}
+	})
+
+	t.Run("empty path", func(t *testing.T) {
+		err := validateRouteMeta([]sdk.RouteMeta{{Method: "GET"}})
+		if err == nil {
+			t.Fatal("expected empty path error")
+		}
+	})
+}
+
+func TestValidateDeclaredEventsMeta(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{
+			{Type: "example.changed", Certainty: sdk.Authoritative},
+			{Type: "example.signal", Certainty: sdk.Signal},
+		})
+		if err != nil {
+			t.Fatalf("validateDeclaredEventsMeta: %v", err)
+		}
+	})
+
+	t.Run("duplicate type", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{
+			{Type: "example.changed", Certainty: sdk.Authoritative},
+			{Type: "example.changed", Certainty: sdk.Inferred},
+		})
+		if err == nil {
+			t.Fatal("expected duplicate declared event type error")
+		}
+	})
+
+	t.Run("empty type", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{{Type: "", Certainty: sdk.Authoritative}})
+		if err == nil {
+			t.Fatal("expected empty type error")
+		}
+	})
+
+	t.Run("invalid certainty", func(t *testing.T) {
+		err := validateDeclaredEventsMeta([]sdk.DeclaredEvent{{Type: "example.changed", Certainty: sdk.Certainty(99)}})
+		if err == nil {
+			t.Fatal("expected invalid certainty error")
+		}
+	})
 }
 
 // TestPlugin_HostPublishEvent_NilBus ensures the nil-bus guard does not panic.
@@ -329,8 +401,20 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 	p := &Plugin{
 		meta: sdk.PluginMeta{
 			Settings: []sdk.SettingSchema{
-				{Key: "api_key", Description: "My API key", Secret: true},
-				{Key: "mode", Description: "Mode flag", Secret: false},
+				{Key: "api_key", Label: "API key", Description: "My API key", Secret: true},
+				{
+					Key:         "mode",
+					Label:       "Mode",
+					Description: "Mode flag",
+					Type:        "select",
+					Default:     "full",
+					Placeholder: "Choose mode",
+					Developer:   true,
+					Options: []sdk.SelectOption{
+						{Value: "full", Label: "Full"},
+						{Value: "lite", Label: "Lite"},
+					},
+				},
 			},
 		},
 	}
@@ -341,8 +425,14 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 	if schema[0].Key != "api_key" || schema[0].Type != plugin.SettingTypePassword {
 		t.Errorf("first setting: got key=%q type=%q", schema[0].Key, schema[0].Type)
 	}
-	if schema[1].Key != "mode" || schema[1].Type != plugin.SettingTypeText {
+	if schema[1].Key != "mode" || schema[1].Type != plugin.SettingTypeSelect {
 		t.Errorf("second setting: got key=%q type=%q", schema[1].Key, schema[1].Type)
+	}
+	if schema[1].Label != "Mode" || schema[1].Default != "full" || schema[1].Placeholder != "Choose mode" || !schema[1].Developer {
+		t.Errorf("second setting metadata: got %+v", schema[1])
+	}
+	if len(schema[1].Options) != 2 || schema[1].Options[0].Value != "full" {
+		t.Errorf("second setting options: got %+v", schema[1].Options)
 	}
 }
 
@@ -384,415 +474,4 @@ func TestWriteResult_ExactFit(t *testing.T) {
 	}
 }
 
-// --- host_db_exec ---
 
-// TestHostDBExec_Success creates a real in-memory DB, executes an INSERT via the
-// host import, and verifies rows-affected comes back as 1.
-func TestHostDBExec_Success(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if _, err := database.Conn().Exec(`CREATE TABLE t (x TEXT)`); err != nil {
-		t.Fatalf("create table: %v", err)
-	}
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: database}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	sqlStr := `INSERT INTO t(x) VALUES(?)`
-	args := `["hello"]`
-	if !mod.Memory().Write(0, []byte(sqlStr)) || !mod.Memory().Write(256, []byte(args)) {
-		t.Fatal("write to memory")
-	}
-	outOff := uint32(1024)
-	n := p.hostDBExec(ctx, mod, 0, uint32(len(sqlStr)), 256, uint32(len(args)), outOff, 64)
-	if n == 0 {
-		t.Fatal("hostDBExec returned 0")
-	}
-	data, _ := mod.Memory().Read(outOff, n)
-	var rowsAffected int64
-	if err := json.Unmarshal(data, &rowsAffected); err != nil {
-		t.Fatalf("unmarshal rows: %v", err)
-	}
-	if rowsAffected != 1 {
-		t.Errorf("rows affected: got %d, want 1", rowsAffected)
-	}
-}
-
-// TestHostDBExec_BadSQL verifies that a malformed SQL statement returns 0.
-func TestHostDBExec_BadSQL(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: database}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	bad := `NOT VALID SQL !!!`
-	args := `[]`
-	mod.Memory().Write(0, []byte(bad))
-	mod.Memory().Write(256, []byte(args))
-	n := p.hostDBExec(ctx, mod, 0, uint32(len(bad)), 256, uint32(len(args)), 1024, 64)
-	if n != 0 {
-		t.Errorf("bad SQL should return 0, got %d", n)
-	}
-}
-
-// --- host_db_query ---
-
-// TestHostDBQuery_Success inserts rows and reads them back via the host import.
-func TestHostDBQuery_Success(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	database.Conn().Exec(`CREATE TABLE items (name TEXT, val INTEGER)`)
-	database.Conn().Exec(`INSERT INTO items VALUES('alpha', 1), ('beta', 2)`)
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: database}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	sqlStr := `SELECT name, val FROM items ORDER BY val`
-	args := `[]`
-	mod.Memory().Write(0, []byte(sqlStr))
-	mod.Memory().Write(256, []byte(args))
-	outOff := uint32(1024)
-	n := p.hostDBQuery(ctx, mod, 0, uint32(len(sqlStr)), 256, uint32(len(args)), outOff, 32*1024)
-	if n == 0 {
-		t.Fatal("hostDBQuery returned 0")
-	}
-	data, _ := mod.Memory().Read(outOff, n)
-	var rows []map[string]any
-	if err := json.Unmarshal(data, &rows); err != nil {
-		t.Fatalf("unmarshal rows: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("row count: got %d, want 2", len(rows))
-	}
-	if rows[0]["name"] != "alpha" {
-		t.Errorf("row[0].name: got %v", rows[0]["name"])
-	}
-}
-
-// TestHostDBQuery_EmptyResult verifies an empty result set returns an empty JSON array.
-func TestHostDBQuery_EmptyResult(t *testing.T) {
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-	database.Conn().Exec(`CREATE TABLE empty_t (x TEXT)`)
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, database: database}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	sqlStr := `SELECT x FROM empty_t`
-	args := `[]`
-	mod.Memory().Write(0, []byte(sqlStr))
-	mod.Memory().Write(256, []byte(args))
-	n := p.hostDBQuery(ctx, mod, 0, uint32(len(sqlStr)), 256, uint32(len(args)), 1024, 32*1024)
-	if n == 0 {
-		t.Fatal("hostDBQuery returned 0 for empty result")
-	}
-	data, _ := mod.Memory().Read(1024, n)
-	var rows []map[string]any
-	json.Unmarshal(data, &rows)
-	if len(rows) != 0 {
-		t.Errorf("want empty slice, got %d rows", len(rows))
-	}
-}
-
-// --- host_http_fetch ---
-
-// TestHostHTTPFetch_Success verifies a real HTTP GET request via the host import.
-func TestHostHTTPFetch_Success(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte(`{"ok":true}`))
-	}))
-	defer srv.Close()
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	reqJSON, _ := json.Marshal(sdk.HTTPFetchRequest{Method: "GET", URL: srv.URL})
-	mod.Memory().Write(0, reqJSON)
-	outOff := uint32(4096)
-	n := p.hostHTTPFetch(ctx, mod, 0, uint32(len(reqJSON)), outOff, 32*1024)
-	if n == 0 {
-		t.Fatal("hostHTTPFetch returned 0")
-	}
-	data, _ := mod.Memory().Read(outOff, n)
-	var result sdk.HTTPFetchResult
-	if err := json.Unmarshal(data, &result); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if result.Status != 200 {
-		t.Errorf("status: got %d, want 200", result.Status)
-	}
-	if result.Error != "" {
-		t.Errorf("unexpected error: %s", result.Error)
-	}
-	if result.Body != `{"ok":true}` {
-		t.Errorf("body: got %q", result.Body)
-	}
-}
-
-// TestHostHTTPFetch_BadURL verifies an unreachable URL returns a non-empty Error field.
-func TestHostHTTPFetch_BadURL(t *testing.T) {
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	reqJSON, _ := json.Marshal(sdk.HTTPFetchRequest{Method: "GET", URL: "http://127.0.0.1:1"})
-	mod.Memory().Write(0, reqJSON)
-	outOff := uint32(4096)
-	n := p.hostHTTPFetch(ctx, mod, 0, uint32(len(reqJSON)), outOff, 32*1024)
-	if n == 0 {
-		t.Fatal("hostHTTPFetch returned 0 (should write an error result)")
-	}
-	data, _ := mod.Memory().Read(outOff, n)
-	var result sdk.HTTPFetchResult
-	json.Unmarshal(data, &result)
-	if result.Error == "" {
-		t.Error("expected non-empty Error for unreachable URL")
-	}
-}
-
-// TestHostHTTPFetch_DefaultMethod verifies empty Method defaults to GET.
-func TestHostHTTPFetch_DefaultMethod(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "wrong method", 400)
-			return
-		}
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
-	mod := newMemModule(t)
-	ctx := context.Background()
-
-	reqJSON, _ := json.Marshal(sdk.HTTPFetchRequest{URL: srv.URL}) // no Method
-	mod.Memory().Write(0, reqJSON)
-	n := p.hostHTTPFetch(ctx, mod, 0, uint32(len(reqJSON)), 4096, 32*1024)
-	if n == 0 {
-		t.Fatal("hostHTTPFetch returned 0")
-	}
-	data, _ := mod.Memory().Read(4096, n)
-	var result sdk.HTTPFetchResult
-	json.Unmarshal(data, &result)
-	if result.Status != 200 {
-		t.Errorf("status: got %d, want 200", result.Status)
-	}
-}
-
-// --- host_broadcast_ws ---
-
-// TestHostBroadcastWS_WithHub verifies that hostBroadcastWS does not panic with a real hub.
-func TestHostBroadcastWS_WithHub(t *testing.T) {
-	h := hub.New()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, hub: h}
-	mod := newMemModule(t)
-	msg := []byte(`{"Event":"test"}`)
-	mod.Memory().Write(0, msg)
-	p.hostBroadcastWS(context.Background(), mod, 0, uint32(len(msg))) // must not panic
-}
-
-// TestHostBroadcastWS_MemReadFail verifies zero-length reads are silently ignored.
-func TestHostBroadcastWS_MemReadFail(t *testing.T) {
-	h := hub.New()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, hub: h}
-	mod := newMemModule(t)
-	// ptr=0, length=0 → Memory.Read returns ok=false → early return, no panic.
-	p.hostBroadcastWS(context.Background(), mod, 0, 0)
-}
-
-// --- host_scan_dir ---
-
-// TestHostScanDir_NilCfg verifies scan returns 0 with no config.
-func TestHostScanDir_NilCfg(t *testing.T) {
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: nil}
-	mod := newMemModule(t)
-	n := p.hostScanDir(context.Background(), mod, 0, 32*1024)
-	if n != 0 {
-		t.Errorf("nil cfg should return 0, got %d", n)
-	}
-}
-
-// TestHostScanDir_WithDir verifies the scan returns a valid JSON []DirEntry for a real dir.
-func TestHostScanDir_WithDir(t *testing.T) {
-	dir := t.TempDir()
-	const rlSubPath = `Documents\My Games\Rocket League\TAGame\Demos`
-	replayDir := filepath.Join(dir, rlSubPath)
-	if err := os.MkdirAll(replayDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(replayDir, "game.replay"), []byte("bytes"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("USERPROFILE", dir)
-	t.Setenv("OneDriveConsumer", "")
-	t.Setenv("OneDrive", "")
-
-	realCfg := config.Defaults()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: &realCfg}
-	mod := newMemModule(t)
-	outOff := uint32(0)
-	n := p.hostScanDir(context.Background(), mod, outOff, 32*1024)
-	if n == 0 {
-		t.Fatal("hostScanDir returned 0")
-	}
-	data, _ := mod.Memory().Read(outOff, n)
-	var entries []sdk.DirEntry
-	if err := json.Unmarshal(data, &entries); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	found := false
-	for _, e := range entries {
-		if e.Name == "game.replay" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("game.replay not found in scan result: %+v", entries)
-	}
-}
-
-// --- host_read_file ---
-
-// TestHostReadFile_NilCfg verifies nil cfg returns 0.
-func TestHostReadFile_NilCfg(t *testing.T) {
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: nil}
-	mod := newMemModule(t)
-	mod.Memory().Write(0, []byte("game.replay"))
-	n := p.hostReadFile(context.Background(), mod, 0, 11, 256, 32*1024)
-	if n != 0 {
-		t.Errorf("nil cfg should return 0, got %d", n)
-	}
-}
-
-// TestHostReadFile_Success reads a file from the replay directory via the host import.
-func TestHostReadFile_Success(t *testing.T) {
-	dir := t.TempDir()
-	const rlSubPath = `Documents\My Games\Rocket League\TAGame\Demos`
-	replayDir := filepath.Join(dir, rlSubPath)
-	os.MkdirAll(replayDir, 0755)
-	content := []byte("replay-binary-data")
-	os.WriteFile(filepath.Join(replayDir, "match.replay"), content, 0644)
-	t.Setenv("USERPROFILE", dir)
-	t.Setenv("OneDriveConsumer", "")
-	t.Setenv("OneDrive", "")
-
-	realCfg := config.Defaults()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: &realCfg}
-	mod := newMemModule(t)
-
-	name := []byte("match.replay")
-	mod.Memory().Write(0, name)
-	outOff := uint32(256)
-	n := p.hostReadFile(context.Background(), mod, 0, uint32(len(name)), outOff, 32*1024)
-	if n == 0 {
-		t.Fatal("hostReadFile returned 0")
-	}
-	got, _ := mod.Memory().Read(outOff, n)
-	if string(got) != string(content) {
-		t.Errorf("file content: got %q, want %q", got, content)
-	}
-}
-
-// TestHostReadFile_InvalidName verifies path-traversal names are rejected.
-func TestHostReadFile_InvalidName(t *testing.T) {
-	dir := t.TempDir()
-	const rlSubPath = `Documents\My Games\Rocket League\TAGame\Demos`
-	replayDir := filepath.Join(dir, rlSubPath)
-	os.MkdirAll(replayDir, 0755)
-	t.Setenv("USERPROFILE", dir)
-	t.Setenv("OneDriveConsumer", "")
-	t.Setenv("OneDrive", "")
-
-	realCfg := config.Defaults()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: &realCfg}
-	mod := newMemModule(t)
-
-	name := []byte(`../secret.txt`)
-	mod.Memory().Write(0, name)
-	n := p.hostReadFile(context.Background(), mod, 0, uint32(len(name)), 256, 32*1024)
-	if n != 0 {
-		t.Errorf("path traversal should return 0, got %d", n)
-	}
-}
-
-// --- host_delete_file ---
-
-// TestHostDeleteFile_NilCfg verifies nil cfg returns 0.
-func TestHostDeleteFile_NilCfg(t *testing.T) {
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: nil}
-	mod := newMemModule(t)
-	mod.Memory().Write(0, []byte("game.replay"))
-	n := p.hostDeleteFile(context.Background(), mod, 0, 11)
-	if n != 0 {
-		t.Errorf("nil cfg should return 0, got %d", n)
-	}
-}
-
-// TestHostDeleteFile_Success verifies a file is removed and 1 is returned.
-func TestHostDeleteFile_Success(t *testing.T) {
-	dir := t.TempDir()
-	const rlSubPath = `Documents\My Games\Rocket League\TAGame\Demos`
-	replayDir := filepath.Join(dir, rlSubPath)
-	os.MkdirAll(replayDir, 0755)
-	target := filepath.Join(replayDir, "old.replay")
-	os.WriteFile(target, []byte("data"), 0644)
-	t.Setenv("USERPROFILE", dir)
-	t.Setenv("OneDriveConsumer", "")
-	t.Setenv("OneDrive", "")
-
-	realCfg := config.Defaults()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: &realCfg}
-	mod := newMemModule(t)
-
-	name := []byte("old.replay")
-	mod.Memory().Write(0, name)
-	n := p.hostDeleteFile(context.Background(), mod, 0, uint32(len(name)))
-	if n != 1 {
-		t.Errorf("hostDeleteFile should return 1 on success, got %d", n)
-	}
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Error("file should have been deleted")
-	}
-}
-
-// TestHostDeleteFile_Missing verifies deleting a non-existent file returns 0.
-func TestHostDeleteFile_Missing(t *testing.T) {
-	dir := t.TempDir()
-	const rlSubPath = `Documents\My Games\Rocket League\TAGame\Demos`
-	replayDir := filepath.Join(dir, rlSubPath)
-	os.MkdirAll(replayDir, 0755)
-	t.Setenv("USERPROFILE", dir)
-	t.Setenv("OneDriveConsumer", "")
-	t.Setenv("OneDrive", "")
-
-	realCfg := config.Defaults()
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: &realCfg}
-	mod := newMemModule(t)
-
-	name := []byte("nonexistent.replay")
-	mod.Memory().Write(0, name)
-	n := p.hostDeleteFile(context.Background(), mod, 0, uint32(len(name)))
-	if n != 0 {
-		t.Errorf("missing file should return 0, got %d", n)
-	}
-}

@@ -268,7 +268,6 @@ Not everything needs a UI. We split the interface:
 // Analyzers subscribe to events, emit events, and may have settings.
 type Analyzer interface {
     ID()         string
-    DBPrefix()   string
     Requires()   []string
     Init(bus Bus, registry Registry, db *db.DB) error
     Shutdown()   error

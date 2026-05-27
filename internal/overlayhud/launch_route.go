@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/overlay"
 )
 
@@ -12,17 +13,17 @@ const launchRoutePath = "/internal/momentum-overlay-launch"
 
 func (p *Plugin) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		httputil.JSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	if p.cfg == nil {
-		http.Error(w, "overlay config unavailable", http.StatusServiceUnavailable)
+		httputil.JSONError(w, http.StatusServiceUnavailable, "overlay config unavailable")
 		return
 	}
 
 	spec, ok := MomentumNativeShellSpec(baseAppURLFromRequest(r))
 	if !ok || !spec.Valid() {
-		http.Error(w, "momentum overlay target unavailable", http.StatusInternalServerError)
+		httputil.JSONError(w, http.StatusInternalServerError, "momentum overlay target unavailable")
 		return
 	}
 
@@ -40,7 +41,7 @@ func (p *Plugin) handleLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 	shell := launcher(spec.URL, p.cfg, overlay.ManualShellOptions{Title: spec.Title, Visible: true})
 	if shell == nil {
-		http.Error(w, "failed to launch momentum overlay shell", http.StatusServiceUnavailable)
+		httputil.JSONError(w, http.StatusServiceUnavailable, "failed to launch momentum overlay shell")
 		return
 	}
 	p.launchedShell = shell

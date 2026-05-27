@@ -25,17 +25,21 @@ type DeclaredEvent struct {
 // The host resolves each key against its config store and passes the
 // resulting map to plugin_apply_settings on startup (and on change).
 type SettingSchema struct {
-	Key         string `json:"key"`
-	Description string `json:"description,omitempty"`
-	Secret      bool   `json:"secret,omitempty"` // hint to UI: render as password field
+	Key         string         `json:"key"`
+	Label       string         `json:"label,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Type        string         `json:"type,omitempty"`
+	Default     string         `json:"default,omitempty"`
+	Options     []SelectOption `json:"options,omitempty"`
+	Placeholder string         `json:"placeholder,omitempty"`
+	Developer   bool           `json:"developer,omitempty"`
+	Secret      bool           `json:"secret,omitempty"` // compatibility hint; maps to password when Type is empty
 }
 
-// DirEntry is one item returned by ScanDir (the host's replay directory scanner).
-type DirEntry struct {
-	Name    string `json:"name"`
-	IsDir   bool   `json:"is_dir"`
-	Size    int64  `json:"size"`
-	ModTime string `json:"mod_time"` // RFC3339
+// SelectOption is one option for a select setting.
+type SelectOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // HTTPFetchRequest describes an outbound HTTP request sent via host_http_fetch.
@@ -60,13 +64,20 @@ type HTTPFetchResult struct {
 // nav tabs, event subscriptions, and dependency ordering without calling any
 // other function first.
 type PluginMeta struct {
-	ID             string          `json:"id"`
-	NavTab         NavTabMeta      `json:"nav_tab"`
-	Routes         []string        `json:"routes"`
-	Events         []string        `json:"events"`                    // event types to subscribe to
-	Requires       []string        `json:"requires,omitempty"`        // plugin IDs that must init first
+	ID             string           `json:"id"`
+	NavTab         NavTabMeta       `json:"nav_tab"`
+	Routes         []RouteMeta      `json:"routes"`
+	Events         []string         `json:"events"`                    // event types to subscribe to
+	Requires       []string         `json:"requires,omitempty"`        // plugin IDs that must init first
 	DeclaredEvents []DeclaredEvent `json:"declared_events,omitempty"` // event types this plugin may emit
 	Settings       []SettingSchema `json:"settings,omitempty"`        // config keys the plugin needs
+}
+
+// RouteMeta declares one plugin-owned HTTP route.
+// Method is optional; when empty, the plugin handles method filtering itself.
+type RouteMeta struct {
+	Path   string `json:"path"`
+	Method string `json:"method,omitempty"`
 }
 
 // NavTabMeta describes the navigation tab the plugin contributes to the UI.

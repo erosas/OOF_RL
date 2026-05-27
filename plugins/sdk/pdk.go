@@ -46,23 +46,26 @@ func hostBroadcastWS(ptr, length uint32)
 //go:wasmimport env host_get_config
 func hostGetConfig(keyPtr, keyLen, outPtr, outMax uint32) uint32
 
-// host_scan_dir lists the host's replay directory.
-// Writes a JSON []DirEntry to outPtr. Returns bytes written, 0 on error.
-//
-//go:wasmimport env host_scan_dir
-func hostScanDir(outPtr, outMax uint32) uint32
+// Output buffer sizes for each host call.
+const (
+	dbExecBufSize    = 32              // int64 JSON is at most 20 chars
+	dbQueryBufSize   = 256 * 1024      // 256 KB
+	httpFetchBufSize = 4 * 1024 * 1024 // 4 MB — external APIs can return large payloads
+	getConfigBufSize = 4096
+)
 
-// host_read_file reads a single file from the replay directory by basename.
-// Returns bytes written to outPtr, or 0 if the file is missing or too large.
-//
-//go:wasmimport env host_read_file
-func hostReadFile(namePtr, nameLen, outPtr, outMax uint32) uint32
-
-// host_delete_file deletes a file from the replay directory by basename.
-// Returns 1 on success, 0 on failure.
-//
-//go:wasmimport env host_delete_file
-func hostDeleteFile(namePtr, nameLen uint32) uint32
+// readResult calls the given host function with a fresh output buffer of outSize
+// bytes and returns a copy of the bytes written. Returns nil if the host writes nothing.
+func readResult(call func(outPtr, outMax uint32) uint32, outSize uint32) []byte {
+	outBuf := make([]byte, outSize)
+	n := call(ptrOf(outBuf), outSize)
+	if n == 0 {
+		return nil
+	}
+	out := make([]byte, n)
+	copy(out, outBuf[:n])
+	return out
+}
 
 // Log writes msg to the host's logger.
 func Log(msg string) {
@@ -92,8 +95,34 @@ func WriteOutput(data []byte, outPtr, maxLen uint32) uint32 {
 	return n
 }
 
-// keep is a global map that prevents the GC from collecting malloc'd slices
-// whose pointers have been handed to the host.
+// WriteJSONOutput marshals v to JSON and writes it into the output buffer.
+func WriteJSONOutput(v any, outPtr, outMax uint32) uint32 {
+	b, _ := json.Marshal(v)
+	return WriteOutput(b, outPtr, outMax)
+}
+
+// WriteMetadata writes PluginMeta JSON into the output buffer.
+func WriteMetadata(meta PluginMeta, outPtr, outMax uint32) uint32 {
+	return WriteJSONOutput(meta, outPtr, outMax)
+}
+
+// HandleHTTPExport decodes HTTPRequest from guest memory, invokes handler, and
+// writes the JSON-encoded HTTPResponse to the output buffer.
+func HandleHTTPExport(reqPtr, reqLen, outPtr, outMax uint32, handler func(HTTPRequest) HTTPResponse) uint32 {
+	var req HTTPRequest
+	if err := json.Unmarshal(ReadBytes(reqPtr, reqLen), &req); err != nil {
+		return WriteJSONOutput(HTTPResponse{Status: 500, Body: `{"error":"bad request"}`}, outPtr, outMax)
+	}
+	return WriteJSONOutput(handler(req), outPtr, outMax)
+}
+
+// HandleEventExport decodes plugin_on_event ABI pointers and forwards them to handler.
+func HandleEventExport(typePtr, typeLen, payloadPtr, payloadLen uint32, handler func(eventType string, payload []byte)) {
+	handler(string(ReadBytes(typePtr, typeLen)), ReadBytes(payloadPtr, payloadLen))
+}
+
+// keep prevents the GC from collecting malloc'd slices whose pointers
+// have been handed to the host.
 var keep = map[uint32][]byte{}
 
 // Malloc allocates size bytes in guest linear memory and returns the pointer.
@@ -130,23 +159,18 @@ func DBExec(sql string, args []string) int64 {
 	if len(sql) == 0 {
 		return -1
 	}
-	argsJSON := encodeArgs(args)
-	outBuf := make([]byte, 32)
-	out := ptrOf(outBuf)
-	sqlB := []byte(sql)
-	n := hostDBExec(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, uint32(len(outBuf)))
-	if n == 0 {
+	sqlB, argsJSON := []byte(sql), encodeArgs(args)
+	data := readResult(func(out, max uint32) uint32 {
+		return hostDBExec(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, max)
+	}, dbExecBufSize)
+	if data == nil {
 		return -1
 	}
-	data, ok := readMem(out, n)
-	if !ok {
+	var n int64
+	if err := json.Unmarshal(data, &n); err != nil {
 		return -1
 	}
-	var result int64
-	if err := json.Unmarshal(data, &result); err != nil {
-		return -1
-	}
-	return result
+	return n
 }
 
 // DBQuery executes a SQL query with the given args and returns the result rows
@@ -155,16 +179,11 @@ func DBQuery(sql string, args []string) []map[string]any {
 	if len(sql) == 0 {
 		return nil
 	}
-	argsJSON := encodeArgs(args)
-	outBuf := make([]byte, 256*1024) // 256 KB max result
-	out := ptrOf(outBuf)
-	sqlB := []byte(sql)
-	n := hostDBQuery(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, uint32(len(outBuf)))
-	if n == 0 {
-		return nil
-	}
-	data, ok := readMem(out, n)
-	if !ok {
+	sqlB, argsJSON := []byte(sql), encodeArgs(args)
+	data := readResult(func(out, max uint32) uint32 {
+		return hostDBQuery(ptrOf(sqlB), uint32(len(sqlB)), ptrOf(argsJSON), uint32(len(argsJSON)), out, max)
+	}, dbQueryBufSize)
+	if data == nil {
 		return nil
 	}
 	var rows []map[string]any
@@ -181,15 +200,11 @@ func HTTPFetch(req HTTPFetchRequest) HTTPFetchResult {
 	if err != nil {
 		return HTTPFetchResult{Error: "marshal request: " + err.Error()}
 	}
-	outBuf := make([]byte, 256*1024)
-	out := ptrOf(outBuf)
-	n := hostHTTPFetch(ptrOf(reqJSON), uint32(len(reqJSON)), out, uint32(len(outBuf)))
-	if n == 0 {
+	data := readResult(func(out, max uint32) uint32 {
+		return hostHTTPFetch(ptrOf(reqJSON), uint32(len(reqJSON)), out, max)
+	}, httpFetchBufSize)
+	if data == nil {
 		return HTTPFetchResult{Error: "fetch failed"}
-	}
-	data, ok := readMem(out, n)
-	if !ok {
-		return HTTPFetchResult{Error: "memory read failed"}
 	}
 	var result HTTPFetchResult
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -211,81 +226,19 @@ func GetConfig(key string) string {
 	if len(key) == 0 {
 		return ""
 	}
-	outBuf := make([]byte, 4096)
-	out := ptrOf(outBuf)
 	kb := []byte(key)
-	n := hostGetConfig(ptrOf(kb), uint32(len(kb)), out, uint32(len(outBuf)))
-	if n == 0 {
-		return ""
-	}
-	data, ok := readMem(out, n)
-	if !ok {
-		return ""
-	}
+	data := readResult(func(out, max uint32) uint32 {
+		return hostGetConfig(ptrOf(kb), uint32(len(kb)), out, max)
+	}, getConfigBufSize)
 	return string(data)
 }
 
-// ScanDir lists all entries in the host's replay directory.
-// Returns nil on error or when the directory is not configured.
-func ScanDir() []DirEntry {
-	outBuf := make([]byte, 256*1024)
-	out := ptrOf(outBuf)
-	n := hostScanDir(out, uint32(len(outBuf)))
-	if n == 0 {
-		return nil
-	}
-	data, ok := readMem(out, n)
-	if !ok {
-		return nil
-	}
-	var entries []DirEntry
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil
-	}
-	return entries
-}
-
-// ReadFile reads a file from the host's replay directory by basename.
-// Returns nil if the file is not found or exceeds the 4 MB read limit.
-func ReadFile(name string) []byte {
-	const maxSize = 4 * 1024 * 1024 // 4 MB max — covers all real replay files
-	outBuf := make([]byte, maxSize)
-	out := ptrOf(outBuf)
-	nb := []byte(name)
-	n := hostReadFile(ptrOf(nb), uint32(len(nb)), out, uint32(len(outBuf)))
-	if n == 0 {
-		return nil
-	}
-	data, ok := readMem(out, n)
-	if !ok {
-		return nil
-	}
-	result := make([]byte, n)
-	copy(result, data)
-	return result
-}
-
-// DeleteFile removes a file from the host's replay directory by basename.
-// Returns true on success.
-func DeleteFile(name string) bool {
-	nb := []byte(name)
-	return hostDeleteFile(ptrOf(nb), uint32(len(nb))) == 1
-}
-
-// encodeArgs marshals a string slice as a compact JSON array.
 func encodeArgs(args []string) []byte {
 	if len(args) == 0 {
 		return []byte("[]")
 	}
 	b, _ := json.Marshal(args)
 	return b
-}
-
-func readMem(ptr, n uint32) ([]byte, bool) {
-	if n == 0 {
-		return nil, false
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), n), true
 }
 
 func ptrOf(b []byte) uint32 {

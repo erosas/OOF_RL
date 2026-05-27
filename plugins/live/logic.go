@@ -56,10 +56,5 @@ func handleHTTP() sdk.HTTPResponse {
 	} else {
 		body, _ = json.Marshal(map[string]any{"active": true, "state": s})
 	}
-
-	return sdk.HTTPResponse{
-		Status:  200,
-		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    string(body),
-	}
+	return sdk.JSONResponse(body)
 }

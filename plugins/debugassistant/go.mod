@@ -1,4 +1,4 @@
-module github.com/erosas/oof-plugin-history
+module github.com/erosas/oof-plugin-debugassistant
 
 go 1.24
 
