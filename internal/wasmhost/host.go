@@ -180,7 +180,6 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 // -- plugin.Plugin interface --
 
 func (p *Plugin) ID() string         { return p.meta.ID }
-func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return p.meta.Requires }
 
 func (p *Plugin) DeclaredEvents() []oofevents.EventDeclaration {

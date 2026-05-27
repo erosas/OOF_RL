@@ -103,10 +103,7 @@ type testPlugin struct {
 	declaredPaths []string // returned by RoutePaths; nil means BasePlugin default (nil = trusted)
 }
 
-func (p *testPlugin) ID() string { return p.id }
-
-func (p *testPlugin) DBPrefix() string { return p.id }
-
+func (p *testPlugin) ID() string       { return p.id }
 func (p *testPlugin) Requires() []string { return p.requires }
 
 func (p *testPlugin) Init(_ oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {

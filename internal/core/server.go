@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -50,6 +51,7 @@ type Server struct {
 	reconnect    func()
 	mmrProvider  mmr.Provider
 	plugins      []plugin.Plugin
+	disabled     map[string]struct{} // computed once from cfg.DisabledPlugins
 	bus          oofevents.Bus
 	translator   *rlevents.Translator
 	momentum     *momentum.Service
@@ -65,6 +67,10 @@ func isHostCorePluginID(pluginID string) bool {
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
 	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
 	momentumService := momentum.NewService(momentum.DefaultConfig())
+	disabled := make(map[string]struct{}, len(cfg.DisabledPlugins))
+	for _, id := range cfg.DisabledPlugins {
+		disabled[id] = struct{}{}
+	}
 	s := &Server{
 		cfgPath:     cfgPath,
 		cfg:         cfg,
@@ -73,6 +79,7 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		fs:          static,
 		reconnect:   reconnect,
 		mmrProvider: mmrProvider,
+		disabled:    disabled,
 		bus:         bus,
 		translator:  rlevents.New(rlBus),
 		momentum:    momentumService,
@@ -118,7 +125,7 @@ func (s *Server) InitPlugins() error {
 }
 
 func (s *Server) validateActivePluginDependencies(active []plugin.Plugin) error {
-	disabled := s.disabledPluginSet()
+	disabled := s.disabled
 	activeSet := make(map[string]struct{}, len(active))
 	for _, p := range active {
 		activeSet[p.ID()] = struct{}{}
@@ -233,22 +240,11 @@ func (s *Server) Use(p plugin.Plugin) {
 	s.plugins = append(s.plugins, p)
 }
 
-func (s *Server) disabledPluginSet() map[string]struct{} {
-	disabled := make(map[string]struct{}, len(s.cfg.DisabledPlugins))
-	for _, id := range s.cfg.DisabledPlugins {
-		disabled[id] = struct{}{}
-	}
-	return disabled
-}
-
 func (s *Server) isPluginDisabled(pluginID string) bool {
-	return isPluginDisabledInSet(pluginID, s.disabledPluginSet())
+	return isPluginDisabledInSet(pluginID, s.disabled)
 }
 
 func isPluginDisabledInSet(pluginID string, disabled map[string]struct{}) bool {
-	if isHostCorePluginID(pluginID) {
-		return false
-	}
 	_, ok := disabled[pluginID]
 	return ok
 }
@@ -277,7 +273,7 @@ func sanitizeDisabledPlugins(ids []string) []string {
 }
 
 func (s *Server) activePlugins() []plugin.Plugin {
-	disabled := s.disabledPluginSet()
+	disabled := s.disabled
 	active := make([]plugin.Plugin, 0, len(s.plugins))
 	for _, p := range s.plugins {
 		if isPluginDisabledInSet(p.ID(), disabled) {
@@ -361,6 +357,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		"/api/tracker/profile": "core",
 		"/api/db/open-folder":  "core",
 		"/api/data-dir":        "core",
+		"/plugins/history/":    "core",
 	}
 
 	mux.HandleFunc("/ws", s.handleWS)
@@ -378,6 +375,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
+
+	// History is host-core: mount its UI assets directly.
+	if histAssets, err := fs.Sub(histstore.Assets, "assets"); err == nil {
+		mux.Handle("/plugins/history/", http.StripPrefix("/plugins/history/", http.FileServer(http.FS(histAssets))))
+	}
 
 	for _, p := range s.activePlugins() {
 		// Plugins that declare their routes (WASM plugins) are checked for

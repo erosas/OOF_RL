@@ -162,9 +162,6 @@ func TestPlugin_Getters(t *testing.T) {
 	if got := p.ID(); got != "test-plugin" {
 		t.Errorf("ID: got %q", got)
 	}
-	if got := p.DBPrefix(); got != "" {
-		t.Errorf("DBPrefix: got %q, want empty", got)
-	}
 	if got := p.Requires(); len(got) != 1 || got[0] != "dep-a" {
 		t.Errorf("Requires: got %v", got)
 	}

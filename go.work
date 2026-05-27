@@ -7,7 +7,6 @@ use (
 	./plugins/ballchasing
 	./plugins/ranks
 	./plugins/session
-	./plugins/history
 	./plugins/dashboard
 	./plugins/debugassistant
 )

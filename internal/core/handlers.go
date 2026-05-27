@@ -15,6 +15,7 @@ import (
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/events"
+	"OOF_RL/internal/histstore"
 	"OOF_RL/internal/httputil"
 	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/plugin"
@@ -81,7 +82,8 @@ func (s *Server) handleINI(w http.ResponseWriter, r *http.Request) {
 // -- Plugin meta endpoints --
 
 func (s *Server) handleNav(w http.ResponseWriter, r *http.Request) {
-	tabs := make([]plugin.NavTab, 0, len(s.plugins))
+	// History is host-core: its tab is always present, never disabled.
+	tabs := []plugin.NavTab{{ID: "history", Label: "History", Order: 20}}
 	for _, p := range s.activePlugins() {
 		if tab := p.NavTab(); tab.ID != "" {
 			tabs = append(tabs, tab)
@@ -106,6 +108,19 @@ func (s *Server) handlePluginView(w http.ResponseWriter, r *http.Request) {
 		httputil.JSONError(w, 400, "missing plugin id")
 		return
 	}
+
+	// History is host-core: serve its view from embedded histstore assets.
+	if pluginID == "history" {
+		b, err := histstore.Assets.ReadFile("assets/view.html")
+		if err != nil {
+			httputil.JSONError(w, 404, "view not found")
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(b)
+		return
+	}
+
 	target := s.findPluginTarget(pluginID)
 	if target == nil {
 		httputil.JSONError(w, 404, "plugin not found")
@@ -202,7 +217,7 @@ func (s *Server) applyCoreSettings(values map[string]string) {
 }
 
 func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
-	disabled := s.disabledPluginSet()
+	disabled := s.disabled
 	blobs := make([]plugin.PluginSettingsBlob, 0, len(s.plugins)+1)
 	for _, p := range s.plugins {
 		tab := p.NavTab()

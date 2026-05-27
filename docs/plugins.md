@@ -34,7 +34,6 @@ Every plugin implements `plugin.Plugin` in `internal/plugin/plugin.go`.
 ```go
 type Plugin interface {
     ID() string
-    DBPrefix() string
     Requires() []string
     Init(bus oofevents.PluginBus, registry Registry, db *db.DB) error
     Shutdown() error
@@ -83,7 +82,6 @@ type Plugin struct {
 func New() *Plugin { return &Plugin{} }
 
 func (p *Plugin) ID() string         { return "pings" } // PluginID
-func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return nil }
 
 func (p *Plugin) NavTab() plugin.NavTab {

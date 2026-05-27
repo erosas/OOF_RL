@@ -133,7 +133,6 @@ Use a namespaced type string (e.g. `live.state.changed`) to avoid colliding with
 
 Single-page plugin model: one `view.html` + one `view.js` per plugin.
 
-`DBPrefix` exists as a compatibility surface in the broader plugin API and is not required for typical WASM plugin behavior.
 
 ## SDK (`plugins/sdk/`)
 

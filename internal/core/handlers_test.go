@@ -173,19 +173,29 @@ func TestGetNavExcludesDisabledPluginByPluginID(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &tabs); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if len(tabs) != 1 {
-		t.Fatalf("tab count: got %d, want 1", len(tabs))
+	// Expect history (host-core) + test_enabled = 2 tabs.
+	if len(tabs) != 2 {
+		t.Fatalf("tab count: got %d, want 2", len(tabs))
 	}
-	if tabs[0].ID != "enabled-view" {
-		t.Fatalf("nav id: got %q, want %q", tabs[0].ID, "enabled-view")
+	ids := map[string]bool{}
+	for _, tab := range tabs {
+		ids[tab.ID] = true
+	}
+	if !ids["enabled-view"] {
+		t.Fatalf("expected enabled-view tab, got %+v", tabs)
+	}
+	if ids["disabled-view"] {
+		t.Fatalf("disabled-view should be excluded, got %+v", tabs)
 	}
 }
 
-func TestGetNavKeepsHostCoreHistoryVisibleWhenListedDisabled(t *testing.T) {
+func TestGetNavAlwaysIncludesHistoryAsHostCore(t *testing.T) {
+	// History is host-core: its tab comes from the host, not a plugin.
+	// It must appear even with no plugins registered and even if "history"
+	// appears in DisabledPlugins.
 	cfg := config.Defaults()
 	cfg.DisabledPlugins = []string{"history"}
 	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "history", nav: plugin.NavTab{ID: "history", Label: "History", Order: 1}})
 
 	mux := http.NewServeMux()
 	srv.Register(mux)
@@ -255,14 +265,10 @@ func TestGetSettingsSchemaMarksDisabledPluginButKeepsItListed(t *testing.T) {
 	}
 }
 
-func TestGetSettingsSchemaKeepsHostCoreHistoryEnabled(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.DisabledPlugins = []string{"history"}
-	srv, _ := newTestServerWithConfig(t, cfg)
-	srv.Use(&testPlugin{id: "history", nav: plugin.NavTab{ID: "history", Label: "History", Order: 1}})
-
-	mux := http.NewServeMux()
-	srv.Register(mux)
+func TestGetSettingsSchemaDoesNotIncludeHistory(t *testing.T) {
+	// History is host-core with no configurable settings; it must not appear
+	// in the plugin settings schema.
+	mux, _ := newTestMux(t)
 	w := get(mux, "/api/settings/schema")
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d", w.Code)
@@ -273,13 +279,9 @@ func TestGetSettingsSchemaKeepsHostCoreHistoryEnabled(t *testing.T) {
 	}
 	for _, b := range blobs {
 		if b.PluginID == "history" {
-			if !b.Enabled {
-				t.Fatal("history should remain enabled as host-core")
-			}
-			return
+			t.Fatal("history should not appear in plugin settings schema")
 		}
 	}
-	t.Fatal("missing history blob")
 }
 
 // --- /api/settings ---

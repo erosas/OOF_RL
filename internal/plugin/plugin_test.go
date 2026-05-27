@@ -19,7 +19,6 @@ func (s *stubSub) Cancel() { s.cancelled = true }
 type stubPlugin struct{ plugin.BasePlugin }
 
 func (s *stubPlugin) ID() string                                               { return "stub" }
-func (s *stubPlugin) DBPrefix() string                                         { return "" }
 func (s *stubPlugin) Requires() []string                                       { return nil }
 func (s *stubPlugin) NavTab() plugin.NavTab                                    { return plugin.NavTab{} }
 func (s *stubPlugin) Routes(_ *http.ServeMux)                                  {}

@@ -18,9 +18,8 @@ type stubPlugin struct {
 	requires []string
 }
 
-func (s *stubPlugin) ID() string                                  { return s.id }
-func (s *stubPlugin) DBPrefix() string                            { return "" }
-func (s *stubPlugin) Requires() []string                          { return s.requires }
+func (s *stubPlugin) ID() string         { return s.id }
+func (s *stubPlugin) Requires() []string { return s.requires }
 func (s *stubPlugin) SettingsSchema() []plugin.Setting            { return nil }
 func (s *stubPlugin) ApplySettings(_ map[string]string) error     { return nil }
 func (s *stubPlugin) NavTab() plugin.NavTab                       { return plugin.NavTab{} }

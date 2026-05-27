@@ -50,7 +50,6 @@ func NewWithConfig(provider momentum.SnapshotProvider, cfg *config.Config) *Plug
 }
 
 func (p *Plugin) ID() string         { return "overlayhud" }
-func (p *Plugin) DBPrefix() string   { return "" }
 func (p *Plugin) Requires() []string { return nil }
 
 func (p *Plugin) NavTab() plugin.NavTab { return plugin.NavTab{} }
