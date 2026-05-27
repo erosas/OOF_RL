@@ -9,6 +9,7 @@ use (
 	./plugins/session
 	./plugins/history
 	./plugins/dashboard
+	./plugins/debugassistant
 )
 
 replace github.com/erosas/oof-plugin-sdk v0.0.0 => ./plugins/sdk

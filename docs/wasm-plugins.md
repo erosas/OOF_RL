@@ -143,3 +143,27 @@ Single-page plugin model: one `view.html` + one `view.js` per plugin.
 | `pdk.go` | wasip1 only | `Log`, `ReadBytes`, `WriteOutput`, `WriteJSONOutput`, `WriteMetadata`, `HandleHTTPExport`, `PublishEvent`, `Malloc`, `Free` |
 
 The host imports `abi.go` types to drive the protocol. Plugin code imports the whole package for both.
+
+## Testing
+
+Plugin logic can be tested as normal Go code using a build-tag stub for the WASM-only entry points.
+
+Add a `stub_main.go` with `//go:build !wasip1` and `func main() {}`. This lets `go test ./...` compile the plugin on the host platform without the WASM exports:
+
+```go
+//go:build !wasip1
+
+package main
+
+func main() {}
+```
+
+Keep the `//go:build wasip1` tag on your `main.go` exports so they are excluded from host builds. Logic functions in `logic.go` should have no build tags.
+
+Run plugin tests with:
+
+```sh
+go -C plugins/myplugin test ./...   # single plugin
+make test-plugins                    # all plugins + SDK
+make test-all                        # host + SDK + all plugins
+```
