@@ -14,6 +14,8 @@ import (
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
+const defaultHTTPRespBufSize = 256 * 1024
+
 func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.fnHandleHTTP == nil {
 		httputil.JSONError(w, http.StatusNotImplemented, "plugin has no HTTP handler")
@@ -39,16 +41,17 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer p.free(reqPtr, reqSize)
 
-	outPtr, err := p.malloc(respBufSize)
+	outMax := p.httpResponseBufferSize(r.URL.Path)
+	outPtr, err := p.malloc(outMax)
 	if err != nil {
 		httputil.JSONError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	defer p.free(outPtr, respBufSize)
+	defer p.free(outPtr, outMax)
 
 	res, err := p.fnHandleHTTP.Call(p.ctx,
 		api.EncodeU32(reqPtr), api.EncodeU32(uint32(len(reqJSON))),
-		api.EncodeU32(outPtr), api.EncodeU32(respBufSize),
+		api.EncodeU32(outPtr), api.EncodeU32(outMax),
 	)
 	if err != nil {
 		log.Printf("[wasm:%s] plugin_handle_http: %v", p.meta.ID, err)
@@ -74,6 +77,21 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.Status)
 	fmt.Fprint(w, resp.Body)
+}
+
+func (p *Plugin) httpResponseBufferSize(path string) uint32 {
+	switch p.meta.ID + " " + path {
+	case "dashboard /api/dashboard/layout",
+		"live /api/live/state",
+		"ranks /api/ranks/players",
+		"session /api/session/new",
+		"session /api/session/start",
+		"session /api/session/stats",
+		"session /api/session/suggest-player":
+		return defaultHTTPRespBufSize
+	default:
+		return respBufSize
+	}
 }
 
 // writeResult copies data into guest memory at outPtr.

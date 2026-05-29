@@ -222,6 +222,62 @@ func TestPlugin_Routes_NoHandler(t *testing.T) {
 	}
 }
 
+func TestHTTPResponseBufferSize(t *testing.T) {
+	tests := []struct {
+		name   string
+		plugin string
+		path   string
+		want   uint32
+	}{
+		{
+			name:   "live state uses small buffer",
+			plugin: "live",
+			path:   "/api/live/state",
+			want:   defaultHTTPRespBufSize,
+		},
+		{
+			name:   "ranks players uses small buffer",
+			plugin: "ranks",
+			path:   "/api/ranks/players",
+			want:   defaultHTTPRespBufSize,
+		},
+		{
+			name:   "dashboard layout uses small buffer",
+			plugin: "dashboard",
+			path:   "/api/dashboard/layout",
+			want:   defaultHTTPRespBufSize,
+		},
+		{
+			name:   "session stats uses small buffer",
+			plugin: "session",
+			path:   "/api/session/stats",
+			want:   defaultHTTPRespBufSize,
+		},
+		{
+			name:   "session history keeps large buffer",
+			plugin: "session",
+			path:   "/api/session/history",
+			want:   respBufSize,
+		},
+		{
+			name:   "unknown route keeps large buffer",
+			plugin: "debugassistant",
+			path:   "/api/debug-assistant/export-report",
+			want:   respBufSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Plugin{meta: sdk.PluginMeta{ID: tt.plugin}}
+			got := p.httpResponseBufferSize(tt.path)
+			if got != tt.want {
+				t.Fatalf("httpResponseBufferSize(%q, %q) = %d, want %d", tt.plugin, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateRouteMeta(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		err := validateRouteMeta([]sdk.RouteMeta{
@@ -473,5 +529,3 @@ func TestWriteResult_ExactFit(t *testing.T) {
 		t.Errorf("memory content: got %q", got)
 	}
 }
-
-
