@@ -654,25 +654,64 @@ function loadScript(src) {
   });
 }
 
+const NAV_GROUPS = [
+  { label: 'Core', ids: ['dashboard', 'live', 'ranks', 'session', 'history'] },
+  { label: 'Tools', ids: ['bc', 'debug', 'settings'] },
+];
+
+function navButtonHTML(item, visible) {
+  const hiddenStyle = visible ? '' : ' style="display:none"';
+  return `<button class="nav-btn" data-view="${esc(item.id)}" title="${esc(item.title)}" aria-label="${esc(item.title)}"${hiddenStyle}>${esc(item.title)}</button>`;
+}
+
 function buildNav(enabledTabs, allSchema) {
   const nav = document.getElementById('plugin-nav');
   const enabledIds = new Set(enabledTabs.map(t => t.id));
-  const pluginBtns = allSchema
+  const items = allSchema
     .filter(b => b.view_id)
-    .map(b => {
-      const visible = enabledIds.has(b.view_id);
-      return `<button class="nav-btn" data-view="${esc(b.view_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
-    })
-    .join('');
-  nav.innerHTML = pluginBtns + '<button class="nav-btn" data-view="settings">Settings</button>';
+    .map(b => ({ id: b.view_id, title: b.title, visible: enabledIds.has(b.view_id) }));
+  for (const tab of enabledTabs || []) {
+    if (!items.some(item => item.id === tab.id)) {
+      items.push({ id: tab.id, title: tab.label || tab.id, visible: true });
+    }
+  }
+  items.push({ id: 'settings', title: 'Settings', visible: true });
+
+  const byID = new Map(items.map(item => [item.id, item]));
+  const grouped = NAV_GROUPS.map((group, index) => {
+    const groupItems = group.ids
+      .map(id => byID.get(id))
+      .filter(Boolean);
+    if (index === NAV_GROUPS.length - 1) {
+      groupItems.push(...byID.values());
+    }
+    const buttons = group.ids
+      .map(id => groupItems.find(item => item.id === id))
+      .filter(Boolean)
+      .concat(groupItems.filter(item => !group.ids.includes(item.id)))
+      .map(item => {
+        byID.delete(item.id);
+        return navButtonHTML(item, item.visible);
+      })
+      .join('');
+    return buttons
+      ? `<div class="nav-group"><div class="nav-group-label">${esc(group.label)}</div>${buttons}</div>`
+      : '';
+  }).join('');
+
+  nav.innerHTML = grouped;
   nav.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 }
 
 function enabledViews(enabledTabs, allSchema) {
-  const navEnabled = new Set((enabledTabs || []).map(t => t.id));
-  return (allSchema || [])
-    .filter(b => b.plugin_id && b.view_id && b.enabled && navEnabled.has(b.view_id))
-    .map(b => ({ pluginID: b.plugin_id, viewID: b.view_id }));
+  const schemaByView = new Map((allSchema || [])
+    .filter(b => b.plugin_id && b.view_id && b.enabled)
+    .map(b => [b.view_id, b]));
+  return (enabledTabs || [])
+    .map(tab => {
+      const blob = schemaByView.get(tab.id);
+      return { pluginID: blob?.plugin_id || tab.id, viewID: tab.id };
+    });
 }
 
 async function injectPluginViews(enabledTabs, allSchema) {

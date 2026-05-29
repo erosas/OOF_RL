@@ -41,14 +41,23 @@
 </div>
 <div id="overlay-resize-grip" class="overlay-resize-grip"></div>
 
-<!-- Header -->
-<header class="flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
-  <span id="app-logo" class="text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
-  <nav class="flex gap-1 flex-1" id="plugin-nav"></nav>
-  <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
-</header>
+<div class="app-shell">
+  <aside class="app-sidebar" aria-label="Primary navigation">
+    <div class="app-brand">
+      <span id="app-logo" class="app-logo-mark">OOF</span>
+      <div class="app-brand-text">
+        <span class="app-brand-title">OOF RL</span>
+        <span class="app-brand-subtitle">Match Control</span>
+      </div>
+    </div>
+    <nav id="plugin-nav" class="app-nav"></nav>
+    <div class="app-sidebar-footer">
+      <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
+      <span class="app-status-label">Rocket League</span>
+    </div>
+  </aside>
 
-<main class="px-5 py-6 max-w-3xl mx-auto">
+<main class="app-main px-4 py-4 max-w-3xl mx-auto">
 
   <!-- Plugin views injected here by app.js -->
   <div id="plugin-views"></div>
@@ -178,6 +187,8 @@
   </section>
 
 </main>
+
+</div>
 
 <script src="/arena-names.js"></script>
 <script src="/app.js"></script>
