@@ -286,6 +286,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
+  document.querySelector('main')?.classList.toggle('live-active', name === 'live');
   _activeViewName = name;
   window.oofActiveViewName = name;
   if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
@@ -647,7 +648,8 @@ function formatBytes(n) {
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = src;
+    const separator = src.includes('?') ? '&' : '?';
+    s.src = src.startsWith('/plugins/') ? `${src}${separator}v=${Date.now()}` : src;
     s.onload  = resolve;
     s.onerror = reject;
     document.head.appendChild(s);

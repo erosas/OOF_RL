@@ -4,7 +4,7 @@
   --live-orange: var(--oof-team-orange, var(--rl-orange));
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-height: 100%;
 }
 
@@ -20,11 +20,12 @@
 }
 
 #view-live .live-waiting-card {
-  width: min(520px, 100%);
-  padding: var(--space-6);
+  width: min(620px, 100%);
+  padding: clamp(24px, 4vw, 42px);
   text-align: center;
   background:
-    radial-gradient(circle at 50% 0, rgba(74,158,255,.14), transparent 42%),
+    radial-gradient(circle at 18% 0, rgba(74,158,255,.16), transparent 38%),
+    radial-gradient(circle at 82% 0, rgba(255,140,42,.12), transparent 38%),
     linear-gradient(180deg, rgba(17,19,24,.96), rgba(13,17,23,.96));
   border: 1px solid rgba(148,163,184,.16);
   border-radius: var(--radius-lg);
@@ -43,8 +44,8 @@
 #view-live .live-waiting-title {
   margin-top: var(--space-2);
   color: var(--oof-text, var(--text));
-  font-size: var(--font-size-lg);
-  font-weight: 800;
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  font-weight: 900;
   line-height: 1.15;
 }
 
@@ -66,12 +67,13 @@
 
 #view-live .live-scoreboard {
   display: grid;
-  grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, .56fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  min-height: 154px;
   background:
-    linear-gradient(90deg, rgba(74,158,255,.13), transparent 28%, transparent 72%, rgba(255,140,42,.13)),
+    linear-gradient(90deg, rgba(74,158,255,.10), transparent 24%, transparent 76%, rgba(255,140,42,.10)),
     linear-gradient(180deg, rgba(17,19,24,.96), rgba(13,17,23,.96));
   border: 1px solid rgba(148,163,184,.16);
   border-radius: var(--radius-lg);
@@ -80,31 +82,71 @@
 
 #view-live .live-team {
   display: flex;
+  position: relative;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
   min-width: 0;
+  padding: clamp(14px, 1.6vw, 22px);
+  overflow: hidden;
+  background: rgba(4,8,14,.48);
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+#view-live .live-team::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#view-live .live-team-blue {
+  border-color: rgba(74,158,255,.32);
+}
+
+#view-live .live-team-blue::before {
+  background: linear-gradient(100deg, rgba(74,158,255,.22), transparent 42%);
 }
 
 #view-live .live-team-orange {
   flex-direction: row-reverse;
   text-align: right;
+  border-color: rgba(255,140,42,.32);
+}
+
+#view-live .live-team-orange::before {
+  background: linear-gradient(260deg, rgba(255,140,42,.22), transparent 42%);
+}
+
+#view-live .live-team-copy,
+#view-live .live-score-frame {
+  position: relative;
+  z-index: 1;
+}
+
+#view-live .live-team-copy {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 #view-live .live-team-name {
   min-width: 0;
   overflow: hidden;
   color: var(--oof-text, var(--text));
-  font-size: var(--font-size-md);
-  font-weight: 800;
+  font-size: clamp(1.25rem, 2.25vw, 2.3rem);
+  font-weight: 900;
   line-height: 1.1;
   text-overflow: ellipsis;
+  text-shadow: 0 0 20px rgba(255,255,255,.11);
   white-space: nowrap;
 }
 
 #view-live .live-team-label {
-  margin-top: 3px;
+  margin-top: var(--space-2);
   color: var(--oof-muted, var(--muted));
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-xs);
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -118,30 +160,55 @@
   color: var(--live-orange);
 }
 
+#view-live .live-score-frame {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: clamp(66px, 7vw, 104px);
+  min-height: clamp(66px, 6.6vw, 98px);
+  padding: var(--space-3);
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: var(--radius-md);
+}
+
+#view-live .live-team-blue .live-score-frame {
+  box-shadow: inset 0 -3px 0 rgba(74,158,255,.65), 0 0 24px rgba(74,158,255,.12);
+}
+
+#view-live .live-team-orange .live-score-frame {
+  box-shadow: inset 0 -3px 0 rgba(255,140,42,.68), 0 0 24px rgba(255,140,42,.12);
+}
+
 #view-live .live-score {
   color: var(--oof-text, var(--text));
-  font-size: clamp(3rem, 7vw, 5.25rem);
+  font-size: clamp(3.55rem, 7vw, 5.85rem);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: .9;
-  text-shadow: 0 0 18px rgba(255,255,255,.10);
+  line-height: .78;
+  text-shadow: 0 0 24px rgba(255,255,255,.20);
 }
 
 #view-live .live-center {
   display: grid;
-  min-width: 190px;
+  align-content: center;
+  min-width: 150px;
+  padding: var(--space-3);
   justify-items: center;
   gap: var(--space-2);
+  background: rgba(4,8,14,.44);
+  border: 1px solid rgba(148,163,184,.12);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 #view-live .live-arena {
-  max-width: 240px;
+  max-width: 260px;
   overflow: hidden;
   color: var(--oof-text-soft, var(--muted));
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  letter-spacing: .04em;
+  font-size: var(--font-size-micro);
+  font-weight: 800;
+  letter-spacing: .11em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -149,10 +216,11 @@
 
 #view-live .live-clock {
   color: var(--oof-text, var(--text));
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(2.65rem, 5.2vw, 4.35rem);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 1;
+  line-height: .92;
+  text-shadow: 0 0 20px rgba(255,255,255,.16);
 }
 
 #view-live .live-badge-row {
@@ -166,7 +234,7 @@
 
 #view-live .live-badge {
   border-radius: var(--radius-sm);
-  padding: 3px 8px;
+  padding: 4px 10px;
   font-size: var(--font-size-micro);
   font-weight: 900;
   letter-spacing: .08em;
@@ -187,16 +255,24 @@
 
 #view-live .live-ball-speed {
   color: var(--oof-muted, var(--muted));
+  min-height: 18px;
   font-size: var(--font-size-xs);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 #view-live .live-touch-share {
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: auto minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  background: rgba(12,16,22,.64);
-  border: 1px solid rgba(148,163,184,.12);
+  background:
+    linear-gradient(90deg, rgba(74,158,255,.10), transparent 34%, transparent 66%, rgba(255,140,42,.10)),
+    rgba(12,16,22,.70);
+  border: 1px solid rgba(148,163,184,.14);
   border-radius: var(--radius-md);
 }
 
@@ -219,8 +295,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
+  justify-content: flex-end;
+  font-size: var(--font-size-sm);
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
 
@@ -234,7 +311,7 @@
 
 #view-live .live-touch-track {
   display: flex;
-  height: 8px;
+  height: 12px;
   overflow: hidden;
   background: var(--oof-surface-2, var(--surface2));
   border: 1px solid rgba(148,163,184,.10);
@@ -264,27 +341,56 @@
 
 #view-live .live-roster-title {
   color: var(--oof-text, var(--text));
-  font-size: var(--font-size-sm);
-  font-weight: 800;
+  font-size: var(--font-size-md);
+  font-weight: 900;
   letter-spacing: 0;
 }
 
 #view-live .players-grid {
-  gap: var(--space-3);
+  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 #view-live .team-panel {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 30%),
+    radial-gradient(circle at 8% 0, rgba(74,158,255,.10), transparent 36%),
+    radial-gradient(circle at 92% 0, rgba(255,140,42,.08), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 30%),
     var(--oof-surface, var(--surface));
-  border-color: rgba(148,163,184,.15);
+  border-color: rgba(148,163,184,.18);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(255,255,255,.03);
+  min-height: 300px;
+  overflow: hidden;
+}
+
+#view-live .team-panel:has(.team-panel-header.blue) {
+  border-color: rgba(74,158,255,.26);
+  box-shadow: var(--shadow-panel), inset 3px 0 0 rgba(74,158,255,.70), inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+#view-live .team-panel:has(.team-panel-header.orange) {
+  border-color: rgba(255,140,42,.26);
+  box-shadow: var(--shadow-panel), inset 3px 0 0 rgba(255,140,42,.72), inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+#view-live .team-panel-blue {
+  background:
+    radial-gradient(circle at 0 0, rgba(74,158,255,.18), transparent 38%),
+    linear-gradient(180deg, rgba(17,21,30,.98), rgba(10,13,18,.98));
+}
+
+#view-live .team-panel-orange {
+  background:
+    radial-gradient(circle at 100% 0, rgba(255,140,42,.18), transparent 38%),
+    linear-gradient(180deg, rgba(22,18,14,.98), rgba(12,13,16,.98));
 }
 
 #view-live .team-panel-header {
-  padding: 10px 14px;
+  padding: 14px 18px;
   border-bottom: 1px solid rgba(148,163,184,.10);
+  font-size: var(--font-size-md);
+  font-weight: 900;
   letter-spacing: .12em;
 }
 
@@ -297,19 +403,307 @@
 }
 
 #view-live .player-row {
+  grid-template-columns: minmax(220px,1.85fr) repeat(5,minmax(38px,.28fr)) minmax(54px,.34fr) minmax(116px,.62fr) minmax(72px,.4fr);
+  min-width: 0;
+  gap: var(--space-2);
+  padding: 12px 18px;
   border-top-color: rgba(148,163,184,.10);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+#view-live .player-row > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+#view-live .player-row > span:not(:first-child),
+#view-live .boost-num {
+  font-weight: 800;
+}
+
+#view-live .player-name {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-base);
+  font-weight: 900;
+  letter-spacing: .01em;
 }
 
 #view-live .player-row.header {
-  background: rgba(255,255,255,.015);
+  margin: var(--space-2) var(--space-3) 0;
+  padding: 7px var(--space-3);
+  background: transparent;
+  border-top: 0;
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-micro);
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+#view-live .player-row.header span {
+  color: var(--oof-text-soft, var(--muted));
+}
+
+#view-live .player-card {
+  position: relative;
+  margin: var(--space-2) var(--space-3) 0;
+  padding: 12px var(--space-3);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)),
+    rgba(5,8,13,.72);
+  border: 1px solid rgba(148,163,184,.12);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 28px rgba(0,0,0,.18);
+}
+
+#view-live .player-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  pointer-events: none;
+}
+
+#view-live .player-card.blue {
+  border-color: rgba(74,158,255,.22);
+  background:
+    linear-gradient(90deg, rgba(74,158,255,.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.012)),
+    rgba(5,8,13,.74);
+}
+
+#view-live .player-card.blue::before {
+  background: var(--live-blue);
+  box-shadow: 0 0 14px rgba(74,158,255,.65);
+}
+
+#view-live .player-card.orange {
+  border-color: rgba(255,140,42,.24);
+  background:
+    linear-gradient(90deg, rgba(255,140,42,.12), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.012)),
+    rgba(8,7,5,.74);
+}
+
+#view-live .player-card.orange::before {
+  background: var(--live-orange);
+  box-shadow: 0 0 14px rgba(255,140,42,.60);
+}
+
+#view-live .player-card.empty {
+  min-height: 72px;
+  align-items: center;
+  color: var(--oof-muted, var(--muted));
+}
+
+#view-live .player-name-cell {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: var(--space-3);
+}
+
+#view-live .player-emblem {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  color: var(--oof-text, var(--text));
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+#view-live .player-emblem.blue {
+  background: rgba(74,158,255,.16);
+  border-color: rgba(74,158,255,.48);
+  box-shadow: inset 0 0 16px rgba(74,158,255,.16), 0 0 18px rgba(74,158,255,.10);
+}
+
+#view-live .player-emblem.orange {
+  background: rgba(255,140,42,.16);
+  border-color: rgba(255,140,42,.48);
+  box-shadow: inset 0 0 16px rgba(255,140,42,.16), 0 0 18px rgba(255,140,42,.10);
+}
+
+#view-live .player-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+#view-live .player-subline {
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-micro);
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+#view-live .player-row:not(.header) > span:not(:first-child) {
+  color: var(--oof-text, var(--text));
+}
+
+#view-live .player-row:not(.header) .stat-cell {
+  min-height: 34px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(148,163,184,.08);
+  border-radius: var(--radius-sm);
+}
+
+#view-live .player-row:not(.header) .stat-touch {
+  color: var(--live-blue);
+}
+
+#view-live .player-row:not(.header) .stat-score {
+  justify-content: flex-end;
+  color: var(--oof-text, var(--text));
+  font-weight: 900;
+}
+
+#view-live .stat-empty {
+  color: var(--oof-muted, var(--muted));
+}
+
+#view-live .boost-cell {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+#view-live .boost-ring {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(8,10,14,.95) 55%, transparent 56%),
+    conic-gradient(var(--live-blue) calc(var(--boost) * 1%), rgba(148,163,184,.18) 0);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+#view-live .boost-ring.mid {
+  background:
+    radial-gradient(circle at center, rgba(8,10,14,.95) 55%, transparent 56%),
+    conic-gradient(var(--live-orange) calc(var(--boost) * 1%), rgba(148,163,184,.18) 0);
+}
+
+#view-live .boost-ring.low {
+  background:
+    radial-gradient(circle at center, rgba(8,10,14,.95) 55%, transparent 56%),
+    conic-gradient(var(--oof-danger, #e05252) calc(var(--boost) * 1%), rgba(148,163,184,.18) 0);
+}
+
+#view-live .boost-ring span {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+}
+
+#view-live .boost-bar-wrap {
+  gap: var(--space-2);
+}
+
+#view-live .boost-bar {
+  height: 10px;
+  border: 1px solid rgba(148,163,184,.10);
+}
+
+#view-live .boost-num {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-sm);
+  width: 2.7em;
+}
+
+#view-live .team-total-row {
+  margin: var(--space-2) var(--space-3) var(--space-3);
+  padding: 10px var(--space-3);
+  background: rgba(255,255,255,.035);
+  border-top: 1px solid rgba(148,163,184,.12);
+  border-radius: var(--radius-sm);
+  color: var(--oof-text-soft, var(--muted));
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+#view-live .team-total-row.blue span:not(:first-child) {
+  color: var(--live-blue);
+}
+
+#view-live .team-total-row.orange span:not(:first-child) {
+  color: var(--live-orange);
+}
+
+#view-live .team-status-section,
+#view-live .team-rank-section {
+  margin: var(--space-2) var(--space-3) 0;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.018);
+  border: 1px solid rgba(148,163,184,.08);
+  border-radius: var(--radius-md);
+  border-top-color: rgba(148,163,184,.10);
+}
+
+#view-live .team-status-section {
+  gap: var(--space-2);
+}
+
+#view-live .team-status-row {
+  align-items: center;
+  gap: var(--space-3);
+}
+
+#view-live .team-status-name,
+#view-live .team-rank-name {
+  min-width: 120px;
+  max-width: 180px;
+  color: var(--oof-text-soft, var(--muted));
+  font-size: var(--font-size-xs);
+}
+
+#view-live .team-rank-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+#view-live .status-wrap {
+  gap: var(--space-1);
+}
+
+#view-live .status-chip {
+  padding: 2px 6px;
+  font-size: var(--font-size-micro);
+}
+
+#view-live .status-chip.dim {
+  opacity: .16;
 }
 
 #view-live .player-legend {
   margin-top: 0;
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: rgba(12,16,22,.46);
   border: 1px solid rgba(148,163,184,.10);
   border-radius: var(--radius-md);
+}
+
+@media (max-width: 1180px) {
+  #view-live .players-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -325,9 +719,18 @@
     text-align: center;
   }
 
+  #view-live .live-team-orange {
+    flex-direction: column-reverse;
+  }
+
   #view-live .live-center {
     order: -1;
     min-width: 0;
+  }
+
+  #view-live .live-touch-share {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
   }
 
   #view-live .live-touch-header,
@@ -338,6 +741,17 @@
 
   #view-live .players-grid {
     grid-template-columns: 1fr;
+  }
+
+  #view-live .player-row {
+    grid-template-columns: minmax(120px,1.6fr) repeat(5,minmax(26px,.24fr)) minmax(36px,.28fr) minmax(74px,.46fr) minmax(48px,.32fr);
+    gap: 5px;
+    padding: 10px 12px;
+    font-size: var(--font-size-xs);
+  }
+
+  #view-live .player-name {
+    font-size: var(--font-size-xs);
   }
 }
 </style>
@@ -355,11 +769,13 @@
     <!-- Scoreboard -->
     <div class="live-scoreboard">
       <div class="live-team live-team-blue">
-        <div>
+        <div class="live-team-copy">
           <div class="live-team-name" id="team0-name">Blue</div>
           <div class="live-team-label">Blue Team</div>
         </div>
-        <div class="live-score tabular-nums" id="score0">0</div>
+        <div class="live-score-frame">
+          <div class="live-score tabular-nums" id="score0">0</div>
+        </div>
       </div>
 
       <div class="live-center">
@@ -373,11 +789,13 @@
       </div>
 
       <div class="live-team live-team-orange">
-        <div>
+        <div class="live-team-copy">
           <div class="live-team-name" id="team1-name">Orange</div>
           <div class="live-team-label">Orange Team</div>
         </div>
-        <div class="live-score tabular-nums" id="score1">0</div>
+        <div class="live-score-frame">
+          <div class="live-score tabular-nums" id="score1">0</div>
+        </div>
       </div>
     </div>
 
@@ -385,15 +803,15 @@
     <div class="live-touch-share">
       <div class="live-touch-header">
         <div class="live-touch-title">Team Touch Share</div>
-        <div class="live-touch-values">
-          <span id="possession-pct-blue">-</span>
-          <span class="text-gray-600">/</span>
-          <span id="possession-pct-orange">-</span>
-        </div>
       </div>
       <div class="live-touch-track">
         <div id="possession-bar-blue" class="h-full transition-[width] duration-500" style="width:50%"></div>
         <div id="possession-bar-orange" class="h-full transition-[width] duration-500" style="width:50%"></div>
+      </div>
+      <div class="live-touch-values">
+        <span id="possession-pct-blue">-</span>
+        <span class="text-gray-600">/</span>
+        <span id="possession-pct-orange">-</span>
       </div>
     </div>
 

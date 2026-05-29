@@ -452,8 +452,9 @@ body:not(.overlay-mode) .view.active {
   overscroll-behavior: contain;
 }
 
-/* Dashboard expands to full window width (bypasses max-w-3xl on <main>) */
-main.dash-active { max-width: none; }
+/* Full-canvas views bypass max-w-3xl on <main>. */
+main.dash-active,
+main.live-active { max-width: none; }
 
 /* Status dot */
 .dot {

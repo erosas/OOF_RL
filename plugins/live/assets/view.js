@@ -80,8 +80,8 @@ function renderPlayers(players, t0color = null, t1color = null) {
   const blue   = players.filter(p => p.TeamNum === 0);
   const orange = players.filter(p => p.TeamNum === 1);
   grid.innerHTML =
-    teamPanel('Blue',   'blue',   blue,   t0color) +
-    teamPanel('Orange', 'orange', orange, t1color);
+    renderLiveTeamPanel('Blue',   'blue',   blue,   t0color) +
+    renderLiveTeamPanel('Orange', 'orange', orange, t1color);
 }
 
 function teamPanel(name, cls, players, teamHexColor = null) {
@@ -166,6 +166,117 @@ function boostClass(b) {
   if (b < 30) return 'low';
   if (b < 70) return 'mid';
   return 'high';
+}
+
+function renderLiveTeamPanel(name, cls, players, teamHexColor = null) {
+  const headerStyle = teamHexColor
+    ? ` style="background:${hexToRgba(teamHexColor, 0.15)};color:#${teamHexColor}"`
+    : '';
+
+  const total = field => players.reduce((sum, p) => sum + (Number(p[field]) || 0), 0);
+  const rows = players.map(p => {
+    const boost = p.Boost ?? null;
+    const demolished = p.bDemolished ? 'demolished' : '';
+    const boostBar = boost != null ? `
+      <div class="boost-cell" style="--boost:${boost}">
+        <div class="boost-ring ${boostClass(boost)}"><span>${boost}</span></div>
+        <div class="boost-bar-wrap">
+          <div class="boost-bar"><div class="boost-fill ${boostClass(boost)}" style="width:${boost}%"></div></div>
+          <span class="boost-num">${boost}</span>
+        </div>
+      </div>` : '<span class="stat-empty">-</span>';
+
+    const trnUrl = !isBot(p.PrimaryId) ? trnProfileUrl(p.PrimaryId, p.Name) : '';
+    const nameEl = trnUrl
+      ? `<a href="${esc(trnUrl)}" target="_blank" rel="noopener" class="player-name player-name-link">${esc(p.Name)}</a>`
+      : `<span class="player-name">${esc(p.Name)}</span>`;
+
+    return `
+      <div class="player-row player-card ${cls} ${demolished}">
+        <div class="player-name-cell">
+          <span class="player-emblem ${cls}">${playerInitials(p.Name)}</span>
+          <span class="player-copy">
+            ${nameEl}
+            <span class="player-subline">Live telemetry</span>
+          </span>
+        </div>
+        <span class="stat-cell">${p.Goals   ?? 0}</span>
+        <span class="stat-cell">${p.Assists ?? 0}</span>
+        <span class="stat-cell">${p.Saves   ?? 0}</span>
+        <span class="stat-cell">${p.Shots   ?? 0}</span>
+        <span class="stat-cell">${p.Demos   ?? 0}</span>
+        <span class="stat-cell stat-touch">${p.Touches ?? 0}</span>
+        ${boostBar}
+        <span class="stat-cell stat-score">${p.Score ?? 0}</span>
+      </div>`;
+  }).join('');
+
+  const totalsRow = players.length ? `
+      <div class="player-row team-total-row ${cls}">
+        <div class="player-name-cell">Total</div>
+        <span>${total('Goals')}</span>
+        <span>${total('Assists')}</span>
+        <span>${total('Saves')}</span>
+        <span>${total('Shots')}</span>
+        <span>${total('Demos')}</span>
+        <span>${total('Touches')}</span>
+        <span class="stat-empty">-</span>
+        <span>${total('Score')}</span>
+      </div>` : '';
+
+  const statusRows = players.map(p => {
+    const demolished = p.bDemolished ? 'demolished' : '';
+    return `
+      <div class="team-status-row ${demolished}">
+        <span class="team-status-name">${esc(p.Name)}</span>
+        <div class="status-wrap">
+          ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
+          ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
+          ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
+          ${chip('',                  'WALL',  !!p.bOnWall)}
+          ${chip('',                  'PS',    !!p.bPowerslide)}
+        </div>
+      </div>`;
+  }).join('');
+
+  const rankRows = players.map(p => {
+    if (isBot(p.PrimaryId)) return '';
+    const rankHTML = trackerRankHTML(p.PrimaryId);
+    if (!rankHTML) return '';
+    const demolished = p.bDemolished ? 'demolished' : '';
+    return `
+      <div class="team-rank-row ${demolished}">
+        <span class="team-rank-name">${esc(p.Name)}</span>
+        ${rankHTML}
+      </div>`;
+  }).join('');
+
+  const rankSection = rankRows.trim()
+    ? `<div class="team-rank-section">${rankRows}</div>`
+    : '';
+
+  return `
+    <div class="team-panel team-panel-${cls}">
+      <div class="team-panel-header ${cls}"${headerStyle}>${esc(name)}</div>
+      <div class="player-row header">
+        <span>Player</span><span>G</span><span>A</span><span>Sv</span><span>Sh</span><span>Dm</span>
+        <span>Tch</span><span>Boost</span><span>Score</span>
+      </div>
+      ${rows || '<div class="player-row player-card empty"><div class="player-name-cell">No players</div></div>'}
+      ${totalsRow}
+      <div class="team-status-section">${statusRows}</div>
+      ${rankSection}
+    </div>`;
+}
+
+function playerInitials(name) {
+  return String(name || '?')
+    .trim()
+    .split(/\s+/)
+    .map(part => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '?';
 }
 
 function flashGoal(data) {
