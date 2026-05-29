@@ -1,179 +1,336 @@
 <link rel="stylesheet" href="/plugins/dashboard/gridstack.min.css">
 
 <style>
-.dash-toolbar {
+#view-dashboard .dash-page {
+  --dash-accent: var(--oof-team-blue, var(--rl-blue));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 100%;
+}
+
+#view-dashboard .hidden {
+  display: none !important;
+}
+
+#view-dashboard .dash-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 0 16px;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-3);
+  border-bottom: 1px solid rgba(148,163,184,.10);
 }
-.dash-toolbar-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text);
-  opacity: 0.5;
-  letter-spacing: 0.02em;
+
+#view-dashboard .dash-title-block {
+  min-width: 0;
 }
-.dash-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+
+#view-dashboard .dash-toolbar-title {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+#view-dashboard .dash-toolbar-subtitle {
+  margin-top: var(--space-1);
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+#view-dashboard .dash-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+#view-dashboard .dash-action-primary,
+#view-dashboard .dash-action-secondary {
+  min-height: 34px;
+  padding-inline: var(--space-3);
+}
+
+#view-dashboard .dash-action-primary {
+  border-color: rgba(74,158,255,.38);
+  background: linear-gradient(180deg, rgba(74,158,255,.28), rgba(74,158,255,.12));
+  color: var(--oof-text, var(--text));
+  box-shadow: 0 0 16px rgba(74,158,255,.10);
+}
+
+#view-dashboard .dash-action-secondary {
+  background: rgba(16,20,27,.72);
+}
+
+#view-dashboard .dash-action-danger:hover {
+  border-color: rgba(239,68,68,.55);
+  color: var(--oof-danger, var(--red));
+}
 
 /* Widget picker panel */
-.dash-picker {
+#view-dashboard .dash-picker {
   position: fixed;
-  top: 0; right: 0;
-  width: 260px;
+  top: 0;
+  right: 0;
+  width: min(340px, calc(100vw - 24px));
   height: 100vh;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(74,158,255,.08), rgba(13,17,23,.10) 32%),
+    var(--oof-surface, var(--surface));
+  border-left: 1px solid var(--oof-line-strong, var(--line));
   z-index: 200;
   display: flex;
   flex-direction: column;
-  box-shadow: -6px 0 24px rgba(0,0,0,0.5);
+  box-shadow: -22px 0 48px rgba(0,0,0,.44);
 }
-.dash-picker.hidden { display: none; }
-.dash-picker-header {
+
+#view-dashboard .dash-picker-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid rgba(148,163,184,.16);
 }
-.dash-picker-close {
-  background: none;
-  border: none;
-  color: var(--muted);
+
+#view-dashboard .dash-picker-title {
+  display: grid;
+  gap: 2px;
+}
+
+#view-dashboard .dash-picker-title strong {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+#view-dashboard .dash-picker-title span {
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-xs);
+}
+
+#view-dashboard .dash-picker-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(8,12,18,.55);
+  border: 1px solid rgba(148,163,184,.18);
+  color: var(--oof-muted, var(--muted));
   cursor: pointer;
-  font-size: 1rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  padding: 0;
+  border-radius: var(--radius-md);
   line-height: 1;
 }
-.dash-picker-close:hover { color: var(--text); background: var(--surface2); }
-.dash-picker-list {
+
+#view-dashboard .dash-picker-close:hover {
+  color: var(--oof-text, var(--text));
+  border-color: rgba(74,158,255,.38);
+  background: rgba(74,158,255,.14);
+}
+
+#view-dashboard .dash-picker-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
-.dash-picker-item {
+
+#view-dashboard .dash-picker-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  gap: 8px;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: rgba(16,20,27,.76);
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
 }
-.dash-picker-item-name {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text);
+
+#view-dashboard .dash-picker-item:hover {
+  border-color: rgba(74,158,255,.34);
+  background: rgba(20,26,35,.86);
 }
-.dash-picker-item-plugin {
-  font-size: 0.75rem;
-  color: var(--muted);
+
+#view-dashboard .dash-picker-item-name {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+#view-dashboard .dash-picker-item-plugin {
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-xs);
   margin-top: 2px;
 }
 
-/* Empty state */
-.dash-empty {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.8;
+#view-dashboard .dash-picker-item .bc-sync-btn {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-color: rgba(74,158,255,.28);
+  color: var(--dash-accent);
 }
-.dash-empty strong { color: var(--text); opacity: 0.7; }
+
+/* Empty state */
+#view-dashboard .dash-empty {
+  text-align: center;
+  padding: clamp(44px, 9vh, 88px) var(--space-4);
+  color: var(--oof-muted, var(--muted));
+  font-size: var(--font-size-sm);
+  line-height: 1.65;
+  border-style: dashed;
+  background:
+    radial-gradient(circle at 50% 0, rgba(74,158,255,.10), transparent 38%),
+    rgba(12,16,22,.52);
+}
+
+#view-dashboard .dash-empty strong {
+  color: var(--oof-text, var(--text));
+  opacity: .9;
+}
 
 /* Widget item chrome */
-.grid-stack-item-content {
-  background: var(--surface) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 8px !important;
+#view-dashboard #dash-grid {
+  margin-top: var(--space-2);
+}
+
+#view-dashboard #dash-grid .grid-stack-item-content {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 34%),
+    var(--oof-surface, var(--surface)) !important;
+  border: 1px solid rgba(148,163,184,.16) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(255,255,255,.03) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
 }
-.widget-header {
+
+#view-dashboard #dash-grid .grid-stack-item-content:hover {
+  border-color: rgba(74,158,255,.28) !important;
+}
+
+#view-dashboard .widget-header {
   display: none;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--line);
-  border-radius: 7px 7px 0 0;
+  gap: var(--space-2);
+  padding: 7px 10px;
+  background:
+    linear-gradient(180deg, rgba(74,158,255,.12), rgba(18,23,31,.88)),
+    var(--oof-surface-2, var(--surface2));
+  border-bottom: 1px solid rgba(148,163,184,.14);
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
   cursor: move;
   user-select: none;
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: 34px;
 }
-.dash-editing .widget-header { display: flex; }
-.widget-drag-icon {
-  color: var(--muted);
+
+#view-dashboard .dash-editing .widget-header {
+  display: flex;
+}
+
+#view-dashboard .widget-drag-icon {
+  color: var(--dash-accent);
   font-size: 1rem;
   letter-spacing: -2px;
-  opacity: 0.5;
+  opacity: .75;
 }
-.widget-title-text {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
+
+#view-dashboard .widget-title-text {
+  color: var(--oof-text, var(--text));
+  font-size: var(--font-size-xs);
+  font-weight: 800;
   flex: 1;
-  opacity: 0.6;
+  opacity: .76;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: .04em;
 }
-.widget-remove-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
+
+#view-dashboard .widget-remove-btn {
+  width: 26px;
+  height: 26px;
+  background: rgba(8,12,18,.35);
+  border: 1px solid transparent;
+  color: var(--oof-muted, var(--muted));
   cursor: pointer;
-  font-size: 0.8rem;
-  padding: 2px 5px;
-  border-radius: 3px;
+  font-size: var(--font-size-xs);
+  padding: 0;
+  border-radius: var(--radius-sm);
   line-height: 1;
-  opacity: 0.6;
+  opacity: .78;
 }
-.widget-remove-btn:hover { opacity: 1; color: var(--red); background: rgba(224,82,82,0.12); }
-.widget-body {
+
+#view-dashboard .widget-remove-btn:hover {
+  opacity: 1;
+  color: var(--oof-danger, var(--red));
+  border-color: rgba(239,68,68,.30);
+  background: rgba(239,68,68,.12);
+}
+
+#view-dashboard .widget-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: var(--space-3);
   min-height: 0;
 }
 
 /* Resize handle */
-.ui-resizable-se {
+#view-dashboard .ui-resizable-se {
   bottom: 4px !important;
   right: 4px !important;
 }
+
+@media (max-width: 720px) {
+  #view-dashboard .dash-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #view-dashboard .dash-toolbar-actions {
+    justify-content: flex-start;
+  }
+}
 </style>
 
-<div id="dash-toolbar" class="dash-toolbar">
-  <span class="dash-toolbar-title">Dashboard</span>
-  <div class="dash-toolbar-actions">
-    <button id="dash-add-widget-btn" class="bc-sync-btn hidden">+ Add Widget</button>
-    <button id="dash-cancel-btn"     class="bc-sync-btn hidden">Cancel</button>
-    <button id="dash-save-btn"       class="btn-action hidden">Save</button>
-    <button id="dash-edit-btn"       class="bc-sync-btn">Edit</button>
+<div class="dash-page ui-page">
+  <div id="dash-toolbar" class="dash-toolbar ui-page-header">
+    <div class="dash-title-block">
+      <div class="dash-toolbar-title ui-page-title">Dashboard</div>
+      <div class="dash-toolbar-subtitle ui-page-subtitle">Custom match control surface</div>
+    </div>
+    <div class="dash-toolbar-actions ui-toolbar">
+      <button id="dash-add-widget-btn" class="ui-button dash-action-secondary hidden">Add Widget</button>
+      <button id="dash-cancel-btn"     class="ui-button dash-action-secondary dash-action-danger hidden">Cancel</button>
+      <button id="dash-save-btn"       class="ui-button dash-action-primary hidden">Save</button>
+      <button id="dash-edit-btn"       class="ui-button dash-action-secondary">Edit</button>
+    </div>
   </div>
-</div>
 
-<div id="dash-picker" class="dash-picker hidden">
-  <div class="dash-picker-header">
-    <span>Add Widget</span>
-    <button id="dash-picker-close" class="dash-picker-close">✕</button>
+  <div id="dash-picker" class="dash-picker hidden">
+    <div class="dash-picker-header">
+      <div class="dash-picker-title">
+        <strong>Add Widget</strong>
+        <span>Choose registered plugin widgets</span>
+      </div>
+      <button id="dash-picker-close" class="dash-picker-close" title="Close" aria-label="Close">x</button>
+    </div>
+    <div id="dash-picker-list" class="dash-picker-list"></div>
   </div>
-  <div id="dash-picker-list" class="dash-picker-list"></div>
-</div>
 
-<div id="dash-empty" class="dash-empty hidden">
-  Click <strong>Edit</strong> then <strong>+ Add Widget</strong> to build your custom view.
-</div>
+  <div id="dash-empty" class="dash-empty ui-empty-state hidden">
+    Click <strong>Edit</strong> then <strong>Add Widget</strong> to build your custom view.
+  </div>
 
-<div class="grid-stack" id="dash-grid" style="min-height: 200px;"></div>
+  <div class="grid-stack" id="dash-grid" style="min-height: 200px;"></div>
+</div>
