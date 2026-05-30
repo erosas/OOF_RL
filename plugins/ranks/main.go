@@ -27,8 +27,8 @@ func pluginOnEvent(typePtr, typeLen, payloadPtr, payloadLen uint32) {
 }
 
 //go:wasmexport plugin_handle_http
-func pluginHandleHTTP(reqPtr, reqLen, outPtr, outMax uint32) uint32 {
-	return sdk.HandleHTTPExport(reqPtr, reqLen, outPtr, outMax, func(_ sdk.HTTPRequest) sdk.HTTPResponse {
+func pluginHandleHTTP(reqPtr, reqLen uint32) uint64 {
+	return sdk.HandleHTTPExport(reqPtr, reqLen, func(_ sdk.HTTPRequest) sdk.HTTPResponse {
 		return handleHTTP()
 	})
 }

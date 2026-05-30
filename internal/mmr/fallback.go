@@ -64,6 +64,7 @@ func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 		}
 
 		tried := 0
+		permanentCount := 0
 		for i := 0; i < n; i++ {
 			p := f.providers[(start+i)%n]
 			if !p.Supports(id.Platform) {
@@ -79,10 +80,18 @@ func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 			}
 			log.Printf("[mmr] %s failed for %s|%s: %v", p.Name(), id.Platform, id.PrimaryID, err)
 			lastErr = err
+			if IsPermanent(err) {
+				permanentCount++
+			}
 		}
 
 		if tried == 0 {
 			return nil, fmt.Errorf("mmr: no provider supports platform %s", id.Platform)
+		}
+		// All tried providers returned a permanent error (e.g. HTTP 403/404).
+		// Retrying will not help; return immediately.
+		if permanentCount == tried {
+			return nil, lastErr
 		}
 	}
 	return nil, lastErr

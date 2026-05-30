@@ -1,6 +1,28 @@
 package mmr
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// PermanentError wraps an error that should not be retried (e.g. HTTP 403/404).
+// FallbackProvider stops cycling through providers immediately when all return one.
+type PermanentError struct{ Err error }
+
+func (e *PermanentError) Error() string { return e.Err.Error() }
+func (e *PermanentError) Unwrap() error { return e.Err }
+
+// IsPermanent reports whether err is (or wraps) a PermanentError.
+func IsPermanent(err error) bool {
+	var p *PermanentError
+	return errors.As(err, &p)
+}
+
+// Permanentf creates a PermanentError with a formatted message.
+func Permanentf(format string, a ...any) error {
+	return &PermanentError{Err: fmt.Errorf(format, a...)}
+}
 
 // Platform identifies which game store the account is tied to.
 type Platform string

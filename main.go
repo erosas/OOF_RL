@@ -50,6 +50,7 @@ func main() {
 	}
 	if f, err := os.OpenFile(cfg.LogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
 		log.SetOutput(f)
+		logging.RedirectStderr(f)
 		defer f.Close()
 		overlay.FreeConsole()
 	}
@@ -119,10 +120,16 @@ func main() {
 	log.Printf("pprof     at %s/debug/pprof/", url)
 	log.Printf("statsviz  at %s/debug/statsviz/", url)
 
+	writeTimeout := 30 * time.Second
+	if cfg.DevMode {
+		// pprof CPU profiles stream for up to 30s; give the write enough
+		// headroom so the timeout doesn't race the response.
+		writeTimeout = 90 * time.Second
+	}
 	httpSrv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      writeTimeout,
 		IdleTimeout:       120 * time.Second,
 	}
 	go func() {

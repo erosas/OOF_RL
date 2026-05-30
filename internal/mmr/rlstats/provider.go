@@ -88,7 +88,11 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	log.Printf("[rlstats] %s → %d (%d bytes)", profileURL, resp.StatusCode, len(body))
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("rlstats: HTTP %d for %s", resp.StatusCode, profileURL)
+		err := fmt.Errorf("rlstats: HTTP %d for %s", resp.StatusCode, profileURL)
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, &mmr.PermanentError{Err: err}
+		}
+		return nil, err
 	}
 	bodyStr := string(body)
 	if bodyStr == "UnknownPlatform" {

@@ -59,7 +59,11 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	log.Printf("[trackergg] %s → %d (%d bytes)", trnURL, resp.StatusCode, len(body))
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("trackergg: HTTP %d for %s", resp.StatusCode, trnURL)
+		err := fmt.Errorf("trackergg: HTTP %d for %s", resp.StatusCode, trnURL)
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, &mmr.PermanentError{Err: err}
+		}
+		return nil, err
 	}
 	return parseResponse(body)
 }

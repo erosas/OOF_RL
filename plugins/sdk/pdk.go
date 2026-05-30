@@ -46,12 +46,21 @@ func hostBroadcastWS(ptr, length uint32)
 //go:wasmimport env host_get_config
 func hostGetConfig(keyPtr, keyLen, outPtr, outMax uint32) uint32
 
+// host_upload_file streams a WASI-mounted file to a URL via multipart POST.
+// The file is read by the host directly from disk — no file bytes pass through WASM memory.
+// headers is a JSON-encoded map[string]string. fieldName is the multipart field name.
+// Writes a JSON-encoded HTTPFetchResult to outPtr. Returns bytes written, 0 on error.
+//
+//go:wasmimport env host_upload_file
+func hostUploadFile(pathPtr, pathLen, urlPtr, urlLen, headersPtr, headersLen, fieldNamePtr, fieldNameLen, outPtr, outMax uint32) uint32
+
 // Output buffer sizes for each host call.
 const (
-	dbExecBufSize    = 32              // int64 JSON is at most 20 chars
-	dbQueryBufSize   = 256 * 1024      // 256 KB
+	dbExecBufSize    = 32         // int64 JSON is at most 20 chars
+	dbQueryBufSize   = 256 * 1024 // 256 KB
 	httpFetchBufSize = 4 * 1024 * 1024 // 4 MB — external APIs can return large payloads
 	getConfigBufSize = 4096
+	uploadFileBufSize = 64 * 1024 // 64 KB — upload responses are always small JSON
 )
 
 // readResult calls the given host function with a fresh output buffer of outSize
@@ -107,13 +116,25 @@ func WriteMetadata(meta PluginMeta, outPtr, outMax uint32) uint32 {
 }
 
 // HandleHTTPExport decodes HTTPRequest from guest memory, invokes handler, and
-// writes the JSON-encoded HTTPResponse to the output buffer.
-func HandleHTTPExport(reqPtr, reqLen, outPtr, outMax uint32, handler func(HTTPRequest) HTTPResponse) uint32 {
+// returns a packed uint64 (hi32=ptr, lo32=len) pointing to a plugin-owned buffer
+// containing the JSON-encoded HTTPResponse. The host must call free(ptr, len)
+// after reading the response.
+func HandleHTTPExport(reqPtr, reqLen uint32, handler func(HTTPRequest) HTTPResponse) uint64 {
 	var req HTTPRequest
 	if err := json.Unmarshal(ReadBytes(reqPtr, reqLen), &req); err != nil {
-		return WriteJSONOutput(HTTPResponse{Status: 500, Body: `{"error":"bad request"}`}, outPtr, outMax)
+		return packResponse(HTTPResponse{Status: 500, Body: `{"error":"bad request"}`})
 	}
-	return WriteJSONOutput(handler(req), outPtr, outMax)
+	return packResponse(handler(req))
+}
+
+// packResponse JSON-encodes resp into a Malloc'd buffer and returns a packed
+// uint64 (hi32=ptr, lo32=len) that the host can read and then free.
+func packResponse(resp HTTPResponse) uint64 {
+	b, _ := json.Marshal(resp)
+	size := uint32(len(b))
+	ptr := Malloc(size)
+	WriteOutput(b, ptr, size)
+	return uint64(ptr)<<32 | uint64(size)
 }
 
 // HandleEventExport decodes plugin_on_event ABI pointers and forwards them to handler.
@@ -219,6 +240,33 @@ func BroadcastWS(msg []byte) {
 		return
 	}
 	hostBroadcastWS(ptrOf(msg), uint32(len(msg)))
+}
+
+// UploadFile streams a WASI-mounted file to url via multipart POST.
+// The host reads the file directly from disk — no file bytes pass through WASM memory.
+// fieldName is the multipart field name (e.g. "file"). headers are injected as-is.
+func UploadFile(wasiPath, url, fieldName string, headers map[string]string) HTTPFetchResult {
+	pathB := []byte(wasiPath)
+	urlB := []byte(url)
+	fieldB := []byte(fieldName)
+	headersJSON, _ := json.Marshal(headers)
+	data := readResult(func(out, max uint32) uint32 {
+		return hostUploadFile(
+			ptrOf(pathB), uint32(len(pathB)),
+			ptrOf(urlB), uint32(len(urlB)),
+			ptrOf(headersJSON), uint32(len(headersJSON)),
+			ptrOf(fieldB), uint32(len(fieldB)),
+			out, max,
+		)
+	}, uploadFileBufSize)
+	if data == nil {
+		return HTTPFetchResult{Error: "upload failed"}
+	}
+	var result HTTPFetchResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return HTTPFetchResult{Error: "unmarshal response: " + err.Error()}
+	}
+	return result
 }
 
 // GetConfig returns the value of a config key, or "" if unknown or empty.

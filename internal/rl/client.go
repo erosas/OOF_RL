@@ -311,11 +311,7 @@ func (c *Client) captureRawPacketIfActive(rawWire, normalized []byte) bool {
 	if !c.cfg.Storage.RawPackets || c.rawPacketGuid == "" {
 		return false
 	}
-	p := capturedPacket{
-		wire:       append([]byte(nil), rawWire...),
-		normalized: append([]byte(nil), normalized...),
-	}
-	c.rawPacketCapture = append(c.rawPacketCapture, p)
+	c.rawPacketCapture = append(c.rawPacketCapture, capturedPacket{wire: rawWire, normalized: normalized})
 	return true
 }
 
