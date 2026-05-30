@@ -28,7 +28,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body class="bg-bg text-gray-200 font-sans text-sm min-h-screen">
+<body id="oof-app" class="bg-bg text-gray-200 font-sans text-sm min-h-screen">
 
 <!-- Overlay drag bar — only visible when body.overlay-mode is set -->
 <div id="overlay-drag-bar" class="overlay-drag-bar">
@@ -42,19 +42,19 @@
 <div id="overlay-resize-grip" class="overlay-resize-grip"></div>
 
 <!-- Header -->
-<header class="flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
-  <span id="app-logo" class="text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
-  <nav class="flex gap-1 flex-1" id="plugin-nav"></nav>
+<header id="app-shell-header" class="app-shell-header flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
+  <span id="app-logo" class="app-logo text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
+  <nav class="app-nav flex gap-1 flex-1" id="plugin-nav"></nav>
   <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
 </header>
 
-<main class="px-5 py-6 max-w-3xl mx-auto">
+<main id="app-main" class="app-main px-5 py-6 max-w-3xl mx-auto">
 
   <!-- Plugin views injected here by app.js -->
-  <div id="plugin-views"></div>
+  <div id="plugin-views" class="plugin-views"></div>
 
   <!-- SETTINGS VIEW -->
-  <section id="view-settings" class="view">
+  <section id="view-settings" class="view app-settings-view">
 
     <!-- App Settings -->
     <div class="settings-panel">
