@@ -28,7 +28,6 @@ import (
 	"OOF_RL/internal/mmr/trackergg"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/overlay"
-	_ "OOF_RL/internal/overlayhud"
 	"OOF_RL/internal/rl"
 	"OOF_RL/internal/singleinstance"
 )
@@ -164,7 +163,6 @@ func main() {
 
 	w.Run()
 	srv.ShutdownPlugins()
-	srv.ShutdownRuntime()
 	bus.Stop()
 	_ = httpSrv.Shutdown(context.Background())
 }

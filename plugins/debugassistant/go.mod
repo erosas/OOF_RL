@@ -1,5 +1,0 @@
-module github.com/erosas/oof-plugin-debugassistant
-
-go 1.24
-
-require github.com/erosas/oof-plugin-sdk v0.0.0

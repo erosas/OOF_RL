@@ -8,7 +8,6 @@ import (
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 )
 
@@ -26,6 +25,13 @@ func Register(id string, f Factory) {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	factories[id] = f
+}
+
+// Unregister removes a factory from the global registry. Intended for tests.
+func Unregister(id string) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	delete(factories, id)
 }
 
 // Factories returns a map of all registered plugin factories.
@@ -46,13 +52,11 @@ type NavTab struct {
 type Registry interface {
 	Get(id string) (Plugin, bool)
 	List() []Plugin
-	Momentum() momentum.SnapshotProvider
 	Config() *config.Config
 }
 
-// Analyzer is a background computation unit. No UI, no routes.
-// Subscribe to events, emit events, optionally persist data.
-type Analyzer interface {
+// Plugin is the full contract for a UI plugin: lifecycle, routes, and assets.
+type Plugin interface {
 	ID() string
 	Requires() []string
 	Init(bus oofevents.PluginBus, registry Registry, db *db.DB) error
@@ -60,11 +64,6 @@ type Analyzer interface {
 	SettingsSchema() []Setting
 	ApplySettings(map[string]string) error
 	DeclaredEvents() []oofevents.EventDeclaration
-}
-
-// Plugin extends Analyzer with a UI tab, HTTP routes, and static assets.
-type Plugin interface {
-	Analyzer
 	NavTab() NavTab
 	Routes(mux *http.ServeMux)
 	// RoutePaths returns the URL paths this plugin handles. Used for conflict
@@ -78,12 +77,10 @@ type Plugin interface {
 // Embed this in plugins to satisfy the interface without boilerplate.
 type BasePlugin struct {
 	Subs []oofevents.Subscription
-	DB   *db.DB
-	Cfg  *config.Config
 }
 
-func (p *BasePlugin) RoutePaths() []string                                  { return nil }
-func (p *BasePlugin) Init(_ oofevents.PluginBus, _ Registry, _ *db.DB) error { return nil }
+func (p *BasePlugin) RoutePaths() []string                                     { return nil }
+func (p *BasePlugin) Init(_ oofevents.PluginBus, _ Registry, _ *db.DB) error  { return nil }
 
 func (p *BasePlugin) Shutdown() error {
 	for _, s := range p.Subs {

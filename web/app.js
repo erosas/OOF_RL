@@ -425,7 +425,7 @@ function renderCoreSettings(blob, cfg) {
   const container = document.getElementById('advanced-core-settings');
   if (!container) return;
   container.innerHTML = '';
-  if (!blob || !(blob.settings || []).length) return;
+  if (!cfg.dev_mode || !blob || !(blob.settings || []).length) return;
 
   const msgId = 'plugin-msg-core';
   const fieldRows = blob.settings.map(s => renderSettingRow(s, cfg)).join('');
