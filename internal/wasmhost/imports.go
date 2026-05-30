@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -191,8 +194,7 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 		httpReq.Header.Set(k, v)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(httpReq)
+	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {
 		return p.writeHTTPFetchError(m, err.Error(), outPtr, outMax)
 	}
@@ -252,4 +254,99 @@ func (p *Plugin) hostGetConfig(_ context.Context, m api.Module, keyPtr, keyLen, 
 	}
 	val := p.cfg.Lookup(string(keyBytes))
 	return p.writeResult(m, []byte(val), outPtr, outMax)
+}
+
+// hostUploadFile streams a WASI-mounted file to a URL via multipart POST.
+// The file is read directly by the host from disk — no file bytes pass through WASM memory.
+// headers is a JSON-encoded map[string]string. fieldName is the multipart field name (e.g. "file").
+// Writes a JSON-encoded HTTPFetchResult to outPtr. Returns bytes written, 0 on error.
+func (p *Plugin) hostUploadFile(_ context.Context, m api.Module, pathPtr, pathLen, urlPtr, urlLen, headersPtr, headersLen, fieldNamePtr, fieldNameLen, outPtr, outMax uint32) uint32 {
+	writeErr := func(msg string) uint32 {
+		out, _ := json.Marshal(sdk.HTTPFetchResult{Error: msg})
+		return p.writeResult(m, out, outPtr, outMax)
+	}
+
+	pathBytes, ok := m.Memory().Read(pathPtr, pathLen)
+	if !ok {
+		return writeErr("read path from guest memory failed")
+	}
+	urlBytes, ok := m.Memory().Read(urlPtr, urlLen)
+	if !ok {
+		return writeErr("read url from guest memory failed")
+	}
+	headersBytes, ok := m.Memory().Read(headersPtr, headersLen)
+	if !ok {
+		return writeErr("read headers from guest memory failed")
+	}
+	fieldBytes, ok := m.Memory().Read(fieldNamePtr, fieldNameLen)
+	if !ok {
+		return writeErr("read field name from guest memory failed")
+	}
+
+	fieldName := strings.TrimSpace(string(fieldBytes))
+	if fieldName == "" {
+		fieldName = "file"
+	}
+
+	var headers map[string]string
+	if len(headersBytes) > 0 {
+		if err := json.Unmarshal(headersBytes, &headers); err != nil {
+			log.Printf("[wasm:%s] host_upload_file: parse headers: %v", p.meta.ID, err)
+		}
+	}
+
+	realPath, err := p.resolveWASIPath(string(pathBytes))
+	if err != nil {
+		return writeErr(err.Error())
+	}
+
+	f, err := os.Open(realPath)
+	if err != nil {
+		return writeErr("open file: " + err.Error())
+	}
+	defer f.Close()
+
+	// Pipe the multipart body so the file is never fully buffered in memory.
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		fw, werr := mw.CreateFormFile(fieldName, filepath.Base(realPath))
+		if werr != nil {
+			pw.CloseWithError(fmt.Errorf("create form file: %w", werr))
+			return
+		}
+		if _, werr = io.Copy(fw, f); werr != nil {
+			pw.CloseWithError(fmt.Errorf("copy file: %w", werr))
+			return
+		}
+		pw.CloseWithError(mw.Close())
+	}()
+
+	req, err := http.NewRequest(http.MethodPost, string(urlBytes), pr)
+	if err != nil {
+		return writeErr("build request: " + err.Error())
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return writeErr(err.Error())
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, int64(outMax)+1))
+
+	respHeaders := make(map[string]string, len(resp.Header))
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+	result := sdk.HTTPFetchResult{
+		Status:  resp.StatusCode,
+		Headers: respHeaders,
+		Body:    string(body),
+	}
+	out, _ := json.Marshal(result)
+	return p.writeResult(m, out, outPtr, outMax)
 }

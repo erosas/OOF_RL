@@ -39,16 +39,10 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer p.free(reqPtr, reqSize)
 
-	outPtr, err := p.malloc(respBufSize)
-	if err != nil {
-		httputil.JSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	defer p.free(outPtr, respBufSize)
-
+	// plugin_handle_http(reqPtr, reqLen) → uint64 (hi32=ptr, lo32=len).
+	// The plugin allocates the response buffer; we must free it after reading.
 	res, err := p.fnHandleHTTP.Call(p.ctx,
 		api.EncodeU32(reqPtr), api.EncodeU32(uint32(len(reqJSON))),
-		api.EncodeU32(outPtr), api.EncodeU32(respBufSize),
 	)
 	if err != nil {
 		log.Printf("[wasm:%s] plugin_handle_http: %v", p.meta.ID, err)
@@ -56,7 +50,12 @@ func (p *Plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respData, ok := p.mod.Memory().Read(outPtr, api.DecodeU32(res[0]))
+	packed := res[0]
+	respPtr := uint32(packed >> 32)
+	respLen := uint32(packed & 0xFFFFFFFF)
+	defer p.free(respPtr, respLen)
+
+	respData, ok := p.mod.Memory().Read(respPtr, respLen)
 	if !ok {
 		httputil.JSONError(w, http.StatusInternalServerError, "internal error")
 		return

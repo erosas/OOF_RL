@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -26,8 +28,7 @@ import (
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
-const metaBufSize = 4 * 1024        // 4 KB — more than enough for metadata JSON
-const respBufSize = 4 * 1024 * 1024 // 4 MB — large enough for binary payloads (e.g. screenshots)
+const metaBufSize = 4 * 1024 // 4 KB — more than enough for metadata JSON
 
 type eventMsg struct {
 	eventType string
@@ -38,15 +39,17 @@ type eventMsg struct {
 type Plugin struct {
 	plugin.BasePlugin
 
-	ctx       context.Context
-	runtime   wazero.Runtime
-	mod       api.Module
-	meta      sdk.PluginMeta
-	assetsDir string              // path to co-located assets directory, empty if none
-	bus       oofevents.PluginBus // set during Init; used for event publishing
-	database  *db.DB
-	hub       *hub.Hub
-	cfg       *config.Config
+	ctx        context.Context
+	runtime    wazero.Runtime
+	mod        api.Module
+	meta       sdk.PluginMeta
+	assetsDir  string              // path to co-located assets directory, empty if none
+	bus        oofevents.PluginBus // set during Init; used for event publishing
+	database   *db.DB
+	hub        *hub.Hub
+	cfg        *config.Config
+	httpClient *http.Client
+	mounts     map[string]string // WASI virtual path prefix → real OS directory
 
 	fnMalloc        api.Function
 	fnFree          api.Function
@@ -111,7 +114,24 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 
 	wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
-	p := &Plugin{ctx: ctx, runtime: r, database: database, hub: h, cfg: cfg}
+	mounts := map[string]string{}
+	if replayDir != "" {
+		mounts["/replays"] = replayDir
+	}
+	if pluginDataDir != "" {
+		mounts["/data"] = pluginDataDir
+	}
+	p := &Plugin{
+		ctx:      ctx,
+		runtime:  r,
+		database: database,
+		hub:      h,
+		cfg:      cfg,
+		mounts:   mounts,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
 
 	// Register host-provided functions. Instantiation resolves imports, so
 	// the host module must exist before InstantiateModule is called.
@@ -121,6 +141,7 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		NewFunctionBuilder().WithFunc(p.hostDBExec).Export("host_db_exec").
 		NewFunctionBuilder().WithFunc(p.hostDBQuery).Export("host_db_query").
 		NewFunctionBuilder().WithFunc(p.hostHTTPFetch).Export("host_http_fetch").
+		NewFunctionBuilder().WithFunc(p.hostUploadFile).Export("host_upload_file").
 		NewFunctionBuilder().WithFunc(p.hostBroadcastWS).Export("host_broadcast_ws").
 		NewFunctionBuilder().WithFunc(p.hostGetConfig).Export("host_get_config").
 		Instantiate(ctx); err != nil {
@@ -447,4 +468,24 @@ func (p *Plugin) writeGuest(data []byte) (ptr, size uint32, err error) {
 		return 0, 0, fmt.Errorf("memory write failed")
 	}
 	return ptr, size, nil
+}
+
+// resolveWASIPath maps a plugin's WASI virtual path (e.g. "/replays/foo.replay")
+// to the real OS path using the mount table populated at load time.
+// Returns an error if the path is not within a known mount or attempts traversal.
+func (p *Plugin) resolveWASIPath(wasiPath string) (string, error) {
+	for prefix, realDir := range p.mounts {
+		if wasiPath != prefix && !strings.HasPrefix(wasiPath, prefix+"/") {
+			continue
+		}
+		rel := strings.TrimPrefix(wasiPath, prefix)
+		resolved := filepath.Join(realDir, filepath.FromSlash(rel))
+		// Guard against path traversal: resolved must stay inside realDir.
+		realDirClean := filepath.Clean(realDir)
+		if resolved != realDirClean && !strings.HasPrefix(resolved, realDirClean+string(filepath.Separator)) {
+			return "", fmt.Errorf("wasmhost: path escapes mount %s: %s", prefix, wasiPath)
+		}
+		return resolved, nil
+	}
+	return "", fmt.Errorf("wasmhost: path not in any WASI mount: %s", wasiPath)
 }

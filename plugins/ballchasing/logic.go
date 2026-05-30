@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"mime/multipart"
 	"os"
 	"path/filepath"
 	"sort"
@@ -169,28 +167,19 @@ func handleUpload(req sdk.HTTPRequest) sdk.HTTPResponse {
 		return sdk.JSONError(400, "invalid replay name")
 	}
 
-	fileData, err := os.ReadFile("/replays/" + body.ReplayName)
-	if err != nil {
+	if _, err := os.Stat("/replays/" + body.ReplayName); err != nil {
 		return sdk.JSONError(404, "replay file not found: "+body.ReplayName)
 	}
 
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, err := mw.CreateFormFile("file", body.ReplayName)
-	if err != nil {
-		return sdk.JSONError(500, "multipart: "+err.Error())
-	}
-	if _, err = fw.Write(fileData); err != nil {
-		return sdk.JSONError(500, "multipart write: "+err.Error())
-	}
-	mw.Close()
-
-	res := bcFetch(sdk.HTTPFetchRequest{
-		Method:    "POST",
-		URL:       "/api/v2/upload?visibility=" + body.Visibility,
-		Headers:   map[string]string{"Content-Type": mw.FormDataContentType()},
-		BodyBytes: buf.Bytes(),
-	})
+	res := sdk.UploadFile(
+		"/replays/"+body.ReplayName,
+		bcBase+"/api/v2/upload?visibility="+body.Visibility,
+		"file",
+		map[string]string{
+			"Authorization": apiKey,
+			"Accept":        "application/json",
+		},
+	)
 	if res.Error != "" {
 		return sdk.JSONError(502, res.Error)
 	}

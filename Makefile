@@ -56,13 +56,23 @@ test-plugins: test-sdk $(addprefix test-plugin/, $(PLUGINS))
 # Test everything: host + SDK + plugins
 test-all: test test-plugins
 
-# --- Profiling (app must be running) ---
+# --- Profiling (app must be running with dev_mode=true) ---
+# NOTE: CPU profiling (profile target) crashes the app on Windows because the
+# Go runtime profiler interrupts CGO threads used by WebView2. Use profile-trace
+# for CPU-equivalent analysis, or profile-heap / profile-goroutine instead.
 
 profile:
-	go tool pprof -http=:9090 http://localhost:$(PORT)/debug/pprof/profile?seconds=30
+	go tool pprof -http=:9090 http://127.0.0.1:$(PORT)/debug/pprof/profile?seconds=30
 
 profile-heap:
-	go tool pprof -http=:9090 http://localhost:$(PORT)/debug/pprof/heap
+	go tool pprof -http=:9090 http://127.0.0.1:$(PORT)/debug/pprof/heap
 
 profile-goroutine:
-	go tool pprof -http=:9090 http://localhost:$(PORT)/debug/pprof/goroutine
+	go tool pprof -http=:9090 http://127.0.0.1:$(PORT)/debug/pprof/goroutine
+
+# Execution trace: safe alternative to CPU profiling; does not interrupt CGO threads.
+# Opens the trace viewer after collecting SECONDS seconds of data (default 15).
+SECONDS ?= 15
+profile-trace:
+	curl -s -o /tmp/oof_trace.out "http://127.0.0.1:$(PORT)/debug/pprof/trace?seconds=$(SECONDS)"
+	go tool trace /tmp/oof_trace.out

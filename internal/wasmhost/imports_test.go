@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"OOF_RL/internal/db"
 	"OOF_RL/internal/hub"
@@ -151,7 +152,7 @@ func TestHostHTTPFetch_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, httpClient: &http.Client{Timeout: 5 * time.Second}}
 	mod := newMemModule(t)
 	ctx := context.Background()
 
@@ -180,7 +181,7 @@ func TestHostHTTPFetch_Success(t *testing.T) {
 
 // TestHostHTTPFetch_BadURL verifies an unreachable URL returns a non-empty Error field.
 func TestHostHTTPFetch_BadURL(t *testing.T) {
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, httpClient: &http.Client{Timeout: 5 * time.Second}}
 	mod := newMemModule(t)
 	ctx := context.Background()
 
@@ -210,7 +211,7 @@ func TestHostHTTPFetch_DefaultMethod(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, httpClient: &http.Client{Timeout: 5 * time.Second}}
 	mod := newMemModule(t)
 	ctx := context.Background()
 
