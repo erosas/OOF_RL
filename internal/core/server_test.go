@@ -11,18 +11,14 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/core"
 	"OOF_RL/internal/db"
-	"OOF_RL/internal/events"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
-	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
-	_ "OOF_RL/internal/overlayhud"
 )
 
 func newTestMux(t *testing.T) (*http.ServeMux, *config.Config) {
@@ -203,68 +199,6 @@ func TestServerLoadPlugins(t *testing.T) {
 	if err := srv.LoadPlugins(); err != nil {
 		t.Fatalf("LoadPlugins: %v", err)
 	}
-	if len(srv.List()) == 0 {
-		t.Fatal("LoadPlugins should register at least the imported plugins")
-	}
-}
-
-func TestServerRegistersMomentumRuntime(t *testing.T) {
-	srv, _ := newTestServer(t)
-
-	if srv.Momentum() == nil {
-		t.Fatal("Momentum() returned nil")
-	}
-	var _ momentum.SnapshotProvider = srv.Momentum()
-}
-
-func TestServerMomentumRuntimeReceivesTranslatedGameActions(t *testing.T) {
-	srv, _ := newTestServer(t)
-
-	srv.DispatchEvent(events.Envelope{
-		Event: "StatfeedEvent",
-		Data: []byte(`{
-			"MatchGuid":"match-1",
-			"EventName":"Shot",
-			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
-		}`),
-	})
-
-	waitForCoreTest(t, func() bool {
-		return srv.Momentum().Snapshot().Sequence == 1
-	})
-	if srv.Momentum().Snapshot().Teams[oofevents.TeamBlue].MomentumInfluence <= 0 {
-		t.Fatalf("momentum snapshot not updated: %+v", srv.Momentum().Snapshot())
-	}
-}
-
-func TestServerShutdownRuntimeStopsMomentumWiring(t *testing.T) {
-	srv, _ := newTestServer(t)
-
-	srv.ShutdownRuntime()
-	srv.DispatchEvent(events.Envelope{
-		Event: "StatfeedEvent",
-		Data: []byte(`{
-			"MatchGuid":"match-1",
-			"EventName":"Shot",
-			"MainTarget":{"Name":"Alice","PrimaryId":"pid-a","Shortcut":1,"TeamNum":0}
-		}`),
-	})
-	time.Sleep(20 * time.Millisecond)
-	if srv.Momentum().Snapshot().Sequence != 0 {
-		t.Fatalf("momentum updated after runtime shutdown: %+v", srv.Momentum().Snapshot())
-	}
-}
-
-func waitForCoreTest(t *testing.T, fn func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatal("condition not met before timeout")
 }
 
 // --- InitPlugins / ShutdownPlugins / Get ---
@@ -326,11 +260,9 @@ func TestInitPluginsFailsWhenEnabledPluginRequiresDisabledPlugin(t *testing.T) {
 
 func TestServerGet(t *testing.T) {
 	srv, _ := newTestServer(t)
-	if err := srv.LoadPlugins(); err != nil {
-		t.Fatalf("LoadPlugins: %v", err)
-	}
-	if _, ok := srv.Get("overlayhud"); !ok {
-		t.Error("Get(overlayhud): want found")
+	srv.Use(&testPlugin{id: "some-plugin", nav: plugin.NavTab{ID: "some-view", Label: "Some", Order: 1}})
+	if _, ok := srv.Get("some-plugin"); !ok {
+		t.Error("Get(some-plugin): want found")
 	}
 	if _, ok := srv.Get("nonexistent-plugin"); ok {
 		t.Error("Get(nonexistent-plugin): want not found")
@@ -425,10 +357,13 @@ func TestRegisterSkipsDisabledPluginRoutesAndAssets(t *testing.T) {
 // --- LoadPlugins duplicate ID ---
 
 func TestLoadPluginsDuplicateIDReturnsError(t *testing.T) {
+	const dupID = "test-dup-plugin"
+	plugin.Register(dupID, func() plugin.Plugin {
+		return &testPlugin{id: dupID, nav: plugin.NavTab{ID: "dup-view", Label: "Dup", Order: 1}}
+	})
+	t.Cleanup(func() { plugin.Unregister(dupID) })
 	srv, _ := newTestServer(t)
-	// The overlayhud factory is registered via the blank import at the top.
-	// Pre-register a plugin with the same ID so LoadPlugins sees a duplicate.
-	srv.Use(&testPlugin{id: "overlayhud"})
+	srv.Use(&testPlugin{id: dupID})
 	err := srv.LoadPlugins()
 	if err == nil {
 		t.Fatal("LoadPlugins: want error for duplicate plugin ID, got nil")

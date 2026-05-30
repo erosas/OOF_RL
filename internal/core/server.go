@@ -17,7 +17,6 @@ import (
 	"OOF_RL/internal/histstore"
 	"OOF_RL/internal/hub"
 	"OOF_RL/internal/mmr"
-	"OOF_RL/internal/momentum"
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
@@ -57,8 +56,6 @@ type Server struct {
 	activeDirty  bool
 	bus          oofevents.Bus
 	translator   *rlevents.Translator
-	momentum     *momentum.Service
-	momentumW    *momentum.Wiring
 	histStore    *histstore.Store
 	histRecorder *histstore.Recorder
 }
@@ -68,8 +65,6 @@ func isHostCorePluginID(pluginID string) bool {
 }
 
 func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, static http.Handler, reconnect func(), mmrProvider mmr.Provider, bus oofevents.Bus) *Server {
-	rlBus := bus.ForPlugin("") // RL translator convention: empty plugin ID
-	momentumService := momentum.NewService(momentum.DefaultConfig())
 	disabled := make(map[string]struct{}, len(cfg.DisabledPlugins))
 	for _, id := range cfg.DisabledPlugins {
 		disabled[id] = struct{}{}
@@ -84,10 +79,8 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		mmrProvider: mmrProvider,
 		disabled:    disabled,
 		activeDirty: true,
-		bus:         bus,
-		translator:  rlevents.New(rlBus),
-		momentum:    momentumService,
-		momentumW:   momentum.NewWiring(bus.ForPlugin("momentum"), momentumService),
+		bus:        bus,
+		translator: rlevents.New(bus.ForPlugin("")), // empty ID = RL translator convention
 	}
 	if database != nil {
 		if err := histstore.Migrate(database); err != nil {
@@ -97,11 +90,6 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		s.histRecorder = histstore.NewRecorder(s.histStore, cfg)
 	}
 	return s
-}
-
-// Momentum returns the read-only app-owned Momentum snapshot provider.
-func (s *Server) Momentum() momentum.SnapshotProvider {
-	return s.momentum
 }
 
 func (s *Server) Config() *config.Config { return s.cfg }
@@ -212,13 +200,6 @@ func (s *Server) ShutdownPlugins() {
 	}
 	if s.histRecorder != nil {
 		s.histRecorder.Stop()
-	}
-}
-
-// ShutdownRuntime stops app-owned runtime services that are not plugins.
-func (s *Server) ShutdownRuntime() {
-	if s.momentumW != nil {
-		s.momentumW.Stop()
 	}
 }
 

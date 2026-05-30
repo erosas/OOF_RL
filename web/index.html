@@ -109,48 +109,48 @@
       <div id="plugin-settings-container"></div>
     </div>
 
-    <!-- RL Stats API -->
-    <div class="settings-panel mt-5">
-      <div class="settings-panel-title">Rocket League Stats API</div>
-      <p class="text-xs text-gray-500 mb-3">Configures <code class="text-gray-400">DefaultStatsAPI.ini</code> so Rocket League sends live data to this app. Requires a Rocket League restart after saving.</p>
-
-      <div class="settings-row">
-        <label class="settings-label flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" id="ini-enabled" class="accent-rl-blue">
-          Enable Stats API
-          <span class="help-icon">?<span class="help-tip">Must be on for the Live tab and all real-time features to work.</span></span>
-        </label>
-      </div>
-
-      <div class="settings-row">
-        <span class="settings-label">
-          Send rate (1–120)
-          <span class="help-icon">?<span class="help-tip">Game state packets per second RL sends. Higher = smoother live data. 60 is recommended.</span></span>
-        </span>
-        <input type="number" id="ini-rate" step="1" min="1" max="120" value="60" class="settings-input w-20" style="text-align:right">
-        <span class="settings-suffix">Hz</span>
-      </div>
-
-      <div class="settings-row">
-        <span class="settings-label">
-          Port
-          <span class="help-icon">?<span class="help-tip">UDP port RL sends data to. Default 49123.</span></span>
-        </span>
-        <input type="number" id="ini-port" value="49123" class="settings-input w-24" style="text-align:right">
-      </div>
-
-      <div class="settings-footer">
-        <button id="save-ini" class="btn-action">Save INI</button>
-        <div id="ini-msg" class="msg hidden"></div>
-      </div>
-    </div>
-
     <!-- Advanced -->
     <details class="mt-5">
       <summary class="settings-details-summary">Advanced</summary>
       <div class="flex flex-col gap-4 mt-3">
 
-        <!-- Data capture (injected from core settings schema) -->
+        <!-- RL Stats API -->
+        <div class="settings-panel">
+          <div class="settings-panel-title">Rocket League Stats API</div>
+          <p class="text-xs text-gray-500 mb-3">Configures <code class="text-gray-400">DefaultStatsAPI.ini</code> so Rocket League sends live data to this app. Requires a Rocket League restart after saving.</p>
+
+          <div class="settings-row">
+            <label class="settings-label flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="ini-enabled" class="accent-rl-blue">
+              Enable Stats API
+              <span class="help-icon">?<span class="help-tip">Must be on for the Live tab and all real-time features to work.</span></span>
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-label">
+              Send rate (1–120)
+              <span class="help-icon">?<span class="help-tip">Game state packets per second RL sends. Higher = smoother live data. 60 is recommended.</span></span>
+            </span>
+            <input type="number" id="ini-rate" step="1" min="1" max="120" value="60" class="settings-input w-20" style="text-align:right">
+            <span class="settings-suffix">Hz</span>
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-label">
+              Port
+              <span class="help-icon">?<span class="help-tip">UDP port RL sends data to. Default 49123.</span></span>
+            </span>
+            <input type="number" id="ini-port" value="49123" class="settings-input w-24" style="text-align:right">
+          </div>
+
+          <div class="settings-footer">
+            <button id="save-ini" class="btn-action">Save INI</button>
+            <div id="ini-msg" class="msg hidden"></div>
+          </div>
+        </div>
+
+        <!-- Data capture (injected from core settings schema; only shown in dev mode) -->
         <div id="advanced-core-settings"></div>
 
         <!-- App URL -->

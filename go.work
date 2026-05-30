@@ -2,13 +2,12 @@ go 1.26.2
 
 use (
 	.
-	./plugins/sdk
+	./sdk
 	./plugins/live
 	./plugins/ballchasing
 	./plugins/ranks
 	./plugins/session
 	./plugins/dashboard
-	./plugins/debugassistant
 )
 
-replace github.com/erosas/oof-plugin-sdk v0.0.0 => ./plugins/sdk
+replace github.com/erosas/oof-plugin-sdk v0.0.0 => ./sdk
