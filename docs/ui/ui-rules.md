@@ -28,27 +28,31 @@ Out of scope:
 
 ## Token Naming
 
-Use semantic tokens for app-wide styling. Prefer meaning over exact color names.
+Use namespaced semantic tokens for app-wide styling. Prefer meaning over exact
+color names. Global foundation tokens must follow `--oof-category-name` so app
+styling remains isolated from plugin-local CSS and future customization work.
 
-- Color tokens use `--color-*`.
-- Spacing tokens use `--space-*`.
-- Radius tokens use `--radius-*`.
-- Shadow tokens use `--shadow-*`.
-- Type tokens use `--font-size-*`, `--line-height-*`, and `--font-weight-*`.
-- Motion tokens use `--duration-*` and `--ease-*`.
-- App layout tokens use `--app-*`.
+- Color tokens use `--oof-color-*`.
+- RGB color tokens use `--oof-color-*-rgb` for Tailwind opacity support.
+- Spacing tokens use `--oof-space-*`.
+- Radius tokens use `--oof-radius-*`.
+- Shadow tokens use `--oof-shadow-*`.
+- Type tokens use `--oof-font-size-*`, `--oof-line-height-*`, and `--oof-font-weight-*`.
+- Motion tokens use `--oof-duration-*` and `--oof-ease-*`.
+- App layout tokens use `--oof-app-*`.
 
 Good examples:
 
-- `--color-bg`
-- `--color-surface`
-- `--color-surface-raised`
-- `--color-border`
-- `--color-text-muted`
-- `--color-accent`
-- `--space-4`
-- `--radius-panel`
-- `--app-main-max-width`
+- `--oof-color-bg`
+- `--oof-color-surface`
+- `--oof-color-surface-raised`
+- `--oof-color-border`
+- `--oof-color-text-muted`
+- `--oof-color-accent`
+- `--oof-color-accent-rgb`
+- `--oof-space-4`
+- `--oof-radius-panel`
+- `--oof-app-main-max-width`
 
 Avoid:
 
@@ -60,6 +64,11 @@ Avoid:
 Legacy aliases such as `--bg`, `--surface`, `--line`, `--rl-blue`, and
 `--rl-orange` should remain during the migration so existing plugin code keeps
 working while pages move onto the new token names.
+
+Tailwind CDN color config must reference these CSS variables instead of
+duplicating hardcoded app hex values. Use `rgb(var(--oof-color-*-rgb) /
+<alpha-value>)` so utilities such as `bg-surface`, `border-line`, and
+`border-rl-blue/30` follow the same customization source as normal CSS.
 
 ## Class Naming
 
@@ -116,6 +125,20 @@ containers around major regions, such as:
 - `session-stat-totals`
 - `session-match-list`
 - `session-history`
+
+## Navigation Discovery
+
+The app shell may restyle navigation, but it must not hardcode plugin
+availability. Navigation must remain discovery-first.
+
+- Settings schema/plugin discovery decides which plugin views exist and whether
+  they are enabled.
+- `/api/nav` may provide ordering, labels, grouping hints, or visibility hints.
+- `/api/nav` must not become the source of available plugins.
+- Never assume `view_id` equals `plugin_id`.
+- Use `plugin_id` for plugin asset fetch/init paths.
+- Use `view_id` for view DOM IDs, active-view state, and nav identity.
+- Unknown future plugin views should appear without editing `web/app.js`.
 
 ## Global vs Page Local
 

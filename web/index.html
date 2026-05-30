@@ -10,12 +10,12 @@
     theme: {
       extend: {
         colors: {
-          bg:        '#0a0b0e',
-          surface:   '#111318',
-          surface2:  '#191c23',
-          line:      '#1f2433',
-          'rl-blue':   '#4a9eff',
-          'rl-orange': '#ff8c2a',
+          bg: 'rgb(var(--oof-color-bg-rgb) / <alpha-value>)',
+          surface: 'rgb(var(--oof-color-surface-rgb) / <alpha-value>)',
+          surface2: 'rgb(var(--oof-color-surface-raised-rgb) / <alpha-value>)',
+          line: 'rgb(var(--oof-color-border-rgb) / <alpha-value>)',
+          'rl-blue': 'rgb(var(--oof-color-team-blue-rgb) / <alpha-value>)',
+          'rl-orange': 'rgb(var(--oof-color-team-orange-rgb) / <alpha-value>)',
         },
         fontFamily: {
           sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -48,7 +48,7 @@
   <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
 </header>
 
-<main id="app-main" class="app-main px-5 py-6 max-w-3xl mx-auto">
+<main id="app-main" class="app-main">
 
   <!-- Plugin views injected here by app.js -->
   <div id="plugin-views" class="plugin-views"></div>
