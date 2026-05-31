@@ -150,7 +150,7 @@ function teamPanel(name, cls, players, teamHexColor = null) {
     : '';
 
   return `
-    <div class="team-panel">
+    <div class="team-panel team-panel-${cls}">
       <div class="team-panel-header ${cls}"${headerStyle}>${esc(name)}</div>
       <div class="player-row header">
         <span>Player</span><span>G</span><span>A</span><span>Sv</span><span>Sh</span><span>Dm</span>
