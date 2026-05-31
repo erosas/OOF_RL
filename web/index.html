@@ -54,13 +54,22 @@
   <div id="plugin-views" class="plugin-views"></div>
 
   <!-- SETTINGS VIEW -->
-  <section id="view-settings" class="view app-settings-view">
+  <section id="view-settings" class="view app-settings-view settings-page">
+    <div class="settings-header">
+      <div class="settings-header-icon" aria-hidden="true"></div>
+      <div>
+        <h1 class="settings-title">Settings</h1>
+        <p class="settings-subtitle">Customize your OOF RL experience.</p>
+      </div>
+    </div>
+
+    <div class="settings-shell">
 
     <!-- App Settings -->
-    <div class="settings-panel">
+    <div class="settings-panel settings-section settings-app-section">
       <div class="settings-panel-title">App Settings</div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-tracker-row">
         <span class="settings-label">
           Tracker rank cache
           <span class="help-icon">?<span class="help-tip">How long tracker.gg rank data is cached. Set to 0 to always fetch live. Lower values use more data.</span></span>
@@ -69,9 +78,9 @@
         <span class="settings-suffix">min</span>
       </div>
 
-      <div class="settings-row settings-subhead">Overlay</div>
+      <div class="settings-row settings-subhead settings-overlay-heading">Overlay</div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <span class="settings-label">
           Hotkey
           <span class="help-icon">?<span class="help-tip">Press this key while in-game to toggle the overlay window. Only F-keys and navigation keys are supported.</span></span>
@@ -80,7 +89,7 @@
         <span class="settings-hint">click to change</span>
       </div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <label class="settings-label flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="cfg-hold-mode" class="accent-rl-blue">
           Hold to show
@@ -88,7 +97,7 @@
         </label>
       </div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <span class="settings-label">
           Opacity
           <span class="help-icon">?<span class="help-tip">Default opacity when the overlay opens. Adjustable live from the overlay's drag bar.</span></span>
@@ -104,13 +113,13 @@
     </div>
 
     <!-- Plugins section -->
-    <div class="settings-panel mt-5">
+    <div class="settings-panel settings-section mt-5">
       <div class="settings-panel-title">Plugins</div>
       <div id="plugin-settings-container"></div>
     </div>
 
     <!-- Advanced -->
-    <details class="mt-5">
+    <details class="settings-advanced mt-5">
       <summary class="settings-details-summary">Advanced</summary>
       <div class="flex flex-col gap-4 mt-3">
 
@@ -174,6 +183,8 @@
 
       </div>
     </details>
+
+    </div>
 
   </section>
 

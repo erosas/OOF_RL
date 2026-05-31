@@ -435,7 +435,7 @@ function renderCoreSettings(blob, cfg) {
   const fieldRows = blob.settings.map(s => renderSettingRow(s, cfg)).join('');
 
   const panel = document.createElement('div');
-  panel.className = 'settings-panel';
+  panel.className = 'settings-panel settings-section';
   panel.innerHTML = `
     <div class="settings-panel-title">Data Capture</div>
     <p class="text-xs text-gray-500 mb-3">These options can generate significant amounts of data. Only enable them if you have a specific need.</p>
@@ -460,6 +460,12 @@ function renderCoreSettings(blob, cfg) {
   });
 
   container.appendChild(panel);
+}
+
+function settingsPluginIconLabel(blob) {
+  const source = blob.title || blob.plugin_id || '';
+  const letters = source.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
+  return letters || 'PL';
 }
 
 function renderPluginAccordion(blobs, cfg) {
@@ -493,9 +499,13 @@ function renderPluginAccordion(blobs, cfg) {
     const item = document.createElement('div');
     item.className = 'plugin-item';
     item.innerHTML = `<div class="plugin-item-header">
-           <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
+           <span class="settings-plugin-icon" aria-hidden="true">${esc(settingsPluginIconLabel(blob))}</span>
            <span class="plugin-item-name${isEnabled ? '' : ' disabled'}">${esc(blob.title)}</span>
-           <span class="plugin-item-arrow" aria-hidden="true">›</span>
+           <span class="plugin-item-status">
+             <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
+             ${isEnabled ? 'Enabled' : 'Disabled'}
+           </span>
+           <span class="plugin-item-arrow" aria-hidden="true">&gt;</span>
          </div>
          <div class="plugin-item-body" style="display:none">
            <div class="settings-row">
@@ -526,6 +536,7 @@ function renderPluginAccordion(blobs, cfg) {
     const cb     = item.querySelector('.plugin-enabled-cb');
     if (hostCore) cb.disabled = true;
     const dot    = item.querySelector('.plugin-item-dot');
+    const statusEl = item.querySelector('.plugin-item-status');
     const nameEl = item.querySelector('.plugin-item-name');
     cb.addEventListener('change', async () => {
       if (hostCore) return;
@@ -535,6 +546,7 @@ function renderPluginAccordion(blobs, cfg) {
         : [...new Set([..._disabledPlugins, blob.plugin_id])];
 
       dot.className = `plugin-item-dot ${enabled ? 'on' : 'off'}`;
+      statusEl.innerHTML = `<span class="plugin-item-dot ${enabled ? 'on' : 'off'}"></span>${enabled ? 'Enabled' : 'Disabled'}`;
       nameEl.className = `plugin-item-name${enabled ? '' : ' disabled'}`;
 
       if (blob.view_id) {
