@@ -67,13 +67,16 @@ function _dashAddWidget(widgetId, x, y, w, h) {
   itemEl.dataset.widgetId = widgetId;
 
   const contentEl = itemEl.querySelector('.grid-stack-item-content');
+  contentEl.classList.add('ui-widget', 'dashboard-widget');
   contentEl.innerHTML = `
-    <div class="widget-header">
-      <span class="widget-drag-icon">⣿</span>
-      <span class="widget-title-text">${esc(def.title)}</span>
-      <button class="widget-remove-btn" title="Remove">✕</button>
+    <div class="widget-header ui-widget-header">
+      <span class="widget-drag-icon">::</span>
+      <span class="widget-title-text ui-widget-title">${esc(def.title)}</span>
+      <div class="ui-widget-actions">
+        <button class="widget-remove-btn" title="Remove">x</button>
+      </div>
     </div>
-    <div class="widget-body"></div>
+    <div class="widget-body ui-widget-body"></div>
   `;
 
   let ctrl;

@@ -174,6 +174,107 @@
   overflow: hidden;
 }
 
+.ui-widget {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--oof-color-surface);
+  border: 1px solid var(--oof-color-border);
+  border-radius: var(--oof-radius-panel);
+  box-shadow: var(--oof-shadow-inset);
+  overflow: hidden;
+}
+
+.ui-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oof-space-2);
+  min-height: 34px;
+  padding: var(--oof-space-2) var(--oof-space-3);
+  background: rgb(var(--oof-color-surface-raised-rgb) / .82);
+  border-bottom: 1px solid var(--oof-color-border);
+}
+
+.ui-widget-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-xs);
+  font-weight: var(--oof-font-weight-bold);
+  letter-spacing: .08em;
+  line-height: var(--oof-line-height-tight);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ui-widget-subtitle {
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-xs);
+  line-height: var(--oof-line-height-normal);
+}
+
+.ui-widget-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oof-space-1);
+  color: var(--oof-color-text-muted);
+  font-size: var(--oof-font-size-xs);
+  font-weight: var(--oof-font-weight-semibold);
+  line-height: var(--oof-line-height-tight);
+  white-space: nowrap;
+}
+
+.ui-widget-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--oof-space-2);
+  flex-wrap: wrap;
+}
+
+.ui-widget-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--oof-space-3);
+}
+
+.ui-widget-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oof-space-2);
+  padding: var(--oof-space-2) var(--oof-space-3);
+  border-top: 1px solid var(--oof-color-border);
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-xs);
+}
+
+.ui-widget-empty,
+.ui-widget-loading,
+.ui-widget-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: var(--oof-space-4);
+  border: 1px dashed var(--oof-color-border-strong);
+  border-radius: var(--oof-radius-md);
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-sm);
+  line-height: var(--oof-line-height-normal);
+  text-align: center;
+}
+
+.ui-widget-error {
+  background: rgb(var(--oof-color-danger-rgb) / .08);
+  border-color: rgb(var(--oof-color-danger-rgb) / .3);
+  color: var(--oof-color-danger);
+}
+
 .ui-actions {
   display: flex;
   align-items: center;
@@ -362,6 +463,11 @@ main.dash-active { max-width: none; }
   }
 
   .ui-actions {
+    width: 100%;
+  }
+
+  .ui-widget-actions {
+    justify-content: flex-start;
     width: 100%;
   }
 

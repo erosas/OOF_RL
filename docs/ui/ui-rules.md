@@ -159,6 +159,58 @@ Keep a style page-local when it is:
 Move repeated page-local styles into `ui-*` only after at least two pages need
 the same pattern.
 
+## Core Widget UI Rules
+
+Dashboard is the existing widget canvas for OOF RL. The reskin foundation should
+formalize that model instead of replacing it.
+
+- Dashboard owns layout canvas behavior: placement, sizing, edit mode, saved
+  layout loading, saved layout writing, and the widget picker.
+- Plugins own widget content: API calls, rendering, refresh behavior, empty
+  states, loading states, errors, and any plugin-specific interactions.
+- Core UI owns shared visual primitives only: panel chrome, widget shell,
+  typography, spacing, states, responsive behavior, and token usage.
+- Dashboard must not duplicate Live, Session, History, Ranks, or Ballchasing
+  data logic.
+- Dashboard layout persistence remains the current GridStack layout shape:
+  `{ id, x, y, w, h }`.
+- Do not change `/api/dashboard/layout`, the `dash_layout` table, saved layout
+  schema, or widget registry behavior during the reskin foundation pass.
+- Do not build custom pages, picker grouping/filtering, token editors, raw CSS
+  editors, or Customization Lab behavior during the Dashboard refresh.
+- Major panels across plugin pages should be designed as future widget-ready
+  surfaces, even when they remain page-local during refresh/reformat.
+
+Shared widget chrome should use additive `ui-*` classes and preserve existing
+behavior hooks. For Dashboard widgets, keep existing classes such as
+`widget-header` and `widget-body` while adding shared classes such as
+`ui-widget-header` and `ui-widget-body`.
+
+Recommended shared widget anatomy:
+
+- `ui-widget`
+- `ui-widget-header`
+- `ui-widget-title`
+- `ui-widget-subtitle`
+- `ui-widget-status`
+- `ui-widget-actions`
+- `ui-widget-body`
+- `ui-widget-footer`
+- `ui-widget-empty`
+- `ui-widget-loading`
+- `ui-widget-error`
+
+Semantic widget size language may be used in docs and design discussions:
+
+- compact
+- standard
+- wide
+- tall
+- full
+
+These semantic names are guidance only for now. The current GridStack numeric
+layout values remain the source of truth for saved Dashboard layouts.
+
 ## UI Workflow
 
 Use this order:
