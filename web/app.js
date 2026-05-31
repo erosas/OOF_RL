@@ -285,7 +285,9 @@ function showView(name) {
   rememberActiveViewScroll();
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
+  const main = document.querySelector('main');
+  main?.classList.toggle('dash-active', name === 'dashboard');
+  main?.classList.toggle('history-active', name === 'history');
   _activeViewName = name;
   window.oofActiveViewName = name;
   if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
