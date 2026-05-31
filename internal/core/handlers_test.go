@@ -333,56 +333,6 @@ func TestPostSettingsBadJSON(t *testing.T) {
 	}
 }
 
-// --- /api/open-external ---
-
-func TestOpenExternalMethodNotAllowed(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/open-external", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status: got %d, want 405", w.Code)
-	}
-}
-
-func TestOpenExternalRequiresJSON(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/open-external", strings.NewReader(`{"url":"https://ballchasing.com"}`))
-	req.Header.Set("Content-Type", "text/plain")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnsupportedMediaType {
-		t.Errorf("status: got %d, want 415", w.Code)
-	}
-}
-
-func TestOpenExternalRejectsCrossOrigin(t *testing.T) {
-	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/open-external", strings.NewReader(`{"url":"https://ballchasing.com"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", "https://example.invalid")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("status: got %d, want 403", w.Code)
-	}
-}
-
-func TestOpenExternalRejectsUnsafeURLs(t *testing.T) {
-	mux, _ := newTestMux(t)
-	for _, raw := range []string{
-		"file:///C:/Windows/System32/calc.exe",
-		"javascript:alert(1)",
-		"/relative/path",
-		"https:///missing-host",
-	} {
-		w := postJSON(mux, "/api/open-external", map[string]string{"url": raw})
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("url %q: got %d, want 400; body: %s", raw, w.Code, w.Body.String())
-		}
-	}
-}
-
 // --- /api/tracker/profile ---
 
 func TestTrackerProfileNoProvider(t *testing.T) {

@@ -59,30 +59,6 @@ async function bcFetchJSON(url) {
   return res.json();
 }
 
-async function openBCExternalURL(rawURL) {
-  const res = await fetch('/api/open-external', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: rawURL }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Open failed (${res.status})`);
-}
-
-function bindBCExternalLinks(container) {
-  container.querySelectorAll('a.bc-link[data-external-url]').forEach(link => {
-    link.addEventListener('click', async event => {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        await openBCExternalURL(link.dataset.externalUrl || link.href);
-      } catch (e) {
-        alert(e.message || 'Could not open external browser.');
-      }
-    });
-  });
-}
-
 // ── Widget factories ───────────────────────────────────────────
 
 function bcMatchReplaysWidget(container) {
@@ -105,7 +81,6 @@ function bcMatchReplaysWidget(container) {
     container.querySelectorAll('.bc-upload-btn[data-replay]').forEach(btn => {
       btn.addEventListener('click', () => uploadMatchReplay(btn.dataset.replay, btn));
     });
-    bindBCExternalLinks(container);
 
     const pagerEl = document.createElement('div');
     pagerEl.className = 'bc-pager';
@@ -153,7 +128,6 @@ function bcUploadedReplaysWidget(container) {
     }
     const start = page * BC_UPLOADED_PAGE_SIZE;
     container.innerHTML = list.slice(start, start + BC_UPLOADED_PAGE_SIZE).map(rp => bcReplayCard(rp, newIds)).join('');
-    bindBCExternalLinks(container);
 
     const pagerEl = document.createElement('div');
     pagerEl.className = 'bc-pager';
@@ -205,7 +179,6 @@ function bcGroupsWidget(container) {
     }
     const start = page * BC_GROUPS_PAGE_SIZE;
     container.innerHTML = list.slice(start, start + BC_GROUPS_PAGE_SIZE).map(bcGroupCard).join('');
-    bindBCExternalLinks(container);
 
     const pagerEl = document.createElement('div');
     pagerEl.className = 'bc-pager';
@@ -273,7 +246,7 @@ function bcMatchRow(m) {
   let actions;
   if (m.uploaded) {
     actions = `<span class="bc-uploaded-badge">Uploaded</span>
-               <a href="${esc(m.bc_url)}" target="_blank" rel="noopener" class="bc-link" data-external-url="${esc(m.bc_url)}">View</a>`;
+               <a href="${esc(m.bc_url)}" target="_blank" rel="noopener" class="bc-link">View</a>`;
   } else if (m.replay_exists) {
     actions = `<button class="bc-upload-btn" data-replay="${esc(m.replay_name)}">Upload</button>`;
   } else {
@@ -414,7 +387,7 @@ function bcReplayCard(rp, newIds) {
       <div class="bc-card-meta">
         ${score}
         <span>${date}</span>
-        ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" class="bc-link" data-external-url="${esc(link)}">View</a>` : ''}
+        ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" class="bc-link">View</a>` : ''}
       </div>
     </div>`;
 }
@@ -430,7 +403,7 @@ function bcGroupCard(g) {
       <div class="bc-card-meta">
         ${count ? `<span>${count}</span>` : ''}
         ${g.created ? `<span>${formatDate(g.created)}</span>` : ''}
-        ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" class="bc-link" data-external-url="${esc(link)}">View</a>` : ''}
+        ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener" class="bc-link">View</a>` : ''}
       </div>
     </div>`;
 }
