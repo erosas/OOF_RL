@@ -339,6 +339,89 @@ function livePlayersWidget(container) {
   return { refresh, destroy };
 }
 
+function liveTeamComparisonWidget(container) {
+  function renderEmpty() {
+    container.innerHTML = '<div class="ui-widget-empty">Waiting for live team data.</div>';
+  }
+
+  function render(data) {
+    const players = data.Players || [];
+    if (!players.length) { renderEmpty(); return; }
+
+    const blue = liveTeamTotals(players, 0);
+    const orange = liveTeamTotals(players, 1);
+    const rows = [
+      ['Goals', 'goals'],
+      ['Shots', 'shots'],
+      ['Saves', 'saves'],
+      ['Demos', 'demos'],
+      ['Touches', 'touches'],
+      ['Score', 'score'],
+    ].map(([label, key]) => liveTeamComparisonRow(label, blue[key], orange[key])).join('');
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="min-width:0">
+            <div style="color:var(--rl-blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Blue Team</div>
+            <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--rl-blue)">${blue.goals}</div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Team Totals</div>
+          <div style="min-width:0;text-align:right">
+            <div style="color:var(--rl-orange);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Orange Team</div>
+            <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--rl-orange)">${orange.goals}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">${rows}</div>
+      </div>`;
+  }
+
+  function refresh() {
+    fetch('/api/live/state').then(r => r.json()).then(s => {
+      if (s.active && s.state) render(s.state);
+      else renderEmpty();
+    }).catch(renderEmpty);
+  }
+
+  function destroy() {
+    const i = _liveInstances.indexOf(entry);
+    if (i >= 0) _liveInstances.splice(i, 1);
+  }
+
+  const entry = { render, renderEmpty };
+  _liveInstances.push(entry);
+  if (_liveActive && _liveState) render(_liveState); else renderEmpty();
+  return { refresh, destroy };
+}
+
+function liveTeamTotals(players, teamNum) {
+  return players
+    .filter(p => p.TeamNum === teamNum)
+    .reduce((acc, p) => {
+      acc.goals += p.Goals || 0;
+      acc.shots += p.Shots || 0;
+      acc.saves += p.Saves || 0;
+      acc.demos += p.Demos || 0;
+      acc.touches += p.Touches || 0;
+      acc.score += p.Score || 0;
+      return acc;
+    }, { goals: 0, shots: 0, saves: 0, demos: 0, touches: 0, score: 0 });
+}
+
+function liveTeamComparisonRow(label, blueValue, orangeValue) {
+  const max = Math.max(blueValue, orangeValue, 1);
+  const bluePct = Math.round((blueValue / max) * 100);
+  const orangePct = Math.round((orangeValue / max) * 100);
+  return `
+    <div style="display:grid;grid-template-columns:42px minmax(0,1fr) 78px minmax(0,1fr) 42px;align-items:center;gap:8px;font-size:12px">
+      <span style="color:var(--rl-blue);font-weight:700;text-align:right;font-variant-numeric:tabular-nums">${blueValue}</span>
+      <div style="height:6px;background:var(--surface2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${bluePct}%;background:var(--rl-blue)"></div></div>
+      <span style="color:var(--muted);font-size:10px;text-align:center;text-transform:uppercase;letter-spacing:.06em">${esc(label)}</span>
+      <div style="height:6px;background:var(--surface2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${orangePct}%;background:var(--rl-orange)"></div></div>
+      <span style="color:var(--rl-orange);font-weight:700;font-variant-numeric:tabular-nums">${orangeValue}</span>
+    </div>`;
+}
+
 window.pluginInit_live = async function() {
   window.registerWidget?.({
     id: 'live-scoreboard', pluginId: 'live', title: 'Live Score',
@@ -349,6 +432,11 @@ window.pluginInit_live = async function() {
     id: 'live-players', pluginId: 'live', title: 'Live Players',
     defaultW: 12, defaultH: 10, minW: 6, minH: 6,
     factory: livePlayersWidget,
+  });
+  window.registerWidget?.({
+    id: 'live-team-comparison', pluginId: 'live', title: 'Team Comparison',
+    defaultW: 6, defaultH: 7, minW: 4, minH: 5,
+    factory: liveTeamComparisonWidget,
   });
 
   try {

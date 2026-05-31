@@ -176,6 +176,40 @@ function bcGroupsWidget(container) {
   return { refresh };
 }
 
+function bcStatusWidget(container) {
+  async function refresh() {
+    container.innerHTML = '<div class="bc-status-bar"><span class="bc-status-dot bc-dot-pending"></span> Checking...</div>';
+    try {
+      const r = await fetch('/api/ballchasing/ping');
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        renderStatus(false, j.error || 'Ballchasing API key not set.');
+        return;
+      }
+      const j = await r.json();
+      renderStatus(true, j.name || '(connected)');
+    } catch(e) {
+      renderStatus(false, e.message || 'Connection check failed.');
+    }
+  }
+
+  function renderStatus(ok, text) {
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bc-status-bar">
+        <span class="bc-status-dot ${ok ? 'bc-dot-ok' : 'bc-dot-err'}"></span>
+        <span>${ok ? 'Connected' : 'Needs setup'}</span>
+      </div>
+      <div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">${ok ? 'Account' : 'Status'}</div>
+        <div style="font-size:13px;font-weight:700;margin-top:3px">${esc(text)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Replay widgets use the existing Ballchasing API connection.</div>
+      </div>
+    </div>`;
+  }
+
+  return { refresh };
+}
+
 // ── Match row ──────────────────────────────────────────────────
 
 function bcMatchRow(m) {
@@ -389,5 +423,10 @@ window.pluginInit_ballchasing = function() {
     id: 'bc-groups', pluginId: 'bc', title: 'Ballchasing Groups',
     defaultW: 4, defaultH: 6, minW: 2, minH: 4,
     factory: bcGroupsWidget,
+  });
+  window.registerWidget?.({
+    id: 'bc-status', pluginId: 'bc', title: 'Ballchasing Status',
+    defaultW: 4, defaultH: 4, minW: 3, minH: 3,
+    factory: bcStatusWidget,
   });
 };

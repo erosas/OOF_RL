@@ -8,6 +8,8 @@ let _liveStats              = null; // non-null only while a match is active
 
 let _sessionSummaryInstances = [];
 let _sessionLiveInstances    = [];
+let _sessionMatchInstances   = [];
+let _sessionHistoryInstances = [];
 
 window.pluginInit_session = async function() {
   window.registerWidget?.({
@@ -19,6 +21,16 @@ window.pluginInit_session = async function() {
     id: 'session-live-game', pluginId: 'session', title: 'Live Game Stats',
     defaultW: 4, defaultH: 4, minW: 3, minH: 3,
     factory: sessionLiveGameWidget,
+  });
+  window.registerWidget?.({
+    id: 'session-match-list', pluginId: 'session', title: 'Session Matches',
+    defaultW: 6, defaultH: 8, minW: 4, minH: 5,
+    factory: sessionMatchesWidget,
+  });
+  window.registerWidget?.({
+    id: 'session-previous-sessions', pluginId: 'session', title: 'Previous Sessions',
+    defaultW: 6, defaultH: 7, minW: 4, minH: 5,
+    factory: sessionHistoryWidget,
   });
 
   _sessionPlayerID = localStorage.getItem('oof_session_player') || '';
@@ -177,6 +189,8 @@ window.refreshSession = async function() {
     renderLiveGame();
     _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see stats.'));
+    _sessionMatchInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see matches.'));
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see previous sessions.'));
     return;
   }
   noPlayer?.classList.add('hidden');
@@ -187,6 +201,8 @@ window.refreshSession = async function() {
     renderLiveGame();
     _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('No active session. Use the Session tab to start one.'));
+    _sessionMatchInstances.forEach(w => w.renderPlaceholder('No active session yet.'));
+    _sessionHistoryInstances.forEach(w => w.refresh());
     return;
   }
   notStarted?.classList.add('hidden');
@@ -199,6 +215,7 @@ window.refreshSession = async function() {
     const data = await fetch(url).then(r => r.json());
     renderSessionStats(data);
     _sessionSummaryInstances.forEach(w => w.renderData(data));
+    _sessionMatchInstances.forEach(w => w.renderData(data));
   } catch(_) {}
 };
 
@@ -355,11 +372,13 @@ async function loadSessionHistory() {
   if (!section || !list) return;
   if (!_sessionPlayerID) {
     section.classList.add('hidden');
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see previous sessions.'));
     return;
   }
 
   try {
     const sessions = await fetch(`/api/session/history?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+    _sessionHistoryInstances.forEach(w => w.renderData(sessions || []));
     if (!sessions || !sessions.length) {
       section.classList.add('hidden');
       return;
@@ -371,6 +390,7 @@ async function loadSessionHistory() {
     }
   } catch(_) {
     section.classList.add('hidden');
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Failed to load previous sessions.'));
   }
 }
 
@@ -582,4 +602,127 @@ function sessionLiveGameWidget(container) {
   _sessionLiveInstances.push(entry);
   render();
   return { refresh: render, destroy };
+}
+
+function sessionMatchesWidget(container) {
+  function renderPlaceholder(msg) {
+    container.innerHTML = `<div class="ui-widget-empty">${esc(msg)}</div>`;
+  }
+
+  function renderData(data) {
+    const matches = data.matches || [];
+    if (!matches.length) {
+      renderPlaceholder('No matches in this session yet.');
+      return;
+    }
+
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">
+      ${[...matches].reverse().slice(0, 8).map(sessionWidgetMatchRow).join('')}
+    </div>`;
+  }
+
+  async function refresh() {
+    if (!_sessionPlayerID) {
+      renderPlaceholder('Select a player in the Session tab to see matches.');
+      return;
+    }
+    if (!_sessionSince) {
+      renderPlaceholder('No active session yet.');
+      return;
+    }
+    try {
+      const data = await fetch(`/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+      renderData(data);
+    } catch(_) {
+      renderPlaceholder('Failed to load session matches.');
+    }
+  }
+
+  function destroy() {
+    const i = _sessionMatchInstances.indexOf(entry);
+    if (i >= 0) _sessionMatchInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, renderData, renderPlaceholder };
+  _sessionMatchInstances.push(entry);
+  return { refresh, destroy };
+}
+
+function sessionHistoryWidget(container) {
+  function renderPlaceholder(msg) {
+    container.innerHTML = `<div class="ui-widget-empty">${esc(msg)}</div>`;
+  }
+
+  function renderData(sessions) {
+    if (!sessions || !sessions.length) {
+      renderPlaceholder('No previous sessions yet.');
+      return;
+    }
+
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">
+      ${sessions.slice(0, 8).map(sessionWidgetHistoryRow).join('')}
+    </div>`;
+  }
+
+  async function refresh() {
+    if (!_sessionPlayerID) {
+      renderPlaceholder('Select a player in the Session tab to see previous sessions.');
+      return;
+    }
+    try {
+      const sessions = await fetch(`/api/session/history?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+      renderData(sessions || []);
+    } catch(_) {
+      renderPlaceholder('Failed to load previous sessions.');
+    }
+  }
+
+  function destroy() {
+    const i = _sessionHistoryInstances.indexOf(entry);
+    if (i >= 0) _sessionHistoryInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, renderData, renderPlaceholder };
+  _sessionHistoryInstances.push(entry);
+  return { refresh, destroy };
+}
+
+function sessionWidgetMatchRow(m) {
+  const finished = !m.incomplete && m.winner_team_num >= 0;
+  const won = finished && m.player_team === m.winner_team_num;
+  const lost = finished && m.player_team !== m.winner_team_num;
+  const resultText = m.incomplete ? '?' : won ? 'W' : lost ? 'L' : '-';
+  const resultColor = won ? 'var(--green)' : lost ? 'var(--red)' : 'var(--muted)';
+  const mode = friendlyPlaylist(m.playlist_type) || matchType(m.player_count);
+  return `<div style="display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+    <div style="font-size:18px;font-weight:800;color:${resultColor};text-align:center">${resultText}</div>
+    <div style="min-width:0">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(friendlyArena(m.arena))}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(formatDate(m.started_at))}${mode ? ` &middot; ${esc(mode)}` : ''}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums">
+      <div style="color:var(--text)">${m.goals}G ${m.assists}A ${m.saves}Sv</div>
+      <div>Score ${m.score}</div>
+    </div>
+  </div>`;
+}
+
+function sessionWidgetHistoryRow(s) {
+  const startDate = new Date(s.started_at);
+  const endDate = new Date(s.ended_at);
+  const durMins = Math.max(0, Math.round((endDate - startDate) / 60000));
+  const h = Math.floor(durMins / 60);
+  const m = durMins % 60;
+  const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+    <div style="min-width:0">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(formatDate(s.started_at))}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${durStr} &middot; ${s.goals}G ${s.assists}A ${s.saves}Sv ${s.shots}Sh</div>
+    </div>
+    <div style="font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">
+      <span style="color:var(--green)">${s.wins}W</span>
+      <span style="color:var(--muted)"> / </span>
+      <span style="color:var(--red)">${s.losses}L</span>
+    </div>
+  </div>`;
 }

@@ -3,9 +3,11 @@
 let allPlayers = [];
 let _expandedMatchId = null;
 let _historyRecentInstances = [];
+let _historySummaryInstances = [];
 
 async function loadHistory() {
   _historyRecentInstances.forEach(w => w.refresh());
+  _historySummaryInstances.forEach(w => w.refresh());
   allPlayers = await fetch('/api/players').then(r => r.json()) || [];
   const sel = document.getElementById('history-player-filter');
   const cur = sel.value;
@@ -222,11 +224,80 @@ function historyRecentWidget(container) {
   return { refresh, destroy };
 }
 
+function historySummaryWidget(container) {
+  async function refresh() {
+    try {
+      const matches = await fetch('/api/matches').then(r => r.json());
+      const valid = (matches || []).filter(m => m.Arena && m.Arena !== '-');
+      render(valid);
+    } catch(_) {
+      container.innerHTML = '<div class="ui-widget-error">Failed to load history summary.</div>';
+    }
+  }
+
+  function render(matches) {
+    if (!matches.length) {
+      container.innerHTML = '<div class="ui-widget-empty">No match history yet.</div>';
+      return;
+    }
+
+    const complete = matches.filter(m => !m.Incomplete);
+    const blueWins = complete.filter(m => m.WinnerTeamNum === 0).length;
+    const orangeWins = complete.filter(m => m.WinnerTeamNum === 1).length;
+    const overtime = matches.filter(m => m.Overtime).length;
+    const forfeits = matches.filter(m => m.Forfeit).length;
+    const latest = matches[0];
+
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+        ${historySummaryPill('Matches', matches.length)}
+        ${historySummaryPill('Blue W', blueWins, 'var(--rl-blue)')}
+        ${historySummaryPill('Orange W', orangeWins, 'var(--rl-orange)')}
+        ${historySummaryPill('OT', overtime)}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+        <div style="min-width:0">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Latest match</div>
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(friendlyArena(latest.Arena))}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(formatDate(latest.StartedAt))}</div>
+        </div>
+        <div style="text-align:right;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">
+          <span style="color:var(--rl-blue)">${latest.team0_goals ?? 0}</span>
+          <span style="color:var(--muted)">-</span>
+          <span style="color:var(--rl-orange)">${latest.team1_goals ?? 0}</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted)">${forfeits} forfeits recorded across saved matches.</div>
+    </div>`;
+  }
+
+  function destroy() {
+    const i = _historySummaryInstances.indexOf(entry);
+    if (i >= 0) _historySummaryInstances.splice(i, 1);
+  }
+
+  const entry = { refresh };
+  _historySummaryInstances.push(entry);
+  return { refresh, destroy };
+}
+
+function historySummaryPill(label, value, color = 'var(--text)') {
+  return `<div style="background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:9px 6px;text-align:center;min-width:0">
+    <div style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:${color}">${value}</div>
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${esc(label)}</div>
+  </div>`;
+}
+
 window.pluginInit_history = function() {
   window.registerWidget?.({
     id: 'history-recent', pluginId: 'history', title: 'Recent Matches',
     defaultW: 6, defaultH: 10, minW: 4, minH: 6,
     factory: historyRecentWidget,
+  });
+  window.registerWidget?.({
+    id: 'history-summary', pluginId: 'history', title: 'History Summary',
+    defaultW: 4, defaultH: 5, minW: 3, minH: 4,
+    factory: historySummaryWidget,
   });
   const sel = document.getElementById('history-player-filter');
   if (sel) sel.addEventListener('change', e => fetchMatches(e.target.value));
