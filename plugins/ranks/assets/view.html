@@ -1,6 +1,39 @@
-<div id="ranks-empty" class="text-center text-gray-500 py-16 text-sm">
-  Waiting for a match — player ranks will appear here when a game is active.
-</div>
-<div id="ranks-content" class="hidden">
-  <div id="ranks-teams"></div>
+<div id="ranks-page" class="ui-page ranks-page">
+  <div id="ranks-empty" class="ui-empty-state ranks-empty-state">
+    <div class="ranks-empty-icon">RL</div>
+    <div>
+      <div class="ranks-empty-title">Waiting for match players</div>
+      <div class="ranks-empty-copy">Player ranks will appear here when a game is active and rank data is available.</div>
+    </div>
+  </div>
+
+  <div id="ranks-content" class="ranks-shell hidden">
+    <header class="ranks-header">
+      <div>
+        <div class="ui-page-kicker">Playlist ranks</div>
+        <h1 class="ui-page-title">Ranks</h1>
+      </div>
+      <div class="ranks-focused-mode-shell">
+        <span class="ranks-mode-label">Rank display</span>
+        <span class="ranks-mode-value">All known playlists</span>
+      </div>
+    </header>
+
+    <section class="ranks-overview">
+      <div class="ranks-overview-card">
+        <span class="ranks-overview-label">Teams</span>
+        <strong>Blue vs Orange</strong>
+      </div>
+      <div class="ranks-overview-card ranks-visible-modes-shell">
+        <span class="ranks-overview-label">Rank display</span>
+        <strong>All known playlists</strong>
+      </div>
+      <div class="ranks-overview-card">
+        <span class="ranks-overview-label">Source</span>
+        <strong>Tracker provider cache</strong>
+      </div>
+    </section>
+
+    <div id="ranks-teams" class="ranks-team-grid"></div>
+  </div>
 </div>

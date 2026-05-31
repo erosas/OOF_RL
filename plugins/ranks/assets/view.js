@@ -55,7 +55,8 @@ window.handleRanksClear = function() {
 function renderRanks() {
   const empty   = document.getElementById('ranks-empty');
   const content = document.getElementById('ranks-content');
-  if (!empty || !content) return;
+  const teams   = document.getElementById('ranks-teams');
+  if (!empty || !content || !teams) return;
 
   if (!_rankPlayers.length) {
     empty.classList.remove('hidden');
@@ -67,22 +68,20 @@ function renderRanks() {
 
   const blue   = _rankPlayers.filter(p => p.team_num === 0);
   const orange = _rankPlayers.filter(p => p.team_num === 1);
-  document.getElementById('ranks-teams').innerHTML =
-    renderTeamPanel('Blue',   '4a9eff', blue) +
-    renderTeamPanel('Orange', 'ff8c2a', orange);
+  teams.innerHTML = renderTeams(blue, orange);
 }
 
 function ranksDisplayWidget(container) {
   function render() {
     if (!_rankPlayers.length) {
-      container.innerHTML = '<div class="text-center text-gray-500 py-8 text-sm">Waiting for a match — ranks will appear here.</div>';
+      container.innerHTML = `<div class="ranks-widget">
+        <div class="ranks-widget-empty">Waiting for a match - ranks will appear here.</div>
+      </div>`;
       return;
     }
     const blue   = _rankPlayers.filter(p => p.team_num === 0);
     const orange = _rankPlayers.filter(p => p.team_num === 1);
-    container.innerHTML =
-      renderTeamPanel('Blue',   '4a9eff', blue) +
-      renderTeamPanel('Orange', 'ff8c2a', orange);
+    container.innerHTML = `<div class="ranks-widget">${renderTeams(blue, orange, true)}</div>`;
   }
 
   function destroy() {
@@ -96,28 +95,54 @@ function ranksDisplayWidget(container) {
   return { refresh: render, destroy };
 }
 
-function renderTeamPanel(teamName, hex, players) {
-  if (!players.length) return '';
-  const rgba  = hexToRgba(hex, 0.12) || 'transparent';
-  const color = `#${hex}`;
+function renderTeams(blue, orange, compact = false) {
+  return renderTeamPanel('Blue', 'blue', '4a9eff', blue, compact) +
+    renderTeamPanel('Orange', 'orange', 'ff8c2a', orange, compact);
+}
+
+function renderTeamPanel(teamName, cls, hex, players, compact = false) {
+  const rgba = hexToRgba(hex, 0.12) || 'transparent';
+  const border = hexToRgba(hex, 0.34) || 'var(--oof-color-border)';
+  const glow = hexToRgba(hex, 0.32) || 'transparent';
+  const panelClass = compact ? 'ranks-team-panel ranks-team-panel-compact' : 'ranks-team-panel';
 
   const rows = players.map(p => {
-    const pid    = p.primary_id;
-    const trnUrl = !isBot(pid) ? trnProfileUrl(pid, p.name) : '';
+    const pid        = p.primary_id;
+    const playerName = p.name || 'Unknown player';
+    const trnUrl     = !isBot(pid) ? trnProfileUrl(pid, playerName) : '';
     const nameEl = trnUrl
-      ? `<a href="${esc(trnUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline">${esc(p.name)}</a>`
-      : `<span class="font-semibold">${esc(p.name)}</span>`;
+      ? `<a href="${esc(trnUrl)}" target="_blank" rel="noopener" class="ranks-player-name ranks-player-link">${esc(playerName)}</a>`
+      : `<span class="ranks-player-name">${esc(playerName)}</span>`;
 
     const rankHtml = trackerRankHTML(pid);
+    const rankState = rankHtml || (isBot(pid)
+      ? '<span class="ranks-rank-note">Bot or local player</span>'
+      : '<span class="ranks-rank-note">Fetching...</span>');
 
-    return `<div class="py-3 border-b border-line last:border-0">
-      <div class="mb-1">${nameEl}</div>
-      <div>${rankHtml || (isBot(pid) ? '' : '<span class="text-xs text-gray-500">Fetching…</span>')}</div>
+    return `<div class="ranks-player-row">
+      <div class="ranks-player-main">
+        ${nameEl}
+        <span class="ranks-player-meta">${isBot(pid) ? 'Rank unavailable' : 'Tracker profile'}</span>
+      </div>
+      <div class="ranks-rank-surface">${rankState}</div>
     </div>`;
   }).join('');
 
-  return `<div class="bg-surface border border-line rounded-xl overflow-hidden mb-4">
-    <div class="px-4 py-2 text-sm font-bold" style="color:${color};background:${rgba}">${esc(teamName)}</div>
-    <div class="px-4">${rows}</div>
+  const emptyRow = `<div class="ranks-player-row ranks-player-row-empty">
+    <div class="ranks-player-main">
+      <span class="ranks-player-name">No players detected</span>
+      <span class="ranks-player-meta">Waiting for ${esc(teamName.toLowerCase())} team data</span>
+    </div>
   </div>`;
+
+  return `<section class="${panelClass} ranks-team-panel-${cls}" style="--ranks-team-color:#${hex};--ranks-team-bg:${rgba};--ranks-team-border:${border};--ranks-team-glow:${glow}">
+    <div class="ranks-team-header">
+      <div>
+        <span class="ranks-team-label">${esc(teamName)} team</span>
+        <strong>${players.length}</strong>
+      </div>
+      <span class="ranks-team-chip">Ranks</span>
+    </div>
+    <div class="ranks-playlist-stack">${rows || emptyRow}</div>
+  </section>`;
 }
