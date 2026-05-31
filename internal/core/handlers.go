@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -254,6 +255,80 @@ func (s *Server) handleDBOpenFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.WriteJSON(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleOpenExternal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httputil.JSONError(w, 405, "method not allowed")
+		return
+	}
+	if !requestComesFromApp(r) {
+		httputil.JSONError(w, 403, "cross-origin requests are not allowed")
+		return
+	}
+	if ct := strings.ToLower(r.Header.Get("Content-Type")); !strings.HasPrefix(ct, "application/json") {
+		httputil.JSONError(w, 415, "content type must be application/json")
+		return
+	}
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httputil.JSONError(w, 400, err.Error())
+		return
+	}
+	target, err := validateExternalURL(body.URL)
+	if err != nil {
+		httputil.JSONError(w, 400, err.Error())
+		return
+	}
+	if err := exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", target).Start(); err != nil {
+		httputil.JSONError(w, 500, err.Error())
+		return
+	}
+	httputil.WriteJSON(w, map[string]string{"status": "ok"})
+}
+
+func requestComesFromApp(r *http.Request) bool {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return headerURLMatchesHost(origin, r.Host)
+	}
+	if referer := r.Header.Get("Referer"); referer != "" {
+		return headerURLMatchesHost(referer, r.Host)
+	}
+	return true
+}
+
+func headerURLMatchesHost(raw string, host string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return strings.EqualFold(u.Host, host)
+}
+
+func validateExternalURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("url is required")
+	}
+	if len(raw) > 2048 {
+		return "", fmt.Errorf("url is too long")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("only http and https URLs can be opened")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("url host is required")
+	}
+	return u.String(), nil
 }
 
 // handleSettings dispatches a flat key→value map to every plugin's ApplySettings,

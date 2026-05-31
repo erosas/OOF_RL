@@ -79,8 +79,8 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		mmrProvider: mmrProvider,
 		disabled:    disabled,
 		activeDirty: true,
-		bus:        bus,
-		translator: rlevents.New(bus.ForPlugin("")), // empty ID = RL translator convention
+		bus:         bus,
+		translator:  rlevents.New(bus.ForPlugin("")), // empty ID = RL translator convention
 	}
 	if database != nil {
 		if err := histstore.Migrate(database); err != nil {
@@ -346,6 +346,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		"/api/settings/schema": "core",
 		"/api/settings":        "core",
 		"/api/tracker/profile": "core",
+		"/api/open-external":   "core",
 		"/api/db/open-folder":  "core",
 		"/api/data-dir":        "core",
 		"/plugins/history/":    "core",
@@ -364,6 +365,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings/schema", s.handleSettingsSchema)
 	mux.HandleFunc("/api/settings", s.handleSettings)
 	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
+	mux.HandleFunc("/api/open-external", s.handleOpenExternal)
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
 

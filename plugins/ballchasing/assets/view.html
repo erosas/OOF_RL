@@ -1,26 +1,53 @@
-<div id="bc-status" class="bc-status-bar mb-4"></div>
-<div id="bc-notify" class="bc-notify hidden"></div>
+<div class="ui-page ballchasing-page">
+  <section class="ui-panel ballchasing-shell">
+    <header class="ballchasing-header">
+      <div class="ballchasing-title-block">
+        <div class="ui-page-kicker">Replay Cloud</div>
+        <h1 class="ui-page-title">Ballchasing</h1>
+        <p class="ballchasing-subtitle">Replay archive and provider connection.</p>
+      </div>
+      <div class="ballchasing-actions">
+        <button id="bc-sync-btn" class="ui-button ui-button--primary bc-sync-btn">Sync from Ballchasing</button>
+        <button id="bc-purge-btn" class="ui-button bc-purge-btn hidden">Delete Uploaded</button>
+      </div>
+    </header>
 
-<!-- Match Replays -->
-<div class="bc-section-block">
-  <div class="flex items-center justify-between mb-1">
-    <h2 class="bc-section-title">Match Replays</h2>
-    <div class="flex items-center gap-2">
-      <button id="bc-sync-btn" class="bc-sync-btn">Sync from Ballchasing</button>
-      <button id="bc-purge-btn" class="bc-purge-btn hidden">Delete Uploaded</button>
+    <div id="bc-status" class="bc-status-bar ballchasing-status-panel"></div>
+    <div id="bc-notify" class="bc-notify hidden"></div>
+
+    <div class="ballchasing-grid">
+      <section class="bc-section-block ballchasing-panel ballchasing-panel--matches">
+        <div class="ballchasing-panel-header">
+          <div>
+            <h2 class="bc-section-title">Match Replays</h2>
+            <span class="ballchasing-panel-subtitle">Local match replay queue</span>
+          </div>
+          <span class="ui-pill">Local</span>
+        </div>
+        <div id="bc-matches-widget" class="ballchasing-list"></div>
+      </section>
+
+      <section class="bc-section-block ballchasing-panel">
+        <div class="ballchasing-panel-header">
+          <div>
+            <h2 class="bc-section-title">Your Replays on Ballchasing</h2>
+            <span class="ballchasing-panel-subtitle">Uploaded replay history</span>
+          </div>
+          <span class="ui-pill">Cloud</span>
+        </div>
+        <div id="bc-uploaded-widget" class="ballchasing-list"></div>
+      </section>
+
+      <section class="bc-section-block ballchasing-panel">
+        <div class="ballchasing-panel-header">
+          <div>
+            <h2 class="bc-section-title">Groups</h2>
+            <span class="ballchasing-panel-subtitle">Ballchasing collections</span>
+          </div>
+          <span class="ui-pill">Groups</span>
+        </div>
+        <div id="bc-groups-widget" class="ballchasing-list"></div>
+      </section>
     </div>
-  </div>
-  <div id="bc-matches-widget"></div>
-</div>
-
-<!-- Your Replays on Ballchasing -->
-<div class="bc-section-block mt-5">
-  <h2 class="bc-section-title mb-3">Your Replays on Ballchasing</h2>
-  <div id="bc-uploaded-widget"></div>
-</div>
-
-<!-- Groups -->
-<div class="bc-section-block mt-5">
-  <h2 class="bc-section-title mb-3">Groups</h2>
-  <div id="bc-groups-widget"></div>
+  </section>
 </div>
