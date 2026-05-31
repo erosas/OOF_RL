@@ -1,149 +1,317 @@
 <link rel="stylesheet" href="/plugins/dashboard/gridstack.min.css">
 
 <style>
+.dashboard-page {
+  min-height: 100%;
+  color: var(--oof-color-text);
+}
+
+.dashboard-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oof-space-4);
+  min-height: 100%;
+}
+
 .dash-toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 0 16px;
+  gap: var(--oof-space-4);
+  padding: var(--oof-space-5);
+  background:
+    linear-gradient(135deg, rgb(var(--oof-color-accent-rgb) / .12), transparent 32%),
+    linear-gradient(225deg, rgb(var(--oof-color-team-orange-rgb) / .10), transparent 30%),
+    rgb(var(--oof-color-surface-rgb) / .96);
+  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .86);
+  border-radius: var(--oof-radius-xl);
+  box-shadow: var(--oof-shadow-panel), var(--oof-shadow-inset);
+  overflow: hidden;
 }
+
+.dash-toolbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 1px solid rgb(var(--oof-color-accent-rgb) / .28);
+  pointer-events: none;
+}
+
+.dash-toolbar-copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--oof-space-1);
+  min-width: 0;
+}
+
 .dash-toolbar-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text);
-  opacity: 0.5;
-  letter-spacing: 0.02em;
+  margin: 0;
+  letter-spacing: 0;
 }
-.dash-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+
+.dash-toolbar-subtitle {
+  max-width: 520px;
+  margin: 0;
+  color: var(--oof-color-text-muted);
+  font-size: var(--oof-font-size-sm);
+  line-height: var(--oof-line-height-normal);
+}
+
+.dash-toolbar-meta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--oof-space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.dash-layout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oof-space-1);
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .78);
+  border-radius: var(--oof-radius-md);
+  background: rgb(var(--oof-color-bg-rgb) / .28);
+  color: var(--oof-color-text-muted);
+  font-size: var(--oof-font-size-xs);
+  font-weight: var(--oof-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.dash-layout-chip strong {
+  color: var(--oof-color-text);
+  font-weight: var(--oof-font-weight-bold);
+}
+
+.dash-layout-chip--accent {
+  border-color: rgb(var(--oof-color-accent-rgb) / .38);
+  background: rgb(var(--oof-color-accent-rgb) / .10);
+  color: var(--oof-color-accent);
+}
+
+.dash-toolbar-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--oof-space-2);
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.dashboard-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--oof-space-4);
+  background:
+    linear-gradient(180deg, rgb(var(--oof-color-surface-muted-rgb) / .78), rgb(var(--oof-color-bg-subtle-rgb) / .92)),
+    rgb(var(--oof-color-bg-rgb) / .96);
+  border: 1px solid rgb(var(--oof-color-border-rgb) / .9);
+  border-radius: var(--oof-radius-xl);
+  box-shadow: var(--oof-shadow-inset);
+}
+
+.dashboard-canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oof-space-3);
+  padding: 0 0 var(--oof-space-3);
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-xs);
+}
+
+.dashboard-canvas-title {
+  color: var(--oof-color-text-muted);
+  font-weight: var(--oof-font-weight-bold);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.dashboard-canvas-note {
+  text-align: right;
+}
 
 /* Widget picker panel */
 .dash-picker {
   position: fixed;
-  top: 0; right: 0;
-  width: 260px;
+  top: var(--oof-space-4);
+  right: var(--oof-space-4);
+  width: min(340px, calc(100vw - (var(--oof-space-4) * 2)));
   height: 100vh;
-  background: var(--surface);
-  border-left: 1px solid var(--line);
+  max-height: calc(100vh - (var(--oof-space-4) * 2));
   z-index: 200;
   display: flex;
   flex-direction: column;
-  box-shadow: -6px 0 24px rgba(0,0,0,0.5);
+  background:
+    linear-gradient(180deg, rgb(var(--oof-color-surface-raised-rgb) / .95), rgb(var(--oof-color-surface-rgb) / .98));
+  border-color: rgb(var(--oof-color-accent-rgb) / .26);
+  box-shadow: -18px 0 42px rgb(var(--oof-color-bg-rgb) / .5), var(--oof-shadow-panel);
 }
-.dash-picker.hidden { display: none; }
+
+.dash-picker.hidden {
+  display: none;
+}
+
 .dash-picker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text);
+  flex-shrink: 0;
+  border-bottom-color: rgb(var(--oof-color-accent-rgb) / .22);
 }
+
 .dash-picker-close {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--oof-color-text-muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--oof-font-size-md);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--oof-radius-sm);
   line-height: 1;
 }
-.dash-picker-close:hover { color: var(--text); background: var(--surface2); }
+
+.dash-picker-close:hover {
+  color: var(--oof-color-text);
+  background: var(--oof-color-surface-raised);
+}
+
 .dash-picker-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: var(--oof-space-3);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--oof-space-2);
 }
+
 .dash-picker-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  gap: 8px;
+  gap: var(--oof-space-2);
+  padding: var(--oof-space-3);
+  background: rgb(var(--oof-color-bg-rgb) / .26);
+  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .78);
+  border-radius: var(--oof-radius-md);
+  box-shadow: var(--oof-shadow-inset);
 }
+
+.dash-picker-item:hover {
+  border-color: rgb(var(--oof-color-accent-rgb) / .48);
+}
+
 .dash-picker-item-name {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text);
+  font-size: var(--oof-font-size-sm);
+  font-weight: var(--oof-font-weight-semibold);
+  color: var(--oof-color-text);
 }
+
 .dash-picker-item-plugin {
-  font-size: 0.75rem;
-  color: var(--muted);
+  font-size: var(--oof-font-size-xs);
+  color: var(--oof-color-text-subtle);
   margin-top: 2px;
+}
+
+.dash-picker-item .bc-sync-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-color: rgb(var(--oof-color-accent-rgb) / .32);
+  color: var(--oof-color-accent);
 }
 
 /* Empty state */
 .dash-empty {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.8;
+  margin: var(--oof-space-3) 0;
+  background:
+    linear-gradient(135deg, rgb(var(--oof-color-accent-rgb) / .08), transparent 38%),
+    rgb(var(--oof-color-surface-rgb) / .72);
+  border-style: dashed;
+  border-color: rgb(var(--oof-color-border-strong-rgb) / .9);
 }
-.dash-empty strong { color: var(--text); opacity: 0.7; }
+
+.dash-empty strong {
+  color: var(--oof-color-text);
+}
 
 /* Widget item chrome */
 .grid-stack-item-content {
-  background: var(--surface) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 8px !important;
+  background:
+    linear-gradient(180deg, rgb(var(--oof-color-surface-raised-rgb) / .52), transparent 58%),
+    var(--oof-color-surface) !important;
+  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .78) !important;
+  border-radius: var(--oof-radius-panel) !important;
+  box-shadow: var(--oof-shadow-inset), 0 12px 28px rgb(var(--oof-color-bg-rgb) / .28) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
+  transition: border-color var(--oof-duration-fast), box-shadow var(--oof-duration-fast), transform var(--oof-duration-fast);
 }
+
+.grid-stack-item-content:hover {
+  border-color: rgb(var(--oof-color-accent-rgb) / .36) !important;
+}
+
 .widget-header {
   display: none;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--line);
-  border-radius: 7px 7px 0 0;
+  gap: var(--oof-space-2);
   cursor: move;
   user-select: none;
   flex-shrink: 0;
-  min-height: 32px;
+  background:
+    linear-gradient(90deg, rgb(var(--oof-color-accent-rgb) / .14), transparent 36%),
+    rgb(var(--oof-color-surface-raised-rgb) / .92);
+  border-bottom: 1px solid rgb(var(--oof-color-border-strong-rgb) / .82);
 }
-.dash-editing .widget-header { display: flex; }
+
+.dash-editing .widget-header {
+  display: flex;
+}
+
+.dash-editing .grid-stack-item-content {
+  border-color: rgb(var(--oof-color-accent-rgb) / .42) !important;
+  box-shadow: var(--oof-shadow-inset), 0 0 0 1px rgb(var(--oof-color-accent-rgb) / .08), 0 14px 34px rgb(var(--oof-color-bg-rgb) / .34) !important;
+}
+
 .widget-drag-icon {
-  color: var(--muted);
-  font-size: 1rem;
-  letter-spacing: -2px;
-  opacity: 0.5;
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-sm);
+  font-weight: var(--oof-font-weight-bold);
+  letter-spacing: 0;
+  opacity: .75;
 }
+
 .widget-title-text {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
   flex: 1;
-  opacity: 0.6;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
+
 .widget-remove-btn {
   background: none;
-  border: none;
-  color: var(--muted);
+  border: 1px solid transparent;
+  color: var(--oof-color-text-muted);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--oof-font-size-xs);
+  min-width: 22px;
+  min-height: 22px;
   padding: 2px 5px;
-  border-radius: 3px;
+  border-radius: var(--oof-radius-sm);
   line-height: 1;
-  opacity: 0.6;
+  opacity: .7;
 }
-.widget-remove-btn:hover { opacity: 1; color: var(--red); background: rgba(224,82,82,0.12); }
+
+.widget-remove-btn:hover {
+  opacity: 1;
+  color: var(--oof-color-danger);
+  border-color: rgb(var(--oof-color-danger-rgb) / .26);
+  background: rgb(var(--oof-color-danger-rgb) / .12);
+}
+
 .widget-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
   min-height: 0;
 }
 
@@ -152,28 +320,71 @@
   bottom: 4px !important;
   right: 4px !important;
 }
+
+@media (max-width: 760px) {
+  .dash-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dash-toolbar-actions {
+    width: 100%;
+  }
+
+  .dash-toolbar-meta,
+  .dashboard-canvas-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-canvas-note {
+    text-align: left;
+  }
+
+  .dashboard-canvas {
+    padding: var(--oof-space-3);
+  }
+}
 </style>
 
-<div id="dash-toolbar" class="dash-toolbar">
-  <span class="dash-toolbar-title">Dashboard</span>
-  <div class="dash-toolbar-actions">
-    <button id="dash-add-widget-btn" class="bc-sync-btn hidden">+ Add Widget</button>
-    <button id="dash-cancel-btn"     class="bc-sync-btn hidden">Cancel</button>
-    <button id="dash-save-btn"       class="btn-action hidden">Save</button>
-    <button id="dash-edit-btn"       class="bc-sync-btn">Edit</button>
-  </div>
-</div>
+<div id="dashboard-page" class="dashboard-page ui-page">
+  <section id="dashboard-shell" class="dashboard-shell">
+    <div id="dash-toolbar" class="dash-toolbar ui-page-header">
+      <div class="dash-toolbar-copy">
+        <div class="ui-page-kicker">Custom board</div>
+        <h2 class="dash-toolbar-title ui-page-title">Dashboard</h2>
+        <p class="dash-toolbar-subtitle">Custom workspace for live match, session, ranks, history, and utility widgets.</p>
+      </div>
+      <div class="dash-toolbar-meta" aria-label="Dashboard layout status">
+        <span class="dash-layout-chip dash-layout-chip--accent">Layout <strong>Custom</strong></span>
+        <span class="dash-layout-chip">Canvas <strong>Grid</strong></span>
+        <span class="dash-layout-chip">Layout <strong>Saved</strong></span>
+      </div>
+      <div class="dash-toolbar-actions ui-actions">
+        <button id="dash-add-widget-btn" class="bc-sync-btn ui-button ui-button--ghost hidden">+ Add Widget</button>
+        <button id="dash-cancel-btn" class="bc-sync-btn ui-button ui-button--ghost hidden">Cancel</button>
+        <button id="dash-save-btn" class="btn-action ui-button ui-button--primary hidden">Save</button>
+        <button id="dash-edit-btn" class="bc-sync-btn ui-button ui-button--ghost">Edit</button>
+      </div>
+    </div>
 
-<div id="dash-picker" class="dash-picker hidden">
-  <div class="dash-picker-header">
-    <span>Add Widget</span>
-    <button id="dash-picker-close" class="dash-picker-close">✕</button>
-  </div>
-  <div id="dash-picker-list" class="dash-picker-list"></div>
-</div>
+    <div id="dashboard-canvas" class="dashboard-canvas">
+      <div class="dashboard-canvas-header">
+        <span class="dashboard-canvas-title">Widget board</span>
+        <span class="dashboard-canvas-note">Registered plugin widgets on a saved grid.</span>
+      </div>
+      <div id="dash-empty" class="dash-empty ui-empty-state hidden">
+        Click <strong>Edit</strong> then <strong>+ Add Widget</strong> to build your custom view.
+      </div>
+      <div class="grid-stack" id="dash-grid" style="min-height: 200px;"></div>
+    </div>
+  </section>
 
-<div id="dash-empty" class="dash-empty hidden">
-  Click <strong>Edit</strong> then <strong>+ Add Widget</strong> to build your custom view.
+  <aside id="dash-picker" class="dash-picker ui-widget hidden" aria-label="Add dashboard widget">
+    <div class="dash-picker-header ui-widget-header">
+      <span class="ui-widget-title">Add Widget</span>
+      <button id="dash-picker-close" class="dash-picker-close" aria-label="Close widget picker">x</button>
+    </div>
+    <div id="dash-picker-list" class="dash-picker-list ui-widget-body"></div>
+  </aside>
 </div>
-
-<div class="grid-stack" id="dash-grid" style="min-height: 200px;"></div>
