@@ -288,6 +288,7 @@ function showView(name) {
   const main = document.querySelector('main');
   main?.classList.toggle('dash-active', name === 'dashboard');
   main?.classList.toggle('history-active', name === 'history');
+  main?.classList.toggle('session-active', name === 'session');
   _activeViewName = name;
   window.oofActiveViewName = name;
   if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);

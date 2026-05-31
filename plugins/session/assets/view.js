@@ -296,7 +296,7 @@ function renderMatchCards(matches) {
   _sessionExpandedMatchId = null;
 
   if (!matches.length) {
-    listEl.innerHTML = '<p class="text-center text-gray-500 text-sm py-6">No matches in this session yet.</p>';
+    listEl.innerHTML = '<p class="session-empty-message">No matches in this session yet.</p>';
     return;
   }
 
@@ -306,29 +306,30 @@ function renderMatchCards(matches) {
     const won       = finished && m.player_team === m.winner_team_num;
     const lost      = finished && m.player_team !== m.winner_team_num;
     const resultCls = m.incomplete ? 'text-gray-500' : won ? 'text-green-400' : lost ? 'text-red-400' : 'text-gray-500';
+    const rowState  = m.incomplete ? 'incomplete' : won ? 'win' : lost ? 'loss' : 'neutral';
     const resultTxt = m.incomplete ? '?' : won ? 'W' : lost ? 'L' : '—';
 
     const card = document.createElement('div');
-    card.className = 'session-match-card bg-surface border border-line rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-rl-blue/50 transition-colors';
+    card.className = `session-match-card ${rowState}`;
     card.dataset.matchId = m.match_id;
     const matchTypeStr = friendlyPlaylist(m.playlist_type) || matchType(m.player_count);
     card.innerHTML = `
-      <span class="text-2xl font-extrabold tabular-nums w-6 text-center shrink-0 ${resultCls}">${resultTxt}</span>
-      <div class="flex-1 min-w-0">
-        <div class="font-medium text-sm truncate flex items-center gap-1 flex-wrap">
+      <span class="session-row-result ${resultCls}">${resultTxt}</span>
+      <div class="session-row-main">
+        <div class="session-row-title">
           ${esc(friendlyArena(m.arena))}
           ${matchTypeStr ? `<span class="match-mode-badge">${esc(matchTypeStr)}</span>` : ''}
           ${m.overtime   ? '<span class="match-mode-badge match-mode-ot">OT</span>' : ''}
           ${m.forfeit    ? '<span class="match-mode-badge" style="background:rgba(234,179,8,0.12);color:#ca8a04">FF</span>' : ''}
           ${m.incomplete ? '<span class="match-mode-badge" style="background:rgba(156,163,175,0.12);color:#9ca3af">Inc</span>' : ''}
         </div>
-        <div class="text-xs text-gray-500">${formatDate(m.started_at)}</div>
+        <div class="session-row-meta">${formatDate(m.started_at)}</div>
       </div>
-      <div class="text-right text-sm tabular-nums shrink-0">
-        <div class="text-gray-300">${m.goals}G ${m.assists}A ${m.saves}Sv</div>
-        <div class="text-xs text-gray-500">Score ${m.score}</div>
+      <div class="session-row-stats">
+        <div>${m.goals}G ${m.assists}A ${m.saves}Sv</div>
+        <small>Score ${m.score}</small>
       </div>
-      <span class="text-gray-500 shrink-0 text-lg session-chevron transition-transform">›</span>
+      <span class="session-chevron">›</span>
     `;
     card.addEventListener('click', () => toggleSessionMatchInline(card, m.match_id));
     listEl.appendChild(card);
@@ -350,8 +351,8 @@ async function toggleSessionMatchInline(card, matchId) {
   card.querySelector('.session-chevron').style.transform = 'rotate(90deg)';
 
   const panel = document.createElement('div');
-  panel.className = 'session-match-panel match-inline-panel';
-  panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Loading…</div>';
+  panel.className = 'session-match-panel match-inline-panel session-inline-detail';
+  panel.innerHTML = '<div class="session-inline-status">Loading...</div>';
   card.insertAdjacentElement('afterend', panel);
 
   await loadSessionMatchDetail(matchId, panel);
@@ -362,7 +363,7 @@ async function loadSessionMatchDetail(matchId, panel) {
     const data = await fetch(`/api/matches/${matchId}`).then(r => r.json());
     window.renderMatchDetailPanel(data, panel, _sessionExpandedMatchId, matchId);
   } catch(_) {
-    panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Failed to load match detail.</div>';
+    panel.innerHTML = '<div class="session-inline-status">Failed to load match detail.</div>';
   }
 }
 
@@ -405,38 +406,38 @@ function buildSessionHistoryCard(s) {
   const wrapper = document.createElement('div');
 
   const card = document.createElement('div');
-  card.className = 'bg-surface border border-line rounded-xl px-4 py-3 cursor-pointer hover:border-rl-blue/50 transition-colors';
+  card.className = 'session-history-card';
   card.innerHTML = `
-    <div class="flex items-center justify-between gap-3">
-      <div class="flex-1 min-w-0">
-        <div class="text-sm font-medium">${formatDate(s.started_at)}</div>
-        <div class="text-xs text-gray-500 mt-0.5">
+    <div class="session-history-card-row">
+      <div class="session-history-card-main">
+        <div class="session-history-card-title">${formatDate(s.started_at)}</div>
+        <div class="session-history-card-meta">
           ${durStr} &nbsp;·&nbsp;
-          <span class="text-green-400">${s.wins}W</span> <span class="text-red-400">${s.losses}L</span>
+          <span class="session-win-text">${s.wins}W</span> <span class="session-loss-text">${s.losses}L</span>
           &nbsp;·&nbsp; ${s.goals}G ${s.assists}A ${s.saves}Sv ${s.shots}Sh ${s.demos}Dm
         </div>
       </div>
-      <span class="text-gray-500 shrink-0 text-lg sess-hist-chevron transition-transform">›</span>
+      <span class="sess-hist-chevron">›</span>
     </div>
   `;
 
   const editPanel = document.createElement('div');
-  editPanel.className = 'hidden bg-surface2 border border-line border-t-0 rounded-b-xl px-4 py-3 -mt-1';
+  editPanel.className = 'hidden session-history-edit-panel';
   editPanel.innerHTML = `
-    <div class="grid grid-cols-2 gap-3 mb-3">
+    <div class="session-history-edit-grid">
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Start</label>
-        <input type="datetime-local" class="sess-hist-start w-full bg-surface border border-line rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-rl-blue" value="${toDatetimeLocal(startDate)}">
+        <label class="ui-label">Start</label>
+        <input type="datetime-local" class="ui-input sess-hist-start" value="${toDatetimeLocal(startDate)}">
       </div>
       <div>
-        <label class="text-xs text-gray-500 block mb-1">End</label>
-        <input type="datetime-local" class="sess-hist-end w-full bg-surface border border-line rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-rl-blue" value="${toDatetimeLocal(endDate)}">
+        <label class="ui-label">End</label>
+        <input type="datetime-local" class="ui-input sess-hist-end" value="${toDatetimeLocal(endDate)}">
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button class="sess-hist-save text-xs bg-rl-blue text-white rounded px-3 py-1 hover:bg-rl-blue/80">Save</button>
-      <button class="sess-hist-delete text-xs text-red-400 hover:text-red-300 border border-red-400/40 rounded px-3 py-1">Delete</button>
-      <span class="sess-hist-msg text-xs ml-2 hidden"></span>
+    <div class="session-history-edit-actions">
+      <button class="ui-button ui-button--primary sess-hist-save" type="button">Save</button>
+      <button class="ui-button sess-hist-delete" type="button">Delete</button>
+      <span class="sess-hist-msg hidden"></span>
     </div>
   `;
 
@@ -470,19 +471,19 @@ function buildSessionHistoryCard(s) {
       });
       if (res.ok) {
         msg.textContent = 'Saved!';
-        msg.className = 'sess-hist-msg text-xs text-green-400 ml-2';
+        msg.className = 'sess-hist-msg session-message success';
         msg.classList.remove('hidden');
         setTimeout(() => msg.classList.add('hidden'), 3000);
         loadSessionHistory();
       } else {
         const err = await res.json().catch(() => ({}));
         msg.textContent = err.error || 'Error saving.';
-        msg.className = 'sess-hist-msg text-xs text-red-400 ml-2';
+        msg.className = 'sess-hist-msg session-message error';
         msg.classList.remove('hidden');
       }
     } catch(_) {
       msg.textContent = 'Request failed.';
-      msg.className = 'sess-hist-msg text-xs text-red-400 ml-2';
+      msg.className = 'sess-hist-msg session-message error';
       msg.classList.remove('hidden');
     }
   });
