@@ -654,25 +654,56 @@ function loadScript(src) {
   });
 }
 
+function viewDescriptors(enabledTabs, allSchema) {
+  const tabs = enabledTabs || [];
+  const tabByID = new Map(tabs.map((t, i) => [t.id, { ...t, index: i }]));
+  const out = [];
+  const seen = new Set();
+
+  for (const blob of allSchema || []) {
+    if (!blob.plugin_id || !blob.view_id) continue;
+    const tab = tabByID.get(blob.view_id);
+    out.push({
+      pluginID: blob.plugin_id,
+      viewID: blob.view_id,
+      title: tab?.label || blob.title || blob.view_id,
+      enabled: !!blob.enabled,
+      order: tab?.order ?? 1000,
+      index: tab?.index ?? 1000 + out.length,
+    });
+    seen.add(blob.view_id);
+  }
+
+  // Host-core views, such as History, can be discoverable through /api/nav
+  // without appearing in the plugin settings schema.
+  for (const tab of tabs) {
+    if (!tab.id || seen.has(tab.id)) continue;
+    out.push({
+      pluginID: tab.id,
+      viewID: tab.id,
+      title: tab.label || tab.id,
+      enabled: true,
+      order: tab.order ?? 1000,
+      index: tab.index ?? out.length,
+    });
+  }
+
+  return out.sort((a, b) => (a.order - b.order) || (a.index - b.index));
+}
+
 function buildNav(enabledTabs, allSchema) {
   const nav = document.getElementById('plugin-nav');
-  const enabledIds = new Set(enabledTabs.map(t => t.id));
-  const pluginBtns = allSchema
-    .filter(b => b.view_id)
-    .map(b => {
-      const visible = enabledIds.has(b.view_id);
-      return `<button class="nav-btn" data-view="${esc(b.view_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
-    })
+  const pluginBtns = viewDescriptors(enabledTabs, allSchema)
+    .map(v => `<button class="nav-btn" data-view="${esc(v.viewID)}"${v.enabled ? '' : ' style="display:none"'}>${esc(v.title)}</button>`)
     .join('');
   nav.innerHTML = pluginBtns + '<button class="nav-btn" data-view="settings">Settings</button>';
   nav.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 }
 
 function enabledViews(enabledTabs, allSchema) {
-  const navEnabled = new Set((enabledTabs || []).map(t => t.id));
-  return (allSchema || [])
-    .filter(b => b.plugin_id && b.view_id && b.enabled && navEnabled.has(b.view_id))
-    .map(b => ({ pluginID: b.plugin_id, viewID: b.view_id }));
+  return viewDescriptors(enabledTabs, allSchema)
+    .filter(v => v.enabled)
+    .map(v => ({ pluginID: v.pluginID, viewID: v.viewID }));
 }
 
 async function injectPluginViews(enabledTabs, allSchema) {
