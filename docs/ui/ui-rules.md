@@ -222,6 +222,32 @@ Use this order:
 Final polish and new features should wait until existing pages have completed
 their refresh/reformat pass.
 
+## Planned Match Type Follow-Ups
+
+These are planned follow-up ideas, not current reskin foundation behavior.
+
+Future match type handling should treat manual user selection as the source of
+truth. Tracker Network match-count or playlist signals may suggest likely match
+type, and existing parsing/inference should remain a fallback when neither a
+manual selection nor a reliable provider signal is available.
+
+The UI refresh/reformat pass should leave room for this future workflow without
+implementing it:
+
+- Live should eventually show only the rank/MMR relevant to the current match
+  type instead of exposing every known provider rank under each player.
+- Ranks should keep playlist/rank card regions clean and addressable so a
+  future focused-mode or visible-modes workflow can be added without reshaping
+  the whole page.
+- Session W/L and streak displays should eventually become match-type scoped
+  once confirmed match type is available.
+- History should be able to display whether match type was manual, provider
+  suggested, inferred, or unknown.
+
+The replay stat issue where API updates continue during replay playback is a
+separate runtime/data-integrity bug. It should be fixed in a dedicated bugfix PR
+instead of hidden by display-only UI changes.
+
 ## Safety
 
 Live, Session, and History are data-sensitive surfaces.
