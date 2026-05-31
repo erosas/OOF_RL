@@ -79,8 +79,8 @@ func NewServer(cfgPath string, cfg *config.Config, database *db.DB, h *hub.Hub, 
 		mmrProvider: mmrProvider,
 		disabled:    disabled,
 		activeDirty: true,
-		bus:         bus,
-		translator:  rlevents.New(bus.ForPlugin("")), // empty ID = RL translator convention
+		bus:        bus,
+		translator: rlevents.New(bus.ForPlugin("")), // empty ID = RL translator convention
 	}
 	if database != nil {
 		if err := histstore.Migrate(database); err != nil {
