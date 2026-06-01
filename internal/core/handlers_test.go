@@ -297,8 +297,8 @@ func TestPostSettings(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
 	}
-	if cfg.BallchasingAPIKey != "test-key" {
-		t.Errorf("bc key: got %q, want test-key", cfg.BallchasingAPIKey)
+	if got := cfg.PluginSettings["ballchasing_api_key"]; got != "test-key" {
+		t.Errorf("bc key: got %q, want test-key", got)
 	}
 
 	newCfg := config.Defaults()

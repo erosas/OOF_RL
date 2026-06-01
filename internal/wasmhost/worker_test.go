@@ -373,7 +373,7 @@ func TestHostGetConfig_NilCfg(t *testing.T) {
 
 // TestHostGetConfig_WithCfg verifies a known config key is written to the output buffer.
 func TestHostGetConfig_WithCfg(t *testing.T) {
-	cfg := &config.Config{BallchasingAPIKey: "test-key-123"}
+	cfg := &config.Config{PluginSettings: map[string]string{"ballchasing_api_key": "test-key-123"}}
 	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: cfg}
 	mod := newMemModule(t)
 	ctx := context.Background()
