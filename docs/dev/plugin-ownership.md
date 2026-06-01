@@ -1,6 +1,6 @@
 # Plugin Ownership and Trust Model
 
-This document captures the host/plugin ownership matrix and the trust model for WASM plugins. It complements the [Architecture RFC](architecture-rfc.md) with a quick reference for contributors.
+This document captures the host/plugin ownership matrix and the trust model for WASM plugins.
 
 ---
 
@@ -23,7 +23,6 @@ This document captures the host/plugin ownership matrix and the trust model for 
 | Session statistics | **Plugin** (`plugins/session`) | |
 | Ballchasing.com upload | **Plugin** (`plugins/ballchasing`) | |
 | Summary dashboard | **Plugin** (`plugins/dashboard`) | |
-| Debug event log and screenshots | **Plugin** (`plugins/debugassistant`) | |
 
 ### Host-core features (cannot be disabled)
 
@@ -60,17 +59,17 @@ All WASM plugins shipped with OOF RL (`plugins/`) are authored by the same team 
 
 ## SDK Capability Surface
 
-The following host imports are available to all plugins via `plugins/sdk/pdk.go`:
+The following host imports are available to all plugins via `sdk/pdk.go` (`github.com/erosas/oof-plugin-sdk`):
 
-| Import | Description |
+| Function | Description |
 |--------|-------------|
 | `sdk.Log` | Emit a log line to the host log |
-| `sdk.ReadConfig` | Read the current app config as JSON |
+| `sdk.GetConfig` | Read a config value by key |
 | `sdk.DBQuery` | Execute a read-only SQL query |
 | `sdk.DBExec` | Execute a write SQL statement |
 | `sdk.HTTPFetch` | Make an outbound HTTP request |
-| `sdk.BroadcastEvent` | Push a WebSocket event to all browser clients |
-| `sdk.ReadDataFile` | Read a file from `plugin_data/{id}/` |
-| `sdk.WriteDataFile` | Write a file to `plugin_data/{id}/` |
+| `sdk.BroadcastWS` | Send a WebSocket message to all browser clients |
+| `sdk.PublishEvent` | Publish an event onto the host event bus |
+| `sdk.UploadFile` | Stream a WASI-mounted file to a URL via multipart POST (host reads from disk) |
 
-All plugins have access to all of these. Capability scoping (restricting individual plugins to a subset) is not yet implemented.
+File access uses normal Go file I/O against WASI-mounted paths (`/replays`, `/data`). All plugins have access to all imports. Capability scoping is not yet implemented.

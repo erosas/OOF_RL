@@ -1,5 +1,7 @@
 # Overlay Widget System Design
 
+> **Status: future design — not yet implemented.**
+
 ## Overview
 
 Replace the current single-purpose overlay window with a general-purpose widget system.

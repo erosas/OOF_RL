@@ -196,16 +196,15 @@ func TestReadINIFileNotFound(t *testing.T) {
 }
 
 func TestConfigLookup(t *testing.T) {
-	cfg := Config{BallchasingAPIKey: "abc", BallchasingDeleteAfterUpload: true}
+	cfg := Config{PluginSettings: map[string]string{
+		"ballchasing_api_key":            "abc",
+		"ballchasing_delete_after_upload": "true",
+	}}
 	if got := cfg.Lookup("ballchasing_api_key"); got != "abc" {
 		t.Errorf("api_key: got %q, want %q", got, "abc")
 	}
 	if got := cfg.Lookup("ballchasing_delete_after_upload"); got != "true" {
-		t.Errorf("delete_after_upload true: got %q", got)
-	}
-	cfg.BallchasingDeleteAfterUpload = false
-	if got := cfg.Lookup("ballchasing_delete_after_upload"); got != "false" {
-		t.Errorf("delete_after_upload false: got %q", got)
+		t.Errorf("delete_after_upload: got %q", got)
 	}
 	if got := cfg.Lookup("replay_dir"); got != DetectReplayDir() {
 		t.Errorf("replay_dir: got %q, want %q", got, DetectReplayDir())
@@ -218,22 +217,17 @@ func TestConfigLookup(t *testing.T) {
 func TestConfigSet(t *testing.T) {
 	cfg := Config{}
 	cfg.Set("ballchasing_api_key", "mykey")
-	if cfg.BallchasingAPIKey != "mykey" {
-		t.Errorf("api_key: got %q", cfg.BallchasingAPIKey)
+	if got := cfg.PluginSettings["ballchasing_api_key"]; got != "mykey" {
+		t.Errorf("api_key: got %q", got)
 	}
 	cfg.Set("ballchasing_delete_after_upload", "true")
-	if !cfg.BallchasingDeleteAfterUpload {
-		t.Error("delete_after_upload should be true")
+	if got := cfg.PluginSettings["ballchasing_delete_after_upload"]; got != "true" {
+		t.Errorf("delete_after_upload: got %q", got)
 	}
-	cfg.Set("ballchasing_delete_after_upload", "false")
-	if cfg.BallchasingDeleteAfterUpload {
-		t.Error("delete_after_upload should be false")
+	cfg.Set("unknown_key", "val")
+	if got := cfg.PluginSettings["unknown_key"]; got != "val" {
+		t.Errorf("unknown_key: got %q", got)
 	}
-	cfg.Set("ballchasing_delete_after_upload", "1")
-	if !cfg.BallchasingDeleteAfterUpload {
-		t.Error("delete_after_upload '1' should be true")
-	}
-	cfg.Set("unknown_key", "val") // must not panic
 }
 
 func TestDetectReplayDir_NoEnv(t *testing.T) {

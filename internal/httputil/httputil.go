@@ -2,7 +2,6 @@ package httputil
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -17,5 +16,6 @@ func WriteJSON(w http.ResponseWriter, v any) {
 func JSONError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	fmt.Fprintf(w, `{"error":%q}`, msg)
+	b, _ := json.Marshal(map[string]string{"error": msg})
+	_, _ = w.Write(b)
 }
