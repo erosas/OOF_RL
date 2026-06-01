@@ -20,7 +20,6 @@ type Config struct {
 	AppPort                      int             `toml:"app_port"                  json:"app_port"`
 	DataDir                      string          `toml:"data_dir"                  json:"data_dir"`
 	RLInstallPath                string          `toml:"rl_install_path"           json:"rl_install_path"`
-	TrackerCacheTTLMinutes       int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
 	PluginSettings               map[string]string `toml:"plugin_settings"           json:"plugin_settings"`
 	OverlayHotkey                string            `toml:"overlay_hotkey"            json:"overlay_hotkey"`
 	OverlayX                     int             `toml:"overlay_x"                 json:"overlay_x"`
@@ -68,9 +67,8 @@ func Defaults() Config {
 	return Config{
 		AppPort:                8080,
 		DataDir:                dataDir,
-		RLInstallPath:          DetectRLPath(),
-		TrackerCacheTTLMinutes: 5,
-		OverlayHotkey:          "F9",
+		RLInstallPath: DetectRLPath(),
+		OverlayHotkey: "F9",
 		OverlayX:               -1,
 		OverlayY:               -1,
 		OverlayWidth:           860,
@@ -141,8 +139,12 @@ func Load(path string) (Config, error) {
 // Unknown keys are silently ignored.
 func (c *Config) Set(key, value string) {
 	switch key {
+	case "data_dir":
+		c.DataDir = value
 	case "dev_mode":
 		c.DevMode = value == "true" || value == "1" || value == "on"
+	case "replay_dir":
+		// read-only: detected from filesystem, not user-settable
 	default:
 		if c.PluginSettings == nil {
 			c.PluginSettings = make(map[string]string)

@@ -22,7 +22,17 @@ jobs:
 
       - name: Run tests
         shell: pwsh
-        run: go test -coverprofile="$env:RUNNER_TEMP/coverage.out" ./...
+        run: |
+          # All packages are tested. Coverage instrumentation is limited to packages
+          # where the numbers are meaningful — excluded packages are either untestable
+          # without live infrastructure or have no application logic worth measuring:
+          #   OOF_RL                  — app entry point / OS glue only
+          #   OOF_RL/internal/overlay — Windows WebView2/CGO UI; requires a real window
+          #   OOF_RL/internal/rl      — WebSocket client; core logic tested, live I/O not
+          #   OOF_RL/tools/genicon    — one-off build tool
+          $exclude = '^(OOF_RL|OOF_RL/internal/overlay|OOF_RL/internal/rl|OOF_RL/tools/genicon)$'
+          $coverpkgs = (go list ./... | Where-Object { $_ -notmatch $exclude }) -join ','
+          go test -coverprofile="$env:RUNNER_TEMP/coverage.out" -coverpkg=$coverpkgs ./...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5

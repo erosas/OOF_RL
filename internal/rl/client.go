@@ -88,14 +88,7 @@ func trnProfileURL(primaryID, name string) string {
 		rest = rest[:end]
 	}
 	// All asterisks = masked Switch identity — no profile to link.
-	masked := len(rest) > 0
-	for _, c := range rest {
-		if c != '*' {
-			masked = false
-			break
-		}
-	}
-	if masked {
+	if mmr.IsAllAsterisks(rest) {
 		return ""
 	}
 	lookup := rest

@@ -363,7 +363,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("/api/settings/schema", s.handleSettingsSchema)
 	mux.HandleFunc("/api/settings", s.handleSettings)
-	mux.HandleFunc("/api/tracker/profile", s.handleTrackerProfile)
+	mux.HandleFunc("/api/tracker/profile", mmr.Handler(s.mmrProvider))
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
 

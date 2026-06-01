@@ -23,8 +23,15 @@ run: build
 test:
 	go test ./...
 
+# Packages intentionally excluded from coverage (keep alphabetical):
+#   OOF_RL                    — main package; app entry point and OS glue only
+#   OOF_RL/internal/overlay   — Windows WebView2/CGO UI; requires a real window, not unit-testable
+#   OOF_RL/internal/rl        — live WebSocket to the RL game process; requires the game running
+#   OOF_RL/tools/genicon      — one-off build tool; no application logic worth testing
+COVER_PKGS := $(shell go list ./... | grep -Ev "^(OOF_RL|OOF_RL/internal/overlay|OOF_RL/internal/rl|OOF_RL/tools/genicon)$$")
+
 cover:
-	go test -coverprofile=coverage.out ./...
+	go test -coverprofile=coverage.out $(COVER_PKGS)
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report written to coverage.html"
 

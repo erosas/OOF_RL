@@ -365,7 +365,6 @@ async function loadSettings() {
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
   ]);
 
-  document.getElementById('cfg-ttl').value = cfg.tracker_cache_ttl_minutes ?? 10;
   const hk = cfg.overlay_hotkey || 'F9';
   _hotkeyBtn.textContent   = hk;
   _hotkeyBtn.dataset.value = hk;
@@ -590,7 +589,6 @@ function renderPluginAccordion(blobs, cfg) {
 document.getElementById('save-cfg').addEventListener('click', async () => {
   const opacityAlpha = parseInt(document.getElementById('cfg-overlay-opacity').value);
   const cfg = {
-    tracker_cache_ttl_minutes: Math.max(2, parseInt(document.getElementById('cfg-ttl').value) || 5),
     overlay_hotkey:    _hotkeyBtn.dataset.value || _hotkeyBtn.textContent || 'F9',
     overlay_hold_mode: document.getElementById('cfg-hold-mode').checked,
     overlay_opacity:   opacityAlpha / 255,
