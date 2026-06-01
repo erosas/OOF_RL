@@ -117,9 +117,11 @@ Match list, optionally filtered to matches where `player` appeared.
   "playlist_type": 13,
   "team0_goals": 3,
   "team1_goals": 1,
-  "player_count": 6
+  "player_count": 6,
+  "player_team": 0
 }]
 ```
+`player_team` is included only when the optional `player` filter is present. It is the filtered player's recorded team for that match and is used by the History UI to display player-relative W/L without changing saved match data.
 
 ### `GET /api/matches/{id}`
 Match detail: per-player stats and goal log.

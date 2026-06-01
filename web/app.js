@@ -285,7 +285,11 @@ function showView(name) {
   rememberActiveViewScroll();
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  document.querySelector('main')?.classList.toggle('dash-active', name === 'dashboard');
+  const main = document.querySelector('main');
+  main?.classList.toggle('dash-active', name === 'dashboard');
+  main?.classList.toggle('history-active', name === 'history');
+  main?.classList.toggle('session-active', name === 'session');
+  main?.classList.toggle('live-active', name === 'live');
   _activeViewName = name;
   window.oofActiveViewName = name;
   if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
@@ -431,7 +435,7 @@ function renderCoreSettings(blob, cfg) {
   const fieldRows = blob.settings.map(s => renderSettingRow(s, cfg)).join('');
 
   const panel = document.createElement('div');
-  panel.className = 'settings-panel';
+  panel.className = 'settings-panel settings-section';
   panel.innerHTML = `
     <div class="settings-panel-title">Data Capture</div>
     <p class="text-xs text-gray-500 mb-3">These options can generate significant amounts of data. Only enable them if you have a specific need.</p>
@@ -456,6 +460,12 @@ function renderCoreSettings(blob, cfg) {
   });
 
   container.appendChild(panel);
+}
+
+function settingsPluginIconLabel(blob) {
+  const source = blob.title || blob.plugin_id || '';
+  const letters = source.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
+  return letters || 'PL';
 }
 
 function renderPluginAccordion(blobs, cfg) {
@@ -489,9 +499,13 @@ function renderPluginAccordion(blobs, cfg) {
     const item = document.createElement('div');
     item.className = 'plugin-item';
     item.innerHTML = `<div class="plugin-item-header">
-           <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
+           <span class="settings-plugin-icon" aria-hidden="true">${esc(settingsPluginIconLabel(blob))}</span>
            <span class="plugin-item-name${isEnabled ? '' : ' disabled'}">${esc(blob.title)}</span>
-           <span class="plugin-item-arrow" aria-hidden="true">›</span>
+           <span class="plugin-item-status">
+             <span class="plugin-item-dot ${isEnabled ? 'on' : 'off'}"></span>
+             ${isEnabled ? 'Enabled' : 'Disabled'}
+           </span>
+           <span class="plugin-item-arrow" aria-hidden="true">&gt;</span>
          </div>
          <div class="plugin-item-body" style="display:none">
            <div class="settings-row">
@@ -522,6 +536,7 @@ function renderPluginAccordion(blobs, cfg) {
     const cb     = item.querySelector('.plugin-enabled-cb');
     if (hostCore) cb.disabled = true;
     const dot    = item.querySelector('.plugin-item-dot');
+    const statusEl = item.querySelector('.plugin-item-status');
     const nameEl = item.querySelector('.plugin-item-name');
     cb.addEventListener('change', async () => {
       if (hostCore) return;
@@ -531,6 +546,7 @@ function renderPluginAccordion(blobs, cfg) {
         : [...new Set([..._disabledPlugins, blob.plugin_id])];
 
       dot.className = `plugin-item-dot ${enabled ? 'on' : 'off'}`;
+      statusEl.innerHTML = `<span class="plugin-item-dot ${enabled ? 'on' : 'off'}"></span>${enabled ? 'Enabled' : 'Disabled'}`;
       nameEl.className = `plugin-item-name${enabled ? '' : ' disabled'}`;
 
       if (blob.view_id) {
@@ -654,25 +670,56 @@ function loadScript(src) {
   });
 }
 
+function viewDescriptors(enabledTabs, allSchema) {
+  const tabs = enabledTabs || [];
+  const tabByID = new Map(tabs.map((t, i) => [t.id, { ...t, index: i }]));
+  const out = [];
+  const seen = new Set();
+
+  for (const blob of allSchema || []) {
+    if (!blob.plugin_id || !blob.view_id) continue;
+    const tab = tabByID.get(blob.view_id);
+    out.push({
+      pluginID: blob.plugin_id,
+      viewID: blob.view_id,
+      title: tab?.label || blob.title || blob.view_id,
+      enabled: !!blob.enabled,
+      order: tab?.order ?? 1000,
+      index: tab?.index ?? 1000 + out.length,
+    });
+    seen.add(blob.view_id);
+  }
+
+  // Host-core views, such as History, can be discoverable through /api/nav
+  // without appearing in the plugin settings schema.
+  for (const tab of tabs) {
+    if (!tab.id || seen.has(tab.id)) continue;
+    out.push({
+      pluginID: tab.id,
+      viewID: tab.id,
+      title: tab.label || tab.id,
+      enabled: true,
+      order: tab.order ?? 1000,
+      index: tab.index ?? out.length,
+    });
+  }
+
+  return out.sort((a, b) => (a.order - b.order) || (a.index - b.index));
+}
+
 function buildNav(enabledTabs, allSchema) {
   const nav = document.getElementById('plugin-nav');
-  const enabledIds = new Set(enabledTabs.map(t => t.id));
-  const pluginBtns = allSchema
-    .filter(b => b.view_id)
-    .map(b => {
-      const visible = enabledIds.has(b.view_id);
-      return `<button class="nav-btn" data-view="${esc(b.view_id)}"${visible ? '' : ' style="display:none"'}>${esc(b.title)}</button>`;
-    })
+  const pluginBtns = viewDescriptors(enabledTabs, allSchema)
+    .map(v => `<button class="nav-btn" data-view="${esc(v.viewID)}"${v.enabled ? '' : ' style="display:none"'}>${esc(v.title)}</button>`)
     .join('');
   nav.innerHTML = pluginBtns + '<button class="nav-btn" data-view="settings">Settings</button>';
   nav.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 }
 
 function enabledViews(enabledTabs, allSchema) {
-  const navEnabled = new Set((enabledTabs || []).map(t => t.id));
-  return (allSchema || [])
-    .filter(b => b.plugin_id && b.view_id && b.enabled && navEnabled.has(b.view_id))
-    .map(b => ({ pluginID: b.plugin_id, viewID: b.view_id }));
+  return viewDescriptors(enabledTabs, allSchema)
+    .filter(v => v.enabled)
+    .map(v => ({ pluginID: v.pluginID, viewID: v.viewID }));
 }
 
 async function injectPluginViews(enabledTabs, allSchema) {

@@ -90,6 +90,7 @@ func TestHandleMatchesWithPlayerFilter(t *testing.T) {
 	m2, _ := s.UpsertMatch("guid-2", "Mannfield", time.Now())
 	s.UpsertPlayerMatchStats(m1, "pid1", 0, 100, 1, 1, 0, 0, 0, 0, 0)
 	s.UpsertPlayerMatchStats(m2, "pid2", 1, 200, 2, 2, 0, 0, 0, 0, 0)
+	s.EndMatch(m1, 0, false, false, false)
 
 	w := hget(mux, "/api/matches")
 	var all []any
@@ -97,12 +98,18 @@ func TestHandleMatchesWithPlayerFilter(t *testing.T) {
 	if len(all) != 2 {
 		t.Errorf("expected 2 matches, got %d", len(all))
 	}
+	if _, ok := all[0].(map[string]any)["player_team"]; ok {
+		t.Error("unfiltered matches should not include player_team")
+	}
 
 	w = hget(mux, "/api/matches?player=pid1")
-	var filtered []any
+	var filtered []map[string]any
 	json.Unmarshal(w.Body.Bytes(), &filtered)
 	if len(filtered) != 1 {
 		t.Errorf("expected 1 match for pid1, got %d", len(filtered))
+	}
+	if got := filtered[0]["player_team"]; got != float64(0) {
+		t.Errorf("player_team: got %v, want 0", got)
 	}
 }
 

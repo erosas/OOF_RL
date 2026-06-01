@@ -8,6 +8,8 @@ let _liveStats              = null; // non-null only while a match is active
 
 let _sessionSummaryInstances = [];
 let _sessionLiveInstances    = [];
+let _sessionMatchInstances   = [];
+let _sessionHistoryInstances = [];
 
 window.pluginInit_session = async function() {
   window.registerWidget?.({
@@ -19,6 +21,16 @@ window.pluginInit_session = async function() {
     id: 'session-live-game', pluginId: 'session', title: 'Live Game Stats',
     defaultW: 4, defaultH: 4, minW: 3, minH: 3,
     factory: sessionLiveGameWidget,
+  });
+  window.registerWidget?.({
+    id: 'session-match-list', pluginId: 'session', title: 'Session Matches',
+    defaultW: 6, defaultH: 8, minW: 4, minH: 5,
+    factory: sessionMatchesWidget,
+  });
+  window.registerWidget?.({
+    id: 'session-previous-sessions', pluginId: 'session', title: 'Previous Sessions',
+    defaultW: 6, defaultH: 7, minW: 4, minH: 5,
+    factory: sessionHistoryWidget,
   });
 
   _sessionPlayerID = localStorage.getItem('oof_session_player') || '';
@@ -177,6 +189,8 @@ window.refreshSession = async function() {
     renderLiveGame();
     _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see stats.'));
+    _sessionMatchInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see matches.'));
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see previous sessions.'));
     return;
   }
   noPlayer?.classList.add('hidden');
@@ -187,6 +201,8 @@ window.refreshSession = async function() {
     renderLiveGame();
     _sessionLiveInstances.forEach(w => w.render());
     _sessionSummaryInstances.forEach(w => w.renderPlaceholder('No active session. Use the Session tab to start one.'));
+    _sessionMatchInstances.forEach(w => w.renderPlaceholder('No active session yet.'));
+    _sessionHistoryInstances.forEach(w => w.refresh());
     return;
   }
   notStarted?.classList.add('hidden');
@@ -199,6 +215,7 @@ window.refreshSession = async function() {
     const data = await fetch(url).then(r => r.json());
     renderSessionStats(data);
     _sessionSummaryInstances.forEach(w => w.renderData(data));
+    _sessionMatchInstances.forEach(w => w.renderData(data));
   } catch(_) {}
 };
 
@@ -279,7 +296,7 @@ function renderMatchCards(matches) {
   _sessionExpandedMatchId = null;
 
   if (!matches.length) {
-    listEl.innerHTML = '<p class="text-center text-gray-500 text-sm py-6">No matches in this session yet.</p>';
+    listEl.innerHTML = '<p class="session-empty-message">No matches in this session yet.</p>';
     return;
   }
 
@@ -289,29 +306,30 @@ function renderMatchCards(matches) {
     const won       = finished && m.player_team === m.winner_team_num;
     const lost      = finished && m.player_team !== m.winner_team_num;
     const resultCls = m.incomplete ? 'text-gray-500' : won ? 'text-green-400' : lost ? 'text-red-400' : 'text-gray-500';
+    const rowState  = m.incomplete ? 'incomplete' : won ? 'win' : lost ? 'loss' : 'neutral';
     const resultTxt = m.incomplete ? '?' : won ? 'W' : lost ? 'L' : '—';
 
     const card = document.createElement('div');
-    card.className = 'session-match-card bg-surface border border-line rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-rl-blue/50 transition-colors';
+    card.className = `session-match-card ${rowState}`;
     card.dataset.matchId = m.match_id;
     const matchTypeStr = friendlyPlaylist(m.playlist_type) || matchType(m.player_count);
     card.innerHTML = `
-      <span class="text-2xl font-extrabold tabular-nums w-6 text-center shrink-0 ${resultCls}">${resultTxt}</span>
-      <div class="flex-1 min-w-0">
-        <div class="font-medium text-sm truncate flex items-center gap-1 flex-wrap">
+      <span class="session-row-result ${resultCls}">${resultTxt}</span>
+      <div class="session-row-main">
+        <div class="session-row-title">
           ${esc(friendlyArena(m.arena))}
           ${matchTypeStr ? `<span class="match-mode-badge">${esc(matchTypeStr)}</span>` : ''}
           ${m.overtime   ? '<span class="match-mode-badge match-mode-ot">OT</span>' : ''}
           ${m.forfeit    ? '<span class="match-mode-badge" style="background:rgba(234,179,8,0.12);color:#ca8a04">FF</span>' : ''}
           ${m.incomplete ? '<span class="match-mode-badge" style="background:rgba(156,163,175,0.12);color:#9ca3af">Inc</span>' : ''}
         </div>
-        <div class="text-xs text-gray-500">${formatDate(m.started_at)}</div>
+        <div class="session-row-meta">${formatDate(m.started_at)}</div>
       </div>
-      <div class="text-right text-sm tabular-nums shrink-0">
-        <div class="text-gray-300">${m.goals}G ${m.assists}A ${m.saves}Sv</div>
-        <div class="text-xs text-gray-500">Score ${m.score}</div>
+      <div class="session-row-stats">
+        <div>${m.goals}G ${m.assists}A ${m.saves}Sv</div>
+        <small>Score ${m.score}</small>
       </div>
-      <span class="text-gray-500 shrink-0 text-lg session-chevron transition-transform">›</span>
+      <span class="session-chevron">›</span>
     `;
     card.addEventListener('click', () => toggleSessionMatchInline(card, m.match_id));
     listEl.appendChild(card);
@@ -333,8 +351,8 @@ async function toggleSessionMatchInline(card, matchId) {
   card.querySelector('.session-chevron').style.transform = 'rotate(90deg)';
 
   const panel = document.createElement('div');
-  panel.className = 'session-match-panel match-inline-panel';
-  panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Loading…</div>';
+  panel.className = 'session-match-panel match-inline-panel session-inline-detail';
+  panel.innerHTML = '<div class="session-inline-status">Loading...</div>';
   card.insertAdjacentElement('afterend', panel);
 
   await loadSessionMatchDetail(matchId, panel);
@@ -345,7 +363,7 @@ async function loadSessionMatchDetail(matchId, panel) {
     const data = await fetch(`/api/matches/${matchId}`).then(r => r.json());
     window.renderMatchDetailPanel(data, panel, _sessionExpandedMatchId, matchId);
   } catch(_) {
-    panel.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px">Failed to load match detail.</div>';
+    panel.innerHTML = '<div class="session-inline-status">Failed to load match detail.</div>';
   }
 }
 
@@ -355,11 +373,13 @@ async function loadSessionHistory() {
   if (!section || !list) return;
   if (!_sessionPlayerID) {
     section.classList.add('hidden');
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see previous sessions.'));
     return;
   }
 
   try {
     const sessions = await fetch(`/api/session/history?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+    _sessionHistoryInstances.forEach(w => w.renderData(sessions || []));
     if (!sessions || !sessions.length) {
       section.classList.add('hidden');
       return;
@@ -371,6 +391,7 @@ async function loadSessionHistory() {
     }
   } catch(_) {
     section.classList.add('hidden');
+    _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Failed to load previous sessions.'));
   }
 }
 
@@ -385,38 +406,38 @@ function buildSessionHistoryCard(s) {
   const wrapper = document.createElement('div');
 
   const card = document.createElement('div');
-  card.className = 'bg-surface border border-line rounded-xl px-4 py-3 cursor-pointer hover:border-rl-blue/50 transition-colors';
+  card.className = 'session-history-card';
   card.innerHTML = `
-    <div class="flex items-center justify-between gap-3">
-      <div class="flex-1 min-w-0">
-        <div class="text-sm font-medium">${formatDate(s.started_at)}</div>
-        <div class="text-xs text-gray-500 mt-0.5">
+    <div class="session-history-card-row">
+      <div class="session-history-card-main">
+        <div class="session-history-card-title">${formatDate(s.started_at)}</div>
+        <div class="session-history-card-meta">
           ${durStr} &nbsp;·&nbsp;
-          <span class="text-green-400">${s.wins}W</span> <span class="text-red-400">${s.losses}L</span>
+          <span class="session-win-text">${s.wins}W</span> <span class="session-loss-text">${s.losses}L</span>
           &nbsp;·&nbsp; ${s.goals}G ${s.assists}A ${s.saves}Sv ${s.shots}Sh ${s.demos}Dm
         </div>
       </div>
-      <span class="text-gray-500 shrink-0 text-lg sess-hist-chevron transition-transform">›</span>
+      <span class="sess-hist-chevron">›</span>
     </div>
   `;
 
   const editPanel = document.createElement('div');
-  editPanel.className = 'hidden bg-surface2 border border-line border-t-0 rounded-b-xl px-4 py-3 -mt-1';
+  editPanel.className = 'hidden session-history-edit-panel';
   editPanel.innerHTML = `
-    <div class="grid grid-cols-2 gap-3 mb-3">
+    <div class="session-history-edit-grid">
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Start</label>
-        <input type="datetime-local" class="sess-hist-start w-full bg-surface border border-line rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-rl-blue" value="${toDatetimeLocal(startDate)}">
+        <label class="ui-label">Start</label>
+        <input type="datetime-local" class="ui-input sess-hist-start" value="${toDatetimeLocal(startDate)}">
       </div>
       <div>
-        <label class="text-xs text-gray-500 block mb-1">End</label>
-        <input type="datetime-local" class="sess-hist-end w-full bg-surface border border-line rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-rl-blue" value="${toDatetimeLocal(endDate)}">
+        <label class="ui-label">End</label>
+        <input type="datetime-local" class="ui-input sess-hist-end" value="${toDatetimeLocal(endDate)}">
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button class="sess-hist-save text-xs bg-rl-blue text-white rounded px-3 py-1 hover:bg-rl-blue/80">Save</button>
-      <button class="sess-hist-delete text-xs text-red-400 hover:text-red-300 border border-red-400/40 rounded px-3 py-1">Delete</button>
-      <span class="sess-hist-msg text-xs ml-2 hidden"></span>
+    <div class="session-history-edit-actions">
+      <button class="ui-button ui-button--primary sess-hist-save" type="button">Save</button>
+      <button class="ui-button sess-hist-delete" type="button">Delete</button>
+      <span class="sess-hist-msg hidden"></span>
     </div>
   `;
 
@@ -450,19 +471,19 @@ function buildSessionHistoryCard(s) {
       });
       if (res.ok) {
         msg.textContent = 'Saved!';
-        msg.className = 'sess-hist-msg text-xs text-green-400 ml-2';
+        msg.className = 'sess-hist-msg session-message success';
         msg.classList.remove('hidden');
         setTimeout(() => msg.classList.add('hidden'), 3000);
         loadSessionHistory();
       } else {
         const err = await res.json().catch(() => ({}));
         msg.textContent = err.error || 'Error saving.';
-        msg.className = 'sess-hist-msg text-xs text-red-400 ml-2';
+        msg.className = 'sess-hist-msg session-message error';
         msg.classList.remove('hidden');
       }
     } catch(_) {
       msg.textContent = 'Request failed.';
-      msg.className = 'sess-hist-msg text-xs text-red-400 ml-2';
+      msg.className = 'sess-hist-msg session-message error';
       msg.classList.remove('hidden');
     }
   });
@@ -582,4 +603,127 @@ function sessionLiveGameWidget(container) {
   _sessionLiveInstances.push(entry);
   render();
   return { refresh: render, destroy };
+}
+
+function sessionMatchesWidget(container) {
+  function renderPlaceholder(msg) {
+    container.innerHTML = `<div class="ui-widget-empty">${esc(msg)}</div>`;
+  }
+
+  function renderData(data) {
+    const matches = data.matches || [];
+    if (!matches.length) {
+      renderPlaceholder('No matches in this session yet.');
+      return;
+    }
+
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">
+      ${[...matches].reverse().slice(0, 8).map(sessionWidgetMatchRow).join('')}
+    </div>`;
+  }
+
+  async function refresh() {
+    if (!_sessionPlayerID) {
+      renderPlaceholder('Select a player in the Session tab to see matches.');
+      return;
+    }
+    if (!_sessionSince) {
+      renderPlaceholder('No active session yet.');
+      return;
+    }
+    try {
+      const data = await fetch(`/api/session/stats?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+      renderData(data);
+    } catch(_) {
+      renderPlaceholder('Failed to load session matches.');
+    }
+  }
+
+  function destroy() {
+    const i = _sessionMatchInstances.indexOf(entry);
+    if (i >= 0) _sessionMatchInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, renderData, renderPlaceholder };
+  _sessionMatchInstances.push(entry);
+  return { refresh, destroy };
+}
+
+function sessionHistoryWidget(container) {
+  function renderPlaceholder(msg) {
+    container.innerHTML = `<div class="ui-widget-empty">${esc(msg)}</div>`;
+  }
+
+  function renderData(sessions) {
+    if (!sessions || !sessions.length) {
+      renderPlaceholder('No previous sessions yet.');
+      return;
+    }
+
+    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">
+      ${sessions.slice(0, 8).map(sessionWidgetHistoryRow).join('')}
+    </div>`;
+  }
+
+  async function refresh() {
+    if (!_sessionPlayerID) {
+      renderPlaceholder('Select a player in the Session tab to see previous sessions.');
+      return;
+    }
+    try {
+      const sessions = await fetch(`/api/session/history?player=${encodeURIComponent(_sessionPlayerID)}`).then(r => r.json());
+      renderData(sessions || []);
+    } catch(_) {
+      renderPlaceholder('Failed to load previous sessions.');
+    }
+  }
+
+  function destroy() {
+    const i = _sessionHistoryInstances.indexOf(entry);
+    if (i >= 0) _sessionHistoryInstances.splice(i, 1);
+  }
+
+  const entry = { refresh, renderData, renderPlaceholder };
+  _sessionHistoryInstances.push(entry);
+  return { refresh, destroy };
+}
+
+function sessionWidgetMatchRow(m) {
+  const finished = !m.incomplete && m.winner_team_num >= 0;
+  const won = finished && m.player_team === m.winner_team_num;
+  const lost = finished && m.player_team !== m.winner_team_num;
+  const resultText = m.incomplete ? '?' : won ? 'W' : lost ? 'L' : '-';
+  const resultColor = won ? 'var(--green)' : lost ? 'var(--red)' : 'var(--muted)';
+  const mode = friendlyPlaylist(m.playlist_type) || matchType(m.player_count);
+  return `<div style="display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+    <div style="font-size:18px;font-weight:800;color:${resultColor};text-align:center">${resultText}</div>
+    <div style="min-width:0">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(friendlyArena(m.arena))}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(formatDate(m.started_at))}${mode ? ` &middot; ${esc(mode)}` : ''}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums">
+      <div style="color:var(--text)">${m.goals}G ${m.assists}A ${m.saves}Sv</div>
+      <div>Score ${m.score}</div>
+    </div>
+  </div>`;
+}
+
+function sessionWidgetHistoryRow(s) {
+  const startDate = new Date(s.started_at);
+  const endDate = new Date(s.ended_at);
+  const durMins = Math.max(0, Math.round((endDate - startDate) / 60000));
+  const h = Math.floor(durMins / 60);
+  const m = durMins % 60;
+  const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
+    <div style="min-width:0">
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(formatDate(s.started_at))}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${durStr} &middot; ${s.goals}G ${s.assists}A ${s.saves}Sv ${s.shots}Sh</div>
+    </div>
+    <div style="font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">
+      <span style="color:var(--green)">${s.wins}W</span>
+      <span style="color:var(--muted)"> / </span>
+      <span style="color:var(--red)">${s.losses}L</span>
+    </div>
+  </div>`;
 }

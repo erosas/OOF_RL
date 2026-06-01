@@ -67,13 +67,17 @@ function _dashAddWidget(widgetId, x, y, w, h) {
   itemEl.dataset.widgetId = widgetId;
 
   const contentEl = itemEl.querySelector('.grid-stack-item-content');
+  contentEl.classList.add('ui-widget', 'dashboard-widget');
   contentEl.innerHTML = `
-    <div class="widget-header">
-      <span class="widget-drag-icon">⣿</span>
-      <span class="widget-title-text">${esc(def.title)}</span>
-      <button class="widget-remove-btn" title="Remove">✕</button>
+    <div class="widget-header ui-widget-header">
+      <span class="widget-drag-icon">::</span>
+      <span class="widget-title-text ui-widget-title">${esc(def.title)}</span>
+      <span class="widget-plugin-pill ui-widget-status">${esc(def.pluginId || 'plugin')}</span>
+      <div class="ui-widget-actions">
+        <button class="widget-remove-btn" title="Remove">x</button>
+      </div>
     </div>
-    <div class="widget-body"></div>
+    <div class="widget-body ui-widget-body"></div>
   `;
 
   let ctrl;
@@ -164,7 +168,7 @@ function _openPicker() {
   list.innerHTML = '';
   if (!widgets.length) {
     const msg = document.createElement('div');
-    msg.style.cssText = 'color:var(--muted);font-size:0.85rem;text-align:center;padding:24px';
+    msg.className = 'dash-picker-empty';
     msg.textContent = 'No widgets registered yet.';
     list.appendChild(msg);
   } else {
@@ -183,7 +187,7 @@ function _openPicker() {
       info.appendChild(plugin);
 
       const btn = document.createElement('button');
-      btn.className = 'bc-sync-btn';
+      btn.className = 'bc-sync-btn ui-button ui-button--ghost';
       btn.textContent = 'Add';
       btn.addEventListener('click', () => {
         _dashAddWidget(def.id);

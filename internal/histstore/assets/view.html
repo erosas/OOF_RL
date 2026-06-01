@@ -1,6 +1,47 @@
-<div class="mb-4">
-  <select id="history-player-filter" class="bg-surface border border-line text-gray-200 px-3 py-2 rounded-lg text-sm min-w-[200px] cursor-pointer">
-    <option value="">All Players</option>
-  </select>
+<div id="history-page" class="ui-page history-page">
+  <div id="history-toolbar" class="ui-page-header history-toolbar">
+    <div class="history-toolbar-copy">
+      <div class="ui-page-kicker">Saved matches</div>
+      <h2 class="ui-page-title">Match History</h2>
+      <p class="history-toolbar-subtitle">Review final scores, player stats, teams, and match events.</p>
+    </div>
+    <div class="history-toolbar-actions">
+      <label class="ui-label" for="history-player-filter">Filter by player</label>
+      <select id="history-player-filter" class="ui-select history-player-filter">
+        <option value="">All Players</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="history-layout" class="history-layout">
+    <section id="history-list-panel" class="ui-panel ui-panel--flush history-list-panel">
+      <div class="history-panel-header">
+        <div>
+          <div class="ui-section-title">Saved matches</div>
+          <div class="history-panel-subtitle">Most recent games first</div>
+        </div>
+        <span id="history-match-count" class="history-count">0 matches</span>
+      </div>
+      <div class="history-match-list-heading" aria-hidden="true">
+        <span id="history-result-heading">W/L</span>
+        <span>Match</span>
+        <span>Score</span>
+      </div>
+      <div id="matches-list" class="history-match-list"></div>
+    </section>
+
+    <section id="history-detail-panel" class="ui-panel ui-panel--flush history-detail-panel">
+      <div id="history-detail-empty" class="history-detail-empty">
+        <div class="history-empty-icon">i</div>
+        <div>
+          <div class="history-empty-title">No match selected</div>
+          <div class="history-empty-copy">Choose a saved match to review the score, teams, stats, and events.</div>
+        </div>
+      </div>
+      <div id="history-detail-content-wrapper" class="history-detail-content-wrapper hidden">
+        <div id="history-selected-summary"></div>
+        <div id="history-selected-detail" class="history-selected-detail"></div>
+      </div>
+    </section>
+  </div>
 </div>
-<div id="matches-list"></div>

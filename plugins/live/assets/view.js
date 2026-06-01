@@ -3,9 +3,10 @@
 let _liveInstances = [];
 let _liveState     = null;
 let _liveActive    = false;
+let _liveOpenRankKeys = new Set();
 
 function formatClock(secs) {
-  if (secs == null) return '—';
+  if (secs == null) return '--:--';
   const m = Math.floor(secs / 60);
   const s = String(secs % 60).padStart(2, '0');
   return `${m}:${s}`;
@@ -67,8 +68,8 @@ function updatePossessionBar(players) {
     document.getElementById('possession-bar-blue').style.width   = bp + '%';
     document.getElementById('possession-bar-orange').style.width = op + '%';
   } else {
-    document.getElementById('possession-pct-blue').textContent   = '—';
-    document.getElementById('possession-pct-orange').textContent = '—';
+    document.getElementById('possession-pct-blue').textContent   = '--';
+    document.getElementById('possession-pct-orange').textContent = '--';
     document.getElementById('possession-bar-blue').style.width   = '50%';
     document.getElementById('possession-bar-orange').style.width = '50%';
   }
@@ -82,6 +83,22 @@ function renderPlayers(players, t0color = null, t1color = null) {
   grid.innerHTML =
     teamPanel('Blue',   'blue',   blue,   t0color) +
     teamPanel('Orange', 'orange', orange, t1color);
+  bindLiveRankDetails(grid);
+}
+
+function liveRankKey(p) {
+  return p.PrimaryId || `${p.TeamNum}:${p.Name || ''}`;
+}
+
+function bindLiveRankDetails(root) {
+  root.querySelectorAll('.live-rank-details').forEach(details => {
+    details.addEventListener('toggle', () => {
+      const key = details.dataset.rankKey;
+      if (!key) return;
+      if (details.open) _liveOpenRankKeys.add(key);
+      else _liveOpenRankKeys.delete(key);
+    });
+  });
 }
 
 function teamPanel(name, cls, players, teamHexColor = null) {
@@ -97,69 +114,79 @@ function teamPanel(name, cls, players, teamHexColor = null) {
       <div class="boost-bar-wrap">
         <div class="boost-bar"><div class="boost-fill ${boostClass(boost)}" style="width:${boost}%"></div></div>
         <span class="boost-num">${boost}</span>
-      </div>` : '<span style="color:var(--muted)">—</span>';
+      </div>` : '<span class="live-stat-empty">--</span>';
 
     const trnUrl = !isBot(p.PrimaryId) ? trnProfileUrl(p.PrimaryId, p.Name) : '';
     const nameEl = trnUrl
       ? `<a href="${esc(trnUrl)}" target="_blank" rel="noopener" class="player-name player-name-link">${esc(p.Name)}</a>`
       : `<span class="player-name">${esc(p.Name)}</span>`;
 
-    return `
-      <div class="player-row ${demolished}">
-        <div class="player-name-cell">${nameEl}</div>
-        <span>${p.Goals   ?? 0}</span>
-        <span>${p.Assists ?? 0}</span>
-        <span>${p.Saves   ?? 0}</span>
-        <span>${p.Shots   ?? 0}</span>
-        <span>${p.Demos   ?? 0}</span>
-        <span>${p.Touches ?? 0}</span>
-        ${boostBar}
-        <span>${p.Score   ?? 0}</span>
-      </div>`;
-  }).join('');
+    const statusChips = `
+      ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
+      ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
+      ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
+      ${chip('status-chip-wall',  'WALL',  !!p.bOnWall)}
+      ${chip('status-chip-ps',    'PS',    !!p.bPowerslide)}
+    `;
 
-  const statusRows = players.map(p => {
-    const demolished = p.bDemolished ? 'demolished' : '';
+    let rankBlock = '';
+    if (!isBot(p.PrimaryId)) {
+      const rankHTML = trackerRankHTML(p.PrimaryId);
+      if (rankHTML) {
+        const rankKey = liveRankKey(p);
+        const openAttr = _liveOpenRankKeys.has(rankKey) ? ' open' : '';
+        rankBlock = `
+          <details class="live-rank-details" data-rank-key="${esc(rankKey)}"${openAttr}>
+            <summary>Ranks</summary>
+            <div class="live-rank-panel">${rankHTML}</div>
+          </details>`;
+      }
+    }
+
     return `
-      <div class="team-status-row ${demolished}">
-        <span class="team-status-name">${esc(p.Name)}</span>
-        <div class="status-wrap">
-          ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
-          ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
-          ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
-          ${chip('',                  'WALL',  !!p.bOnWall)}
-          ${chip('',                  'PS',    !!p.bPowerslide)}
+      <div class="player-row live-player-row ${demolished}">
+        <div class="player-name-cell">
+          ${nameEl}
+          ${rankBlock}
+        </div>
+        <div class="live-player-stats">
+          ${livePlayerStat('G', p.Goals ?? 0)}
+          ${livePlayerStat('A', p.Assists ?? 0)}
+          ${livePlayerStat('Sv', p.Saves ?? 0)}
+          ${livePlayerStat('Sh', p.Shots ?? 0)}
+          ${livePlayerStat('Dm', p.Demos ?? 0)}
+          ${livePlayerStat('Tch', p.Touches ?? 0)}
+          <div class="status-wrap live-player-status">${statusChips}</div>
+        </div>
+        <div class="live-player-boost">
+          <span>Boost</span>
+          ${boostBar}
+        </div>
+        <div class="live-player-score">
+          <span>Score</span>
+          <strong>${p.Score ?? 0}</strong>
         </div>
       </div>`;
   }).join('');
 
-  const rankRows = players.map(p => {
-    if (isBot(p.PrimaryId)) return '';
-    const rankHTML = trackerRankHTML(p.PrimaryId);
-    if (!rankHTML) return '';
-    const demolished = p.bDemolished ? 'demolished' : '';
-    return `
-      <div class="team-rank-row ${demolished}">
-        <span class="team-rank-name">${esc(p.Name)}</span>
-        ${rankHTML}
-      </div>`;
-  }).join('');
-
-  const rankSection = rankRows.trim()
-    ? `<div class="team-rank-section">${rankRows}</div>`
-    : '';
-
   return `
-    <div class="team-panel">
+    <div class="team-panel team-panel-${cls}">
       <div class="team-panel-header ${cls}"${headerStyle}>${esc(name)}</div>
-      <div class="player-row header">
-        <span>Player</span><span>G</span><span>A</span><span>Sv</span><span>Sh</span><span>Dm</span>
-        <span>Tch</span><span>Boost</span><span>Score</span>
+      <div class="live-team-columns">
+        <span>Player</span><span>Stats</span><span>Boost</span><span>Score</span>
       </div>
-      ${rows || '<div class="player-row"><span style="color:var(--muted)">No players</span></div>'}
-      <div class="team-status-section">${statusRows}</div>
-      ${rankSection}
+      <div class="team-player-stack">
+        ${rows || '<div class="team-panel-empty">No players</div>'}
+      </div>
     </div>`;
+}
+
+function livePlayerStat(label, value) {
+  return `
+    <span class="live-stat-cell">
+      <small>${label}</small>
+      <strong>${value}</strong>
+    </span>`;
 }
 
 function boostClass(b) {
@@ -177,7 +204,7 @@ function flashGoal(data) {
     background:#7c3aed;color:#fff;padding:10px 24px;border-radius:8px;
     font-weight:700;font-size:16px;z-index:999;pointer-events:none;
     font-family:Inter,ui-sans-serif,system-ui,sans-serif;`;
-  banner.textContent = `GOAL — ${scorer}`;
+  banner.textContent = `GOAL - ${scorer}`;
   document.body.appendChild(banner);
   setTimeout(() => banner.remove(), 3000);
 }
@@ -195,7 +222,7 @@ function clearLive() {
 
 function liveScoreboardWidget(container) {
   container.innerHTML = `
-    <div class="ls-waiting" style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>
+    <div class="ls-waiting" style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match...</div>
     <div class="ls-board hidden" style="padding:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="text-align:left;min-width:0">
@@ -217,12 +244,12 @@ function liveScoreboardWidget(container) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
-        <span class="ls-pct-blue tabular-nums" style="font-size:11px;font-weight:600;width:28px;text-align:right;color:var(--rl-blue)">—</span>
+        <span class="ls-pct-blue tabular-nums" style="font-size:11px;font-weight:600;width:28px;text-align:right;color:var(--rl-blue)">--</span>
         <div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;display:flex">
           <div class="ls-bar-blue" style="height:100%;background:var(--rl-blue);width:50%;transition:width .5s"></div>
           <div class="ls-bar-orange" style="height:100%;background:var(--rl-orange);width:50%;transition:width .5s"></div>
         </div>
-        <span class="ls-pct-orange tabular-nums" style="font-size:11px;font-weight:600;width:28px;color:var(--rl-orange)">—</span>
+        <span class="ls-pct-orange tabular-nums" style="font-size:11px;font-weight:600;width:28px;color:var(--rl-orange)">--</span>
       </div>
     </div>
   `;
@@ -274,8 +301,8 @@ function liveScoreboardWidget(container) {
       q('.ls-bar-blue').style.width   = `${bp}%`;
       q('.ls-bar-orange').style.width = `${100 - bp}%`;
     } else {
-      q('.ls-pct-blue').textContent   = '—';
-      q('.ls-pct-orange').textContent = '—';
+      q('.ls-pct-blue').textContent   = '--';
+      q('.ls-pct-orange').textContent = '--';
       q('.ls-bar-blue').style.width   = '50%';
       q('.ls-bar-orange').style.width = '50%';
     }
@@ -301,7 +328,7 @@ function liveScoreboardWidget(container) {
 
 function livePlayersWidget(container) {
   function renderEmpty() {
-    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>';
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match...</div>';
   }
 
   function render(data) {
@@ -319,6 +346,7 @@ function livePlayersWidget(container) {
         teamPanel('Blue',   'blue',   blue,   t0.ColorPrimary || null) +
         teamPanel('Orange', 'orange', orange, t1.ColorPrimary || null) +
       `</div>`;
+    bindLiveRankDetails(container);
   }
 
   function refresh() {
@@ -339,6 +367,89 @@ function livePlayersWidget(container) {
   return { refresh, destroy };
 }
 
+function liveTeamComparisonWidget(container) {
+  function renderEmpty() {
+    container.innerHTML = '<div class="ui-widget-empty">Waiting for live team data.</div>';
+  }
+
+  function render(data) {
+    const players = data.Players || [];
+    if (!players.length) { renderEmpty(); return; }
+
+    const blue = liveTeamTotals(players, 0);
+    const orange = liveTeamTotals(players, 1);
+    const rows = [
+      ['Goals', 'goals'],
+      ['Shots', 'shots'],
+      ['Saves', 'saves'],
+      ['Demos', 'demos'],
+      ['Touches', 'touches'],
+      ['Score', 'score'],
+    ].map(([label, key]) => liveTeamComparisonRow(label, blue[key], orange[key])).join('');
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="min-width:0">
+            <div style="color:var(--rl-blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Blue Team</div>
+            <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--rl-blue)">${blue.goals}</div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Team Totals</div>
+          <div style="min-width:0;text-align:right">
+            <div style="color:var(--rl-orange);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Orange Team</div>
+            <div style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--rl-orange)">${orange.goals}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">${rows}</div>
+      </div>`;
+  }
+
+  function refresh() {
+    fetch('/api/live/state').then(r => r.json()).then(s => {
+      if (s.active && s.state) render(s.state);
+      else renderEmpty();
+    }).catch(renderEmpty);
+  }
+
+  function destroy() {
+    const i = _liveInstances.indexOf(entry);
+    if (i >= 0) _liveInstances.splice(i, 1);
+  }
+
+  const entry = { render, renderEmpty };
+  _liveInstances.push(entry);
+  if (_liveActive && _liveState) render(_liveState); else renderEmpty();
+  return { refresh, destroy };
+}
+
+function liveTeamTotals(players, teamNum) {
+  return players
+    .filter(p => p.TeamNum === teamNum)
+    .reduce((acc, p) => {
+      acc.goals += p.Goals || 0;
+      acc.shots += p.Shots || 0;
+      acc.saves += p.Saves || 0;
+      acc.demos += p.Demos || 0;
+      acc.touches += p.Touches || 0;
+      acc.score += p.Score || 0;
+      return acc;
+    }, { goals: 0, shots: 0, saves: 0, demos: 0, touches: 0, score: 0 });
+}
+
+function liveTeamComparisonRow(label, blueValue, orangeValue) {
+  const max = Math.max(blueValue, orangeValue, 1);
+  const bluePct = Math.round((blueValue / max) * 100);
+  const orangePct = Math.round((orangeValue / max) * 100);
+  return `
+    <div style="display:grid;grid-template-columns:42px minmax(0,1fr) 78px minmax(0,1fr) 42px;align-items:center;gap:8px;font-size:12px">
+      <span style="color:var(--rl-blue);font-weight:700;text-align:right;font-variant-numeric:tabular-nums">${blueValue}</span>
+      <div style="height:6px;background:var(--surface2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${bluePct}%;background:var(--rl-blue)"></div></div>
+      <span style="color:var(--muted);font-size:10px;text-align:center;text-transform:uppercase;letter-spacing:.06em">${esc(label)}</span>
+      <div style="height:6px;background:var(--surface2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${orangePct}%;background:var(--rl-orange)"></div></div>
+      <span style="color:var(--rl-orange);font-weight:700;font-variant-numeric:tabular-nums">${orangeValue}</span>
+    </div>`;
+}
+
 window.pluginInit_live = async function() {
   window.registerWidget?.({
     id: 'live-scoreboard', pluginId: 'live', title: 'Live Score',
@@ -349,6 +460,11 @@ window.pluginInit_live = async function() {
     id: 'live-players', pluginId: 'live', title: 'Live Players',
     defaultW: 12, defaultH: 10, minW: 6, minH: 6,
     factory: livePlayersWidget,
+  });
+  window.registerWidget?.({
+    id: 'live-team-comparison', pluginId: 'live', title: 'Team Comparison',
+    defaultW: 6, defaultH: 7, minW: 4, minH: 5,
+    factory: liveTeamComparisonWidget,
   });
 
   try {

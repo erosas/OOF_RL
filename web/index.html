@@ -10,12 +10,12 @@
     theme: {
       extend: {
         colors: {
-          bg:        '#0a0b0e',
-          surface:   '#111318',
-          surface2:  '#191c23',
-          line:      '#1f2433',
-          'rl-blue':   '#4a9eff',
-          'rl-orange': '#ff8c2a',
+          bg: 'rgb(var(--oof-color-bg-rgb) / <alpha-value>)',
+          surface: 'rgb(var(--oof-color-surface-rgb) / <alpha-value>)',
+          surface2: 'rgb(var(--oof-color-surface-raised-rgb) / <alpha-value>)',
+          line: 'rgb(var(--oof-color-border-rgb) / <alpha-value>)',
+          'rl-blue': 'rgb(var(--oof-color-team-blue-rgb) / <alpha-value>)',
+          'rl-orange': 'rgb(var(--oof-color-team-orange-rgb) / <alpha-value>)',
         },
         fontFamily: {
           sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -28,7 +28,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body class="bg-bg text-gray-200 font-sans text-sm min-h-screen">
+<body id="oof-app" class="bg-bg text-gray-200 font-sans text-sm min-h-screen">
 
 <!-- Overlay drag bar — only visible when body.overlay-mode is set -->
 <div id="overlay-drag-bar" class="overlay-drag-bar">
@@ -42,25 +42,34 @@
 <div id="overlay-resize-grip" class="overlay-resize-grip"></div>
 
 <!-- Header -->
-<header class="flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
-  <span id="app-logo" class="text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
-  <nav class="flex gap-1 flex-1" id="plugin-nav"></nav>
+<header id="app-shell-header" class="app-shell-header flex items-center gap-4 px-5 py-3 bg-surface border-b border-line sticky top-0 z-10">
+  <span id="app-logo" class="app-logo text-rl-blue font-bold tracking-widest text-base mr-2">OOF RL</span>
+  <nav class="app-nav flex gap-1 flex-1" id="plugin-nav"></nav>
   <div id="status-dot" class="dot disconnected" title="RL connection status"></div>
 </header>
 
-<main class="px-5 py-6 max-w-3xl mx-auto">
+<main id="app-main" class="app-main">
 
   <!-- Plugin views injected here by app.js -->
-  <div id="plugin-views"></div>
+  <div id="plugin-views" class="plugin-views"></div>
 
   <!-- SETTINGS VIEW -->
-  <section id="view-settings" class="view">
+  <section id="view-settings" class="view app-settings-view settings-page">
+    <div class="settings-header">
+      <div class="settings-header-icon" aria-hidden="true"></div>
+      <div>
+        <h1 class="settings-title">Settings</h1>
+        <p class="settings-subtitle">Customize your OOF RL experience.</p>
+      </div>
+    </div>
+
+    <div class="settings-shell">
 
     <!-- App Settings -->
-    <div class="settings-panel">
+    <div class="settings-panel settings-section settings-app-section">
       <div class="settings-panel-title">App Settings</div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-tracker-row">
         <span class="settings-label">
           Tracker rank cache
           <span class="help-icon">?<span class="help-tip">How long tracker.gg rank data is cached. Set to 0 to always fetch live. Lower values use more data.</span></span>
@@ -69,9 +78,9 @@
         <span class="settings-suffix">min</span>
       </div>
 
-      <div class="settings-row settings-subhead">Overlay</div>
+      <div class="settings-row settings-subhead settings-overlay-heading">Overlay</div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <span class="settings-label">
           Hotkey
           <span class="help-icon">?<span class="help-tip">Press this key while in-game to toggle the overlay window. Only F-keys and navigation keys are supported.</span></span>
@@ -80,7 +89,7 @@
         <span class="settings-hint">click to change</span>
       </div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <label class="settings-label flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="cfg-hold-mode" class="accent-rl-blue">
           Hold to show
@@ -88,7 +97,7 @@
         </label>
       </div>
 
-      <div class="settings-row">
+      <div class="settings-row settings-overlay-row">
         <span class="settings-label">
           Opacity
           <span class="help-icon">?<span class="help-tip">Default opacity when the overlay opens. Adjustable live from the overlay's drag bar.</span></span>
@@ -104,13 +113,13 @@
     </div>
 
     <!-- Plugins section -->
-    <div class="settings-panel mt-5">
+    <div class="settings-panel settings-section mt-5">
       <div class="settings-panel-title">Plugins</div>
       <div id="plugin-settings-container"></div>
     </div>
 
     <!-- Advanced -->
-    <details class="mt-5">
+    <details class="settings-advanced mt-5">
       <summary class="settings-details-summary">Advanced</summary>
       <div class="flex flex-col gap-4 mt-3">
 
@@ -174,6 +183,8 @@
 
       </div>
     </details>
+
+    </div>
 
   </section>
 
