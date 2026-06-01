@@ -2814,19 +2814,19 @@ main.live-active {
   text-transform: uppercase;
 }
 
-.history-hero-dev,
-.history-hero-dev-placeholder {
+.history-hero-details,
+.history-hero-details-placeholder {
   justify-self: end;
   min-width: 0;
 }
 
-.history-hero-dev {
+.history-hero-details {
   max-width: 260px;
   color: var(--oof-color-text-muted);
   font-size: var(--oof-font-size-xs);
 }
 
-.history-hero-dev summary {
+.history-hero-details summary {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -2842,16 +2842,16 @@ main.live-active {
   white-space: nowrap;
 }
 
-.history-hero-dev summary::-webkit-details-marker {
+.history-hero-details summary::-webkit-details-marker {
   display: none;
 }
 
-.history-hero-dev[open] summary {
+.history-hero-details[open] summary {
   border-color: rgb(var(--oof-color-accent-rgb) / .52);
   color: var(--oof-color-accent);
 }
 
-.history-hero-dev-body {
+.history-hero-details-body {
   display: grid;
   gap: var(--oof-space-1);
   margin-top: var(--oof-space-2);
@@ -2862,7 +2862,7 @@ main.live-active {
   box-shadow: var(--oof-shadow-inset);
 }
 
-.history-hero-dev-body span {
+.history-hero-details-body span {
   color: var(--oof-color-text-subtle);
   font-size: 10px;
   font-weight: var(--oof-font-weight-bold);
@@ -2870,7 +2870,7 @@ main.live-active {
   text-transform: uppercase;
 }
 
-.history-hero-dev-body code {
+.history-hero-details-body code {
   overflow-wrap: anywhere;
   color: var(--oof-color-text);
   font-family: Consolas, "Liberation Mono", monospace;
@@ -3354,12 +3354,12 @@ main.live-active {
     flex-wrap: wrap;
   }
 
-  .history-hero-dev,
-  .history-hero-dev-placeholder {
+  .history-hero-details,
+  .history-hero-details-placeholder {
     justify-self: stretch;
   }
 
-  .history-hero-dev summary {
+  .history-hero-details summary {
     justify-content: center;
     width: 100%;
   }

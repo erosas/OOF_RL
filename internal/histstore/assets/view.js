@@ -158,14 +158,14 @@ function renderHistorySelectedSummary(m) {
   ].filter(Boolean);
   const badges = historyMatchBadges(m);
   const fullGuid = m.MatchGUID ? String(m.MatchGUID).toUpperCase() : '';
-  const devDetails = fullGuid ? `
-      <details class="history-hero-dev">
+  const matchDetails = fullGuid ? `
+      <details class="history-hero-details">
         <summary>Match details</summary>
-        <div class="history-hero-dev-body">
+        <div class="history-hero-details-body">
           <span>Game ID</span>
           <code>${esc(fullGuid)}</code>
         </div>
-      </details>` : '<div class="history-hero-dev-placeholder"></div>';
+      </details>` : '<div class="history-hero-details-placeholder"></div>';
 
   return `
     <div class="history-match-hero ${result.matchClass}">
@@ -184,7 +184,7 @@ function renderHistorySelectedSummary(m) {
         </div>
         <span class="history-hero-result ${result.tokenClass}">${esc(result.label)}</span>
       </div>
-      ${devDetails}
+      ${matchDetails}
     </div>
     <div class="history-detail-strip">
       ${badges.map(b => `<span class="${esc(b.className)}"${b.style ? ` style="${esc(b.style)}"` : ''}>${esc(b.label)}</span>`).join('')}
