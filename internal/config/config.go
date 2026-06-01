@@ -21,9 +21,8 @@ type Config struct {
 	DataDir                      string          `toml:"data_dir"                  json:"data_dir"`
 	RLInstallPath                string          `toml:"rl_install_path"           json:"rl_install_path"`
 	TrackerCacheTTLMinutes       int             `toml:"tracker_cache_ttl_minutes" json:"tracker_cache_ttl_minutes"`
-	BallchasingAPIKey            string          `toml:"ballchasing_api_key"              json:"-"`
-	BallchasingDeleteAfterUpload bool            `toml:"ballchasing_delete_after_upload"  json:"-"`
-	OverlayHotkey                string          `toml:"overlay_hotkey"            json:"overlay_hotkey"`
+	PluginSettings               map[string]string `toml:"plugin_settings"           json:"plugin_settings"`
+	OverlayHotkey                string            `toml:"overlay_hotkey"            json:"overlay_hotkey"`
 	OverlayX                     int             `toml:"overlay_x"                 json:"overlay_x"`
 	OverlayY                     int             `toml:"overlay_y"                 json:"overlay_y"`
 	OverlayWidth                 int             `toml:"overlay_width"             json:"overlay_width"`
@@ -93,7 +92,34 @@ func Load(path string) (Config, error) {
 		}
 		return cfg, Save(path, cfg)
 	}
-	_, err := toml.DecodeFile(path, &cfg)
+
+	// TODO: remove this migration block once users have had time to migrate (added 2026-05-31).
+	// legacyWrapper captures old flat ballchasing fields that lived at the top
+	// level before they moved to [plugin_settings]. The embedded Config picks up
+	// all current fields; the extra fields catch the old keys for migration.
+	type legacyWrapper struct {
+		Config
+		LegacyBCKey    string `toml:"ballchasing_api_key"`
+		LegacyBCDelete bool   `toml:"ballchasing_delete_after_upload"`
+	}
+	w := legacyWrapper{Config: cfg}
+	_, err := toml.DecodeFile(path, &w)
+	cfg = w.Config
+
+	// Migrate legacy flat keys into PluginSettings if not already present.
+	if w.LegacyBCKey != "" && cfg.PluginSettings["ballchasing_api_key"] == "" {
+		if cfg.PluginSettings == nil {
+			cfg.PluginSettings = make(map[string]string)
+		}
+		cfg.PluginSettings["ballchasing_api_key"] = w.LegacyBCKey
+	}
+	if w.LegacyBCDelete && cfg.PluginSettings["ballchasing_delete_after_upload"] == "" {
+		if cfg.PluginSettings == nil {
+			cfg.PluginSettings = make(map[string]string)
+		}
+		cfg.PluginSettings["ballchasing_delete_after_upload"] = "true"
+	}
+
 	// Back-fill fields that didn't exist in older config files.
 	if cfg.DataDir == "" {
 		cfg.DataDir = defaultDataDir()
@@ -115,12 +141,13 @@ func Load(path string) (Config, error) {
 // Unknown keys are silently ignored.
 func (c *Config) Set(key, value string) {
 	switch key {
-	case "ballchasing_api_key":
-		c.BallchasingAPIKey = value
-	case "ballchasing_delete_after_upload":
-		c.BallchasingDeleteAfterUpload = value == "true" || value == "1" || value == "on"
 	case "dev_mode":
 		c.DevMode = value == "true" || value == "1" || value == "on"
+	default:
+		if c.PluginSettings == nil {
+			c.PluginSettings = make(map[string]string)
+		}
+		c.PluginSettings[key] = value
 	}
 }
 
@@ -135,17 +162,10 @@ func (c *Config) Lookup(key string) string {
 			return "true"
 		}
 		return "false"
-	case "ballchasing_api_key":
-		return c.BallchasingAPIKey
-	case "ballchasing_delete_after_upload":
-		if c.BallchasingDeleteAfterUpload {
-			return "true"
-		}
-		return "false"
 	case "replay_dir":
 		return DetectReplayDir()
 	default:
-		return ""
+		return c.PluginSettings[key]
 	}
 }
 

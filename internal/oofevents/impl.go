@@ -62,26 +62,16 @@ func (b *busImpl) publish(e OOFEvent) {
 	}
 }
 
-func (b *busImpl) PublishAuthoritative(e OOFEvent) {
-	if e.Certainty() != Authoritative {
-		panic(fmt.Sprintf("oofevents: PublishAuthoritative called with certainty %s", e.Certainty()))
+func (b *busImpl) publishWithCertainty(e OOFEvent, expected Certainty) {
+	if e.Certainty() != expected {
+		panic(fmt.Sprintf("oofevents: Publish%s called with certainty %s", expected, e.Certainty()))
 	}
 	b.publish(e)
 }
 
-func (b *busImpl) PublishInferred(e OOFEvent) {
-	if e.Certainty() != Inferred {
-		panic(fmt.Sprintf("oofevents: PublishInferred called with certainty %s", e.Certainty()))
-	}
-	b.publish(e)
-}
-
-func (b *busImpl) PublishSignal(e OOFEvent) {
-	if e.Certainty() != Signal {
-		panic(fmt.Sprintf("oofevents: PublishSignal called with certainty %s", e.Certainty()))
-	}
-	b.publish(e)
-}
+func (b *busImpl) PublishAuthoritative(e OOFEvent) { b.publishWithCertainty(e, Authoritative) }
+func (b *busImpl) PublishInferred(e OOFEvent)      { b.publishWithCertainty(e, Inferred) }
+func (b *busImpl) PublishSignal(e OOFEvent)        { b.publishWithCertainty(e, Signal) }
 
 func (b *busImpl) Subscribe(eventType string, fn func(OOFEvent)) Subscription {
 	s := &sub{fn: fn, eventType: eventType}

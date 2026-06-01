@@ -21,21 +21,33 @@ That's it. No installer, no runtime dependencies, no database server.
 > First run creates `config.toml` and `oof_rl.db` in `%LOCALAPPDATA%\OOF_RL`.  
 > WebView2 is required — it ships with Windows 11 and is auto-installed on Windows 10 via Windows Update.
 
-Full setup details: [docs/install.md](docs/install.md)
+## Overlay
+
+Press **F9** (configurable) to toggle a borderless overlay window that floats above the game. Drag it by the handle at the top, resize from the bottom-right corner, and adjust opacity from the overlay controls. Hold mode keeps it visible only while the hotkey is held.
+
+For full setup details and troubleshooting: [docs/user/install.md](docs/user/install.md)
 
 ---
 
 ## Documentation
 
+**For users**
+
 | Page | Description |
 |------|-------------|
-| [Architecture RFC](docs/architecture-rfc.md) | Locked platform decisions for plugin identity, lifecycle, and ownership |
-| [Plugin Ownership & Trust Model](docs/plugin-ownership.md) | Feature ownership matrix and WASM plugin trust model |
-| [Install & Setup](docs/install.md) | Full setup, RL Stats API configuration, settings reference |
-| [Writing a Plugin](docs/plugins.md) | How to add a new tab or feature to OOF RL |
-| [WASM Plugin ABI](docs/wasm-plugins.md) | Host imports, SDK helpers, and plugin lifecycle |
-| [Configuration](docs/configuration.md) | All `config.toml` fields explained |
-| [HTTP API](docs/api.md) | REST endpoints and WebSocket event format |
+| [Install & Setup](docs/user/install.md) | RL Stats API setup, overlay controls, troubleshooting |
+| [Configuration](docs/user/configuration.md) | All `config.toml` fields explained |
+
+**For developers**
+
+| Page | Description |
+|------|-------------|
+| [HTTP API](docs/dev/api.md) | REST endpoints and WebSocket event format |
+| [WASM Plugin ABI](docs/dev/wasm-plugins.md) | Building plugins: ABI, SDK, lifecycle, testing |
+| [Plugin Ownership & Trust Model](docs/dev/plugin-ownership.md) | Feature ownership matrix and WASM trust model |
+| [Event Bus](docs/dev/event-bus.md) | OOFEvent model, Certainty, PluginBus interface |
+| [MMR Providers](docs/dev/mmr-providers.md) | Adding or extending rank lookup providers |
+| [Developer Mode](docs/dev/developer-mode.md) | pprof, statsviz, and developer settings |
 
 ---
 
@@ -54,9 +66,9 @@ make cover           # generate coverage.html
 
 ### Plugin architecture
 
-OOF RL features are delivered as [WASM plugins](docs/wasm-plugins.md) compiled to `wasip1/wasm` and loaded at startup from `%LOCALAPPDATA%\OOF_RL\plugins`. Each plugin is a single `.wasm` binary plus optional static assets. Plugins are isolated in their own Go module under `plugins/<name>/` and share a common SDK at `plugins/sdk`.
+Features are delivered as WASM plugins compiled to `wasip1/wasm` and loaded at startup from `%LOCALAPPDATA%\OOF_RL\plugins`. Each plugin is a single `.wasm` binary plus optional static assets, isolated in its own Go module under `plugins/<name>/` and built against the shared SDK at `sdk/`.
 
-See [docs/plugins.md](docs/plugins.md) for the full plugin authoring guide.
+See [docs/dev/wasm-plugins.md](docs/dev/wasm-plugins.md) for the full plugin authoring guide.
 
 Releases are published automatically by GitHub Actions when a version tag is pushed:
 

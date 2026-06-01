@@ -58,30 +58,18 @@ overlay_hold_mode = false
 
 ```toml
 [storage]
-ball_hit_events    = false
-tick_snapshots     = false
-tick_snapshot_rate = 1.0
-raw_packets        = false
+ball_hit_events = false
+raw_packets     = false
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `ball_hit_events` | `false` | Record every ball touch. High volume: up to 7,200 rows/minute at 120 Hz. |
-| `tick_snapshots` | `false` | Store the full game state JSON at regular intervals. Very high volume: ~35 MB per 5-minute match at 60 Hz. |
-| `tick_snapshot_rate` | `1.0` | Snapshots per second when `tick_snapshots = true`. |
 | `raw_packets` | `false` | Save raw RL TCP packets to disk. Each match gets a directory under `captures/` with `packets_normalized_*.ndjson`, `packets_wire_*.ndjson`, `capture_meta.json`, and `capture_index.json`. Useful for debugging or offline replay. |
 
 Match metadata, player stats, and goal events are always stored — there is no toggle for them.
 
 ---
-
-## Ballchasing
-
-```toml
-ballchasing_api_key = ""
-```
-
-Your [ballchasing.com](https://ballchasing.com) API key. Get one at ballchasing.com/upload after creating an account. Without this key, the Ballchasing tab will show an error and auto-upload will not run.
 
 ---
 
@@ -91,4 +79,14 @@ Your [ballchasing.com](https://ballchasing.com) API key. Get one at ballchasing.
 disabled_plugins = []
 ```
 
-A list of plugin IDs to hide from the nav bar. Example: `disabled_plugins = ["bc", "session"]`. Disabled plugins still load — they just don't appear in the UI.
+A list of plugin IDs to disable. Example: `disabled_plugins = ["bc", "session"]`. Disabled plugins are excluded from initialization and route registration, and hidden from the nav bar. They still appear in Settings so they can be re-enabled and configured.
+
+---
+
+## Developer Mode
+
+```toml
+dev_mode = false
+```
+
+Enables profiling and runtime inspection endpoints. Must be set manually in the config file — there is no UI toggle. See [Developer Mode](../dev/developer-mode.md) for details.

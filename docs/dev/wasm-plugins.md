@@ -96,6 +96,12 @@ All parameters are `uint32` — pointers or byte lengths in the module's linear 
 |---|---|---|
 | `env.host_log` | `(level, ptr, len u32)` | Write to the host's logger |
 | `env.host_publish_event` | `(certainty, typePtr, typeLen, payloadPtr, payloadLen u32)` | Publish onto the event bus |
+| `env.host_db_query` | `(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax u32) → n u32` | Read-only SQL query; returns JSON rows |
+| `env.host_db_exec` | `(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax u32) → n u32` | Write SQL statement; returns rows-affected JSON |
+| `env.host_http_fetch` | `(reqPtr, reqLen, outPtr, outMax u32) → n u32` | Outbound HTTP request; JSON in/out |
+| `env.host_broadcast_ws` | `(ptr, len u32)` | Send raw bytes to all WebSocket clients |
+| `env.host_get_config` | `(keyPtr, keyLen, outPtr, outMax u32) → n u32` | Read a config value by key |
+| `env.host_upload_file` | `(pathPtr, pathLen, urlPtr, urlLen, headersPtr, headersLen, fieldPtr, fieldLen, outPtr, outMax u32) → n u32` | Stream a WASI-mounted file to a URL via multipart POST; host reads file from disk |
 
 ## Host mounts and sandbox paths
 
@@ -134,12 +140,14 @@ Use a namespaced type string (e.g. `live.state.changed`) to avoid colliding with
 Single-page plugin model: one `view.html` + one `view.js` per plugin.
 
 
-## SDK (`plugins/sdk/`)
+## SDK
+
+The SDK is published as `github.com/erosas/oof-plugin-sdk`. The local copy lives at `sdk/`.
 
 | File | Build target | Contents |
 |---|---|---|
-| `abi.go` | both | `PluginMeta`, `HTTPRequest`, `HTTPResponse`, `Certainty`, `DeclaredEvent` |
-| `pdk.go` | wasip1 only | `Log`, `ReadBytes`, `WriteOutput`, `WriteJSONOutput`, `WriteMetadata`, `HandleHTTPExport`, `PublishEvent`, `Malloc`, `Free` |
+| `abi.go` | both | `PluginMeta`, `HTTPRequest`, `HTTPResponse`, `HTTPFetchRequest`, `HTTPFetchResult`, `Certainty`, `DeclaredEvent`, `SettingSchema` |
+| `pdk.go` | wasip1 only | `Log`, `GetConfig`, `DBQuery`, `DBExec`, `HTTPFetch`, `BroadcastWS`, `PublishEvent`, `UploadFile`, `ReadBytes`, `WriteOutput`, `WriteJSONOutput`, `WriteMetadata`, `HandleHTTPExport`, `HandleEventExport`, `Malloc`, `Free` |
 
 The host imports `abi.go` types to drive the protocol. Plugin code imports the whole package for both.
 
