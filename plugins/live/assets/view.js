@@ -5,7 +5,7 @@ let _liveState     = null;
 let _liveActive    = false;
 
 function formatClock(secs) {
-  if (secs == null) return '—';
+  if (secs == null) return '--:--';
   const m = Math.floor(secs / 60);
   const s = String(secs % 60).padStart(2, '0');
   return `${m}:${s}`;
@@ -67,8 +67,8 @@ function updatePossessionBar(players) {
     document.getElementById('possession-bar-blue').style.width   = bp + '%';
     document.getElementById('possession-bar-orange').style.width = op + '%';
   } else {
-    document.getElementById('possession-pct-blue').textContent   = '—';
-    document.getElementById('possession-pct-orange').textContent = '—';
+    document.getElementById('possession-pct-blue').textContent   = '--';
+    document.getElementById('possession-pct-orange').textContent = '--';
     document.getElementById('possession-bar-blue').style.width   = '50%';
     document.getElementById('possession-bar-orange').style.width = '50%';
   }
@@ -97,69 +97,77 @@ function teamPanel(name, cls, players, teamHexColor = null) {
       <div class="boost-bar-wrap">
         <div class="boost-bar"><div class="boost-fill ${boostClass(boost)}" style="width:${boost}%"></div></div>
         <span class="boost-num">${boost}</span>
-      </div>` : '<span style="color:var(--muted)">—</span>';
+      </div>` : '<span class="live-stat-empty">--</span>';
 
     const trnUrl = !isBot(p.PrimaryId) ? trnProfileUrl(p.PrimaryId, p.Name) : '';
     const nameEl = trnUrl
       ? `<a href="${esc(trnUrl)}" target="_blank" rel="noopener" class="player-name player-name-link">${esc(p.Name)}</a>`
       : `<span class="player-name">${esc(p.Name)}</span>`;
 
-    return `
-      <div class="player-row ${demolished}">
-        <div class="player-name-cell">${nameEl}</div>
-        <span>${p.Goals   ?? 0}</span>
-        <span>${p.Assists ?? 0}</span>
-        <span>${p.Saves   ?? 0}</span>
-        <span>${p.Shots   ?? 0}</span>
-        <span>${p.Demos   ?? 0}</span>
-        <span>${p.Touches ?? 0}</span>
-        ${boostBar}
-        <span>${p.Score   ?? 0}</span>
-      </div>`;
-  }).join('');
+    const statusChips = `
+      ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
+      ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
+      ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
+      ${chip('',                  'WALL',  !!p.bOnWall)}
+      ${chip('',                  'PS',    !!p.bPowerslide)}
+    `;
 
-  const statusRows = players.map(p => {
-    const demolished = p.bDemolished ? 'demolished' : '';
+    let rankBlock = '';
+    if (!isBot(p.PrimaryId)) {
+      const rankHTML = trackerRankHTML(p.PrimaryId);
+      if (rankHTML) {
+        rankBlock = `
+          <details class="live-rank-details">
+            <summary>Ranks</summary>
+            <div class="live-rank-panel">${rankHTML}</div>
+          </details>`;
+      }
+    }
+
     return `
-      <div class="team-status-row ${demolished}">
-        <span class="team-status-name">${esc(p.Name)}</span>
-        <div class="status-wrap">
-          ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
-          ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
-          ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
-          ${chip('',                  'WALL',  !!p.bOnWall)}
-          ${chip('',                  'PS',    !!p.bPowerslide)}
+      <div class="player-row live-player-row ${demolished}">
+        <div class="player-name-cell">
+          ${nameEl}
+          <div class="status-wrap live-player-status">${statusChips}</div>
+          ${rankBlock}
+        </div>
+        <div class="live-player-stats">
+          ${livePlayerStat('G', p.Goals ?? 0)}
+          ${livePlayerStat('A', p.Assists ?? 0)}
+          ${livePlayerStat('Sv', p.Saves ?? 0)}
+          ${livePlayerStat('Sh', p.Shots ?? 0)}
+          ${livePlayerStat('Dm', p.Demos ?? 0)}
+          ${livePlayerStat('Tch', p.Touches ?? 0)}
+        </div>
+        <div class="live-player-boost">
+          <span>Boost</span>
+          ${boostBar}
+        </div>
+        <div class="live-player-score">
+          <span>Score</span>
+          <strong>${p.Score ?? 0}</strong>
         </div>
       </div>`;
   }).join('');
 
-  const rankRows = players.map(p => {
-    if (isBot(p.PrimaryId)) return '';
-    const rankHTML = trackerRankHTML(p.PrimaryId);
-    if (!rankHTML) return '';
-    const demolished = p.bDemolished ? 'demolished' : '';
-    return `
-      <div class="team-rank-row ${demolished}">
-        <span class="team-rank-name">${esc(p.Name)}</span>
-        ${rankHTML}
-      </div>`;
-  }).join('');
-
-  const rankSection = rankRows.trim()
-    ? `<div class="team-rank-section">${rankRows}</div>`
-    : '';
-
   return `
     <div class="team-panel team-panel-${cls}">
       <div class="team-panel-header ${cls}"${headerStyle}>${esc(name)}</div>
-      <div class="player-row header">
-        <span>Player</span><span>G</span><span>A</span><span>Sv</span><span>Sh</span><span>Dm</span>
-        <span>Tch</span><span>Boost</span><span>Score</span>
+      <div class="live-team-columns">
+        <span>Player</span><span>Stats</span><span>Boost</span><span>Score</span>
       </div>
-      ${rows || '<div class="player-row"><span style="color:var(--muted)">No players</span></div>'}
-      <div class="team-status-section">${statusRows}</div>
-      ${rankSection}
+      <div class="team-player-stack">
+        ${rows || '<div class="team-panel-empty">No players</div>'}
+      </div>
     </div>`;
+}
+
+function livePlayerStat(label, value) {
+  return `
+    <span class="live-stat-cell">
+      <small>${label}</small>
+      <strong>${value}</strong>
+    </span>`;
 }
 
 function boostClass(b) {
@@ -177,7 +185,7 @@ function flashGoal(data) {
     background:#7c3aed;color:#fff;padding:10px 24px;border-radius:8px;
     font-weight:700;font-size:16px;z-index:999;pointer-events:none;
     font-family:Inter,ui-sans-serif,system-ui,sans-serif;`;
-  banner.textContent = `GOAL — ${scorer}`;
+  banner.textContent = `GOAL - ${scorer}`;
   document.body.appendChild(banner);
   setTimeout(() => banner.remove(), 3000);
 }
@@ -195,7 +203,7 @@ function clearLive() {
 
 function liveScoreboardWidget(container) {
   container.innerHTML = `
-    <div class="ls-waiting" style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>
+    <div class="ls-waiting" style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match...</div>
     <div class="ls-board hidden" style="padding:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="text-align:left;min-width:0">
@@ -217,12 +225,12 @@ function liveScoreboardWidget(container) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
-        <span class="ls-pct-blue tabular-nums" style="font-size:11px;font-weight:600;width:28px;text-align:right;color:var(--rl-blue)">—</span>
+        <span class="ls-pct-blue tabular-nums" style="font-size:11px;font-weight:600;width:28px;text-align:right;color:var(--rl-blue)">--</span>
         <div style="flex:1;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;display:flex">
           <div class="ls-bar-blue" style="height:100%;background:var(--rl-blue);width:50%;transition:width .5s"></div>
           <div class="ls-bar-orange" style="height:100%;background:var(--rl-orange);width:50%;transition:width .5s"></div>
         </div>
-        <span class="ls-pct-orange tabular-nums" style="font-size:11px;font-weight:600;width:28px;color:var(--rl-orange)">—</span>
+        <span class="ls-pct-orange tabular-nums" style="font-size:11px;font-weight:600;width:28px;color:var(--rl-orange)">--</span>
       </div>
     </div>
   `;
@@ -274,8 +282,8 @@ function liveScoreboardWidget(container) {
       q('.ls-bar-blue').style.width   = `${bp}%`;
       q('.ls-bar-orange').style.width = `${100 - bp}%`;
     } else {
-      q('.ls-pct-blue').textContent   = '—';
-      q('.ls-pct-orange').textContent = '—';
+      q('.ls-pct-blue').textContent   = '--';
+      q('.ls-pct-orange').textContent = '--';
       q('.ls-bar-blue').style.width   = '50%';
       q('.ls-bar-orange').style.width = '50%';
     }
@@ -301,7 +309,7 @@ function liveScoreboardWidget(container) {
 
 function livePlayersWidget(container) {
   function renderEmpty() {
-    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match…</div>';
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px 8px;font-size:13px">Waiting for a match...</div>';
   }
 
   function render(data) {

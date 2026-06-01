@@ -895,7 +895,7 @@ main.live-active {
 
 .players-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
   gap: var(--oof-space-4);
 }
 
@@ -937,29 +937,152 @@ main.live-active {
   color: var(--rl-orange);
 }
 
+.live-team-columns {
+  display: grid;
+  grid-template-columns: minmax(118px, .9fr) minmax(0, 1.65fr) minmax(70px, .62fr) minmax(54px, .42fr);
+  gap: var(--oof-space-2);
+  align-items: end;
+  min-height: 38px;
+  padding: 8px 16px;
+  border-top: 1px solid rgb(var(--oof-color-border-rgb) / .7);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.team-player-stack {
+  display: flex;
+  flex-direction: column;
+}
+
 /*
-  Unified player row — 9 fixed columns (no layout shifts).
-  Status chips live INSIDE the name cell, below the name, so they wrap freely.
-  name | G | A | Sv | Sh | Dm | Tch | Boost | Score
+  Unified player row: player identity, stat block, boost, and score.
+  Status chips and optional ranks live inside the name cell so they wrap safely.
 */
 .player-row {
   display: grid;
-  grid-template-columns: minmax(170px, 1fr) repeat(6, minmax(28px, .28fr)) minmax(96px, .68fr) minmax(56px, .34fr);
+  grid-template-columns: minmax(118px, .9fr) minmax(0, 1.65fr) minmax(70px, .62fr) minmax(54px, .42fr);
   align-items: center;
   padding: 12px 16px;
   border-top: 1px solid rgb(var(--oof-color-border-rgb) / .82);
-  gap: 8px;
+  gap: var(--oof-space-2);
   font-size: 13px;
-  min-height: 58px;
+  min-height: 78px;
 }
 .player-row.header     { color: var(--muted); font-size: 10px; min-height: 38px; padding-block: 8px; text-transform: uppercase; align-items: end; }
 .player-row.demolished { opacity: .4; }
 
-/* Name cell — stacks name + status chips vertically */
+/* Name cell: stacks name, status chips, and optional rank details vertically. */
 .player-name-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
 .player-name      { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-name-link { color: inherit; text-decoration: none; }
 .player-name-link:hover { color: var(--rl-blue); text-decoration: underline; }
+
+.live-player-status .status-chip.dim {
+  display: none;
+}
+
+.live-player-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--oof-space-1);
+  min-width: 0;
+}
+
+.live-stat-cell {
+  align-items: center;
+  background: rgb(var(--oof-color-bg-subtle-rgb) / .58);
+  border: 1px solid rgb(var(--oof-color-border-rgb) / .72);
+  border-radius: var(--oof-radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 42px;
+  min-width: 0;
+  padding: 5px 4px;
+}
+
+.live-stat-cell small,
+.live-player-boost > span,
+.live-player-score > span {
+  color: var(--oof-color-text-muted);
+  font-size: 9px;
+  font-weight: var(--oof-font-weight-bold);
+  letter-spacing: .06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.live-stat-cell strong,
+.live-player-score strong {
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-lg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.live-player-boost,
+.live-player-score {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oof-space-1);
+  min-width: 0;
+}
+
+.live-player-score {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.live-stat-empty {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-rank-details {
+  margin-top: 2px;
+}
+
+.live-rank-details summary {
+  color: var(--oof-color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: var(--oof-font-weight-bold);
+  letter-spacing: .05em;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+.live-rank-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.live-rank-details summary::after {
+  content: ">";
+  margin-left: 5px;
+  transition: transform var(--oof-duration-fast) var(--oof-ease-standard);
+}
+
+.live-rank-details[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.live-rank-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--oof-space-1);
+}
+
+.team-panel-empty {
+  color: var(--muted);
+  padding: var(--oof-space-4);
+  text-align: center;
+}
 
 /* Boost bar — fixed layout so the number never shifts the bar */
 .boost-bar-wrap { display: flex; align-items: center; gap: 7px; width: 100%; }
@@ -1160,16 +1283,21 @@ main.live-active {
   }
 
   .player-row {
-    grid-template-columns: minmax(150px, 1fr) repeat(4, minmax(26px, auto));
-    overflow-x: auto;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
-  .player-row > span:nth-child(6),
-  .player-row > span:nth-child(7),
-  .player-row > span:nth-child(8),
-  .player-row > .boost-bar-wrap,
-  .player-row > span:nth-child(9) {
+  .live-team-columns {
     display: none;
+  }
+
+  .live-player-stats {
+    grid-template-columns: repeat(3, minmax(42px, 1fr));
+  }
+
+  .live-player-score {
+    align-items: flex-start;
+    text-align: left;
   }
 
   .team-status-row,
