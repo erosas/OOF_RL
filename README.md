@@ -48,6 +48,7 @@ For full setup details and troubleshooting: [docs/user/install.md](docs/user/ins
 | [Event Bus](docs/dev/event-bus.md) | OOFEvent model, Certainty, PluginBus interface |
 | [MMR Providers](docs/dev/mmr-providers.md) | Adding or extending rank lookup providers |
 | [Developer Mode](docs/dev/developer-mode.md) | pprof, statsviz, and developer settings |
+| [Release Readiness](docs/dev/release-readiness.md) | Pre-tag blockers, known risks, and release smoke checklist |
 
 ---
 
