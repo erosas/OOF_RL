@@ -72,46 +72,55 @@ type PlaylistRank struct {
 HTTP GET /api/tracker/profile?id=steam|76561198144145654&name=Squishy
         │
         ▼
-core.Server.handleTrackerProfile
+mmr.Handler
   1. Parse platform + primaryID from the ?id= parameter
-  2. Check DB cache (GetTrackerCache); return cached JSON if still fresh
+  2. Build a PlayerIdentity
   3. Call mmrProvider.Lookup(identity)
+        |
+        v
+CachedProvider.Lookup
+  4. Check DB cache (GetTrackerCache); return cached ranks if still fresh
+  5. Call the inner provider on a cache miss
         │
         ▼
 FallbackProvider.Lookup
-  4. Iterate over registered providers in order
-  5. Skip any provider where Supports(platform) == false
-  6. Call the first supported provider; on error, log and try the next
+  6. Iterate over registered providers from a rotating cursor
+  7. Skip any provider where Supports(platform) == false
+  8. Call supported providers until one succeeds, or retry/fail by policy
         │
         ▼
 trackergg.Provider.Lookup  (or rlstats.Provider.Lookup)
-  7. Build the provider-specific URL from the platform slug + identity
-  8. Make an HTTP GET with browser-like headers
-  9. Parse the response (JSON for trackergg, HTML table for rlstats)
- 10. Return []PlaylistRank
+  9. Build the provider-specific URL from the platform slug + identity
+ 10. Make an HTTP GET with browser-like headers
+ 11. Parse the response (JSON for trackergg, HTML table for rlstats)
+ 12. Return []PlaylistRank
         │
         ▼
-handleTrackerProfile (continued)
- 11. JSON-marshal result and store in DB cache (UpsertTrackerCache)
- 12. Write {"cached":false,"source":"tracker.gg","ranks":[…]} to client
+CachedProvider.Lookup (continued)
+ 13. JSON-marshal ranks and store in DB cache (UpsertTrackerCache)
+ 14. Return ranks to the handler
+        |
+        v
+mmr.Handler (continued)
+ 15. Write {"fetched_at":"...","source":"tracker.gg/rlstats.net","ranks":[...]} to client
 ```
 
 ### Cache key
 
-The cache key is `platform|primaryID` (e.g. `"steam|76561198144145654"`). TTL is read from `cfg.TrackerCacheTTLMinutes` with a 2-minute floor. A cache hit short-circuits the entire provider chain.
+The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 5-second TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
 
 ---
 
 ## The `FallbackProvider`
 
-`FallbackProvider` wraps an ordered list of providers and tries them in sequence:
+`FallbackProvider` wraps a list of providers and tries them from a rotating cursor:
 
 ```go
 trnProvider := mmr.NewFallbackProvider(trackergg.New(), rlstats.New())
 ```
 
-- trackergg is tried first — it returns richer data (tier number, icon URL, 10 playlists including 4v4 Quads).
-- rlstats is the fallback — it covers the same 8 main playlists with tier name and division, useful if tracker.gg rate-limits or returns a non-200.
+- trackergg is registered first — it returns richer data (tier number, icon URL, 10 playlists including 4v4 Quads).
+- rlstats is also registered — it covers the same 8 main playlists with tier name and division, useful if tracker.gg rate-limits or returns a non-200.
 - For **Switch players**, `rlstats.Supports(PlatformSwitch)` returns `false`, so the fallback skips it immediately without a network round-trip and goes straight to trackergg.
 
 If every provider either doesn't support the platform or returns an error, `FallbackProvider.Lookup` returns the last error it saw. If no provider supports the platform at all, it returns `"mmr: no provider supports platform X"`.
@@ -120,10 +129,14 @@ If every provider either doesn't support the platform or returns an error, `Fall
 
 ## The `CachedProvider`
 
-`CachedProvider` is a decorator that wraps any `Provider` with DB-backed caching. It is not currently wired into `main.go` (the core server handler does its own cache check), but it is available if a different call site needs a self-contained cached provider:
+`CachedProvider` is a decorator that wraps any `Provider` with DB-backed caching. It is wired in `main.go` around the `FallbackProvider`:
 
 ```go
-cached := mmr.NewCachedProvider(trackergg.New(), database, 5*time.Minute)
+cached := mmr.NewCachedProvider(
+    mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
+    database,
+    5*time.Second,
+)
 ranks, err := cached.Lookup(id) // hits DB first, then network
 ```
 
@@ -170,7 +183,11 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 4. **Register it** in `main.go`:
 
 ```go
-trnProvider := mmr.NewFallbackProvider(trackergg.New(), rlstats.New(), mysite.New())
+trnProvider := mmr.NewCachedProvider(
+    mmr.NewFallbackProvider(trackergg.New(), rlstats.New(), mysite.New()),
+    database,
+    trackerCacheTTL,
+)
 ```
 
 5. **Add tests.** Write a `capture_test.go` (`//go:build manual`) that hits the live site and saves response fixtures under `internal/mmr/testdata/<name>/`. Then write a `provider_test.go` (no build tag) that parses those fixtures offline — these run in CI without any network dependency.
