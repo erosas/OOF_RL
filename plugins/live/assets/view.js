@@ -3,6 +3,7 @@
 let _liveInstances = [];
 let _liveState     = null;
 let _liveActive    = false;
+let _liveOpenRankKeys = new Set();
 
 function formatClock(secs) {
   if (secs == null) return '--:--';
@@ -82,6 +83,22 @@ function renderPlayers(players, t0color = null, t1color = null) {
   grid.innerHTML =
     teamPanel('Blue',   'blue',   blue,   t0color) +
     teamPanel('Orange', 'orange', orange, t1color);
+  bindLiveRankDetails(grid);
+}
+
+function liveRankKey(p) {
+  return p.PrimaryId || `${p.TeamNum}:${p.Name || ''}`;
+}
+
+function bindLiveRankDetails(root) {
+  root.querySelectorAll('.live-rank-details').forEach(details => {
+    details.addEventListener('toggle', () => {
+      const key = details.dataset.rankKey;
+      if (!key) return;
+      if (details.open) _liveOpenRankKeys.add(key);
+      else _liveOpenRankKeys.delete(key);
+    });
+  });
 }
 
 function teamPanel(name, cls, players, teamHexColor = null) {
@@ -108,16 +125,18 @@ function teamPanel(name, cls, players, teamHexColor = null) {
       ${chip('status-chip-ss',    'SS',    !!p.bSupersonic)}
       ${chip('status-chip-demo',  'DEMO',  !!p.bDemolished)}
       ${chip('status-chip-boost', 'BOOST', !!p.bBoosting)}
-      ${chip('',                  'WALL',  !!p.bOnWall)}
-      ${chip('',                  'PS',    !!p.bPowerslide)}
+      ${chip('status-chip-wall',  'WALL',  !!p.bOnWall)}
+      ${chip('status-chip-ps',    'PS',    !!p.bPowerslide)}
     `;
 
     let rankBlock = '';
     if (!isBot(p.PrimaryId)) {
       const rankHTML = trackerRankHTML(p.PrimaryId);
       if (rankHTML) {
+        const rankKey = liveRankKey(p);
+        const openAttr = _liveOpenRankKeys.has(rankKey) ? ' open' : '';
         rankBlock = `
-          <details class="live-rank-details">
+          <details class="live-rank-details" data-rank-key="${esc(rankKey)}"${openAttr}>
             <summary>Ranks</summary>
             <div class="live-rank-panel">${rankHTML}</div>
           </details>`;
@@ -128,7 +147,6 @@ function teamPanel(name, cls, players, teamHexColor = null) {
       <div class="player-row live-player-row ${demolished}">
         <div class="player-name-cell">
           ${nameEl}
-          <div class="status-wrap live-player-status">${statusChips}</div>
           ${rankBlock}
         </div>
         <div class="live-player-stats">
@@ -138,6 +156,7 @@ function teamPanel(name, cls, players, teamHexColor = null) {
           ${livePlayerStat('Sh', p.Shots ?? 0)}
           ${livePlayerStat('Dm', p.Demos ?? 0)}
           ${livePlayerStat('Tch', p.Touches ?? 0)}
+          <div class="status-wrap live-player-status">${statusChips}</div>
         </div>
         <div class="live-player-boost">
           <span>Boost</span>
@@ -327,6 +346,7 @@ function livePlayersWidget(container) {
         teamPanel('Blue',   'blue',   blue,   t0.ColorPrimary || null) +
         teamPanel('Orange', 'orange', orange, t1.ColorPrimary || null) +
       `</div>`;
+    bindLiveRankDetails(container);
   }
 
   function refresh() {
