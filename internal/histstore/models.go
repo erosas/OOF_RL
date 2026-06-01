@@ -21,6 +21,7 @@ type Match struct {
 	PlaylistType  *int
 	TeamScore0    *int
 	TeamScore1    *int
+	PlayerTeam    *int `json:"player_team,omitempty"`
 }
 
 type PlayerMatchStats struct {

@@ -6,17 +6,21 @@ let _selectedHistoryMatchId = null;
 let _historyMatches = [];
 let _historyRecentInstances = [];
 let _historySummaryInstances = [];
+let _historyPlayerID = localStorage.getItem('oof_session_player') || '';
+let _historyFilterInitialized = false;
 
 async function loadHistory() {
   _historyRecentInstances.forEach(w => w.refresh());
   _historySummaryInstances.forEach(w => w.refresh());
   allPlayers = await fetch('/api/players').then(r => r.json()) || [];
   const sel = document.getElementById('history-player-filter');
-  const cur = sel.value;
+  const cur = _historyFilterInitialized ? _historyPlayerID : (sel.value || _historyPlayerID);
   sel.innerHTML = '<option value="">All Players</option>' +
     allPlayers.map(p => `<option value="${esc(p.PrimaryID)}">${esc(p.Name)}</option>`).join('');
-  sel.value = cur;
-  await fetchMatches(sel.value);
+  sel.value = [...sel.options].some(opt => opt.value === cur) ? cur : '';
+  _historyPlayerID = sel.value;
+  _historyFilterInitialized = true;
+  await fetchMatches(_historyPlayerID);
 }
 
 async function fetchMatches(playerID) {
@@ -28,6 +32,8 @@ async function fetchMatches(playerID) {
 
   const count = document.getElementById('history-match-count');
   if (count) count.textContent = `${_historyMatches.length} match${_historyMatches.length === 1 ? '' : 'es'}`;
+  const resultHeading = document.getElementById('history-result-heading');
+  if (resultHeading) resultHeading.textContent = playerID ? 'W/L' : 'Winner';
 
   renderHistoryList(_historyMatches);
 
@@ -65,7 +71,7 @@ function historyMatchCardHTML(m) {
 
   return `
     <button type="button" class="match-card history-match-card ${result.matchClass}" data-id="${m.ID}">
-      <span class="history-result-token ${result.tokenClass}">${esc(result.token)}</span>
+      <span class="history-result-token ${result.tokenClass}" title="${esc(result.label)}">${esc(result.token)}</span>
       <span class="history-match-card-main">
         <span class="match-card-top">
           ${badges.map(b => `<span class="${esc(b.className)}"${b.style ? ` style="${esc(b.style)}"` : ''}>${esc(b.label)}</span>`).join('')}
@@ -111,7 +117,7 @@ async function selectHistoryMatch(matchId) {
   empty.classList.add('hidden');
   wrapper.classList.remove('hidden');
   summary.innerHTML = renderHistorySelectedSummary(match);
-  detail.innerHTML = '<div class="ui-widget-loading">Loading match detail...</div>';
+  detail.innerHTML = '<div class="ui-widget-loading history-detail-loading">Loading match detail...</div>';
 
   await loadSelectedMatchDetail(id, detail);
 }
@@ -135,7 +141,7 @@ function renderHistoryEmpty(title, copy) {
   if (!empty) return;
   empty.classList.remove('hidden');
   empty.innerHTML = `
-    <div class="history-empty-icon">-</div>
+    <div class="history-empty-icon">i</div>
     <div>
       <div class="history-empty-title">${esc(title)}</div>
       <div class="history-empty-copy">${esc(copy)}</div>
@@ -146,29 +152,39 @@ function renderHistorySelectedSummary(m) {
   const result = historyMatchResult(m);
   const mode = [historyPlaylistKind(m.PlaylistType), matchType(m.player_count)].filter(Boolean).join(' ');
   const duration = historyMatchDuration(m);
-  const guid = historyShortGuid(m.MatchGUID);
   const meta = [
     formatDate(m.StartedAt),
     duration,
-    guid ? `Game ID: ${guid}` : '',
   ].filter(Boolean);
   const badges = historyMatchBadges(m);
+  const fullGuid = m.MatchGUID ? String(m.MatchGUID).toUpperCase() : '';
+  const devDetails = fullGuid ? `
+      <details class="history-hero-dev">
+        <summary>Match details</summary>
+        <div class="history-hero-dev-body">
+          <span>Game ID</span>
+          <code>${esc(fullGuid)}</code>
+        </div>
+      </details>` : '<div class="history-hero-dev-placeholder"></div>';
 
   return `
     <div class="history-match-hero ${result.matchClass}">
       <div class="history-hero-main">
         <div class="history-hero-mode">${esc(mode || 'Saved Match')}</div>
         <h3>${esc(friendlyArena(m.Arena))}</h3>
-        <div class="history-hero-meta">${meta.map(item => `<span>${esc(item)}</span>`).join('')}</div>
+        <div class="history-hero-meta">${meta.map(item => `<span class="history-hero-meta-item">${esc(item)}</span>`).join('')}</div>
       </div>
       <div class="history-hero-score">
-        <div>
+        <div class="history-hero-scoreline">
+          <span class="history-score-team history-score-team-blue">Blue</span>
           <span class="blue">${m.team0_goals ?? 0}</span>
           <span class="sep">-</span>
           <span class="orange">${m.team1_goals ?? 0}</span>
+          <span class="history-score-team history-score-team-orange">Orange</span>
         </div>
         <span class="history-hero-result ${result.tokenClass}">${esc(result.label)}</span>
       </div>
+      ${devDetails}
     </div>
     <div class="history-detail-strip">
       ${badges.map(b => `<span class="${esc(b.className)}"${b.style ? ` style="${esc(b.style)}"` : ''}>${esc(b.label)}</span>`).join('')}
@@ -179,11 +195,21 @@ function historyMatchResult(m) {
   if (m.Incomplete) {
     return { token: 'INC', label: 'Incomplete', matchClass: 'incomplete', tokenClass: 'neutral' };
   }
+  const winnerClass = m.WinnerTeamNum === 0 ? 'blue-win' : m.WinnerTeamNum === 1 ? 'orange-win' : '';
+  if (m.player_team === 0 || m.player_team === 1) {
+    const won = m.WinnerTeamNum === m.player_team;
+    return {
+      token: won ? 'W' : 'L',
+      label: won ? 'Win' : 'Loss',
+      matchClass: `${winnerClass} ${won ? 'player-win' : 'player-loss'}`.trim(),
+      tokenClass: won ? 'player-win' : 'player-loss',
+    };
+  }
   if (m.WinnerTeamNum === 0) {
-    return { token: 'B', label: m.Forfeit ? 'Blue FF win' : 'Blue win', matchClass: 'blue-win', tokenClass: 'blue' };
+    return { token: 'BLUE', label: m.Forfeit ? 'Blue FF win' : 'Blue win', matchClass: 'blue-win', tokenClass: 'blue' };
   }
   if (m.WinnerTeamNum === 1) {
-    return { token: 'O', label: m.Forfeit ? 'Orange FF win' : 'Orange win', matchClass: 'orange-win', tokenClass: 'orange' };
+    return { token: 'ORNG', label: m.Forfeit ? 'Orange FF win' : 'Orange win', matchClass: 'orange-win', tokenClass: 'orange' };
   }
   return { token: '-', label: 'No result', matchClass: '', tokenClass: 'neutral' };
 }
@@ -247,78 +273,119 @@ function renderHistoryMatchDetailPanel(data, panel, activeMatchId, matchID) {
 function historyTeamPanel(teamName, teamClass, players) {
   const rows = players.length
     ? players.map(p => historyTeamPlayerRow(p)).join('')
-    : '<tr><td colspan="8" class="history-team-empty">No players recorded.</td></tr>';
+    : '<div class="history-team-empty">No players recorded.</div>';
 
   return `
     <div class="history-team-panel ${teamClass}">
       <div class="history-team-panel-header">
         <span>${esc(teamName)}</span>
+        <span class="history-team-count">${players.length} player${players.length === 1 ? '' : 's'}</span>
       </div>
-      <div class="history-team-table-wrap">
-        <table class="history-team-table">
-          <thead>
-            <tr>
-              <th>Player</th><th>Score</th><th>G</th><th>A</th><th>Sv</th><th>Sh</th><th>Dm</th><th>Tch</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
+      <div class="history-team-roster">${rows}</div>
     </div>`;
 }
 
 function historyTeamPlayerRow(p) {
+  const rankHTML = isBot(p.PrimaryId) ? '' : trackerRankHTML(p.PrimaryId);
+  const rankDetails = rankHTML ? `
+        <details class="history-rank-details">
+          <summary>Ranks</summary>
+          <div class="history-rank-panel">${rankHTML}</div>
+        </details>` : '';
+
   return `
-    <tr>
-      <td class="history-player-cell">
+    <div class="history-team-player-row">
+      <div class="history-player-cell">
         <div class="history-player-name">${esc(p.Name)}${isBot(p.PrimaryId) ? ' <span class="player-platform-badge">BOT</span>' : ''}</div>
-        ${isBot(p.PrimaryId) ? '' : trackerRankHTML(p.PrimaryId)}
-      </td>
-      <td>${p.Score ?? 0}</td>
-      <td>${p.Goals ?? 0}</td>
-      <td>${p.Assists ?? 0}</td>
-      <td>${p.Saves ?? 0}</td>
-      <td>${p.Shots ?? 0}</td>
-      <td>${p.Demos ?? 0}</td>
-      <td>${p.Touches ?? 0}</td>
-    </tr>`;
+        ${rankDetails}
+      </div>
+      <div class="history-player-stat-grid">
+        ${historyPlayerStat('Score', p.Score ?? 0, 'history-score-cell')}
+        ${historyPlayerStat('G', p.Goals ?? 0)}
+        ${historyPlayerStat('A', p.Assists ?? 0)}
+        ${historyPlayerStat('Sv', p.Saves ?? 0)}
+        ${historyPlayerStat('Sh', p.Shots ?? 0)}
+        ${historyPlayerStat('Dm', p.Demos ?? 0)}
+        ${historyPlayerStat('Tch', p.Touches ?? 0)}
+      </div>
+    </div>`;
+}
+
+function historyPlayerStat(label, value, className = '') {
+  return `<span class="history-stat-cell ${esc(className)}"><span>${esc(label)}</span><strong>${value}</strong></span>`;
 }
 
 function historyEventFeed(events, goals, nameTeam, matchStart) {
   if (events.length) {
-    return `<div class="history-event-feed">${events.map(e => historyEventRow(e, nameTeam, matchStart)).join('')}</div>`;
+    return `<div class="history-event-feed">${events.map(e => historyEventRow(e, goals, nameTeam, matchStart)).join('')}</div>`;
   }
   if (goals.length) {
     return `<div class="history-event-feed">${goals.map(g => historyGoalRow(g, nameTeam)).join('')}</div>`;
   }
-  return '<div class="ui-widget-empty">No match events recorded.</div>';
+  return '<div class="ui-widget-empty history-events-empty">No match events recorded.</div>';
 }
 
-function historyEventRow(e, nameTeam, matchStart) {
+function historyEventRow(e, goals, nameTeam, matchStart) {
   const teamClass = e.team_num === 0 ? 'blue' : e.team_num === 1 ? 'orange' : 'neutral';
   const type = historyEventLabel(e.event_type);
   const actor = historyColoredName(e.player_name, nameTeam);
   const target = e.target_name ? ` -> ${historyColoredName(e.target_name, nameTeam)}` : '';
+  const companions = historyEventCompanions(e, goals, nameTeam, matchStart);
+  const note = historyEventNote(e.event_type);
   return `
     <div class="history-event-row ${teamClass}">
       <span class="history-event-time">${esc(historyRelTime(e.occurred_at, matchStart))}</span>
       <span class="history-event-type">${esc(type)}</span>
       <span class="history-event-player">${actor}${target}</span>
-      <span class="history-event-note">${esc(historyEventNote(e.event_type))}</span>
+      <span class="history-event-note">
+        ${note ? `<span>${esc(note)}</span>` : ''}
+        ${companions}
+      </span>
     </div>`;
 }
 
 function historyGoalRow(g, nameTeam) {
   const scorer = historyColoredName(g.ScorerName, nameTeam);
-  const assist = g.AssisterName ? `Assist ${historyColoredName(g.AssisterName, nameTeam)}` : 'Unassisted';
+  const assist = g.AssisterName ? historyColoredName(g.AssisterName, nameTeam) : 'Unassisted';
   const speed = g.GoalSpeed != null ? `${g.GoalSpeed.toFixed(1)} kph` : '';
   return `
     <div class="history-event-row goal">
       <span class="history-event-time">${esc(formatDuration(g.GoalTime))}</span>
       <span class="history-event-type">Goal</span>
       <span class="history-event-player">${scorer}</span>
-      <span class="history-event-note">${assist}${speed ? ` - ${esc(speed)}` : ''}</span>
+      <span class="history-event-note">
+        <span class="history-event-companion"><span>Assist</span>${assist}</span>
+        ${speed ? `<span class="history-event-companion"><span>Speed</span>${esc(speed)}</span>` : ''}
+      </span>
     </div>`;
+}
+
+function historyEventCompanions(e, goals, nameTeam, matchStart) {
+  if (!['Goal', 'OwnGoal'].includes(e.event_type) || !goals.length) return '';
+  const goal = historyFindGoalForEvent(e, goals, matchStart);
+  if (!goal) return '';
+  const parts = [];
+  if (goal.AssisterName) {
+    parts.push(`<span class="history-event-companion"><span>Assist</span>${historyColoredName(goal.AssisterName, nameTeam)}</span>`);
+  }
+  if (goal.GoalSpeed != null) {
+    parts.push(`<span class="history-event-companion"><span>Speed</span>${esc(goal.GoalSpeed.toFixed(1))} kph</span>`);
+  }
+  return parts.join('');
+}
+
+function historyFindGoalForEvent(e, goals, matchStart) {
+  const eventSecs = matchStart && e.occurred_at
+    ? Math.max(0, (new Date(e.occurred_at).getTime() - matchStart) / 1000)
+    : null;
+  const sameScorer = goals.filter(g => !e.player_name || g.ScorerName === e.player_name);
+  if (eventSecs != null) {
+    return sameScorer.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
+      || goals.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
+      || sameScorer[0]
+      || null;
+  }
+  return sameScorer[0] || null;
 }
 
 function historyColoredName(name, nameTeam) {
@@ -415,24 +482,25 @@ function historyRecentWidget(container) {
       const matches = await fetch('/api/matches').then(r => r.json());
       const valid = (matches || []).filter(m => m.Arena && m.Arena !== '-').slice(0, 10);
       if (!valid.length) {
-        container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px 8px;font-size:13px">No matches yet.</div>';
+        container.innerHTML = '<div class="ui-widget-empty history-widget-empty">No matches yet.</div>';
         return;
       }
       render(valid);
     } catch(_) {
-      container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px 8px;font-size:13px">Failed to load matches.</div>';
+      container.innerHTML = '<div class="ui-widget-error history-widget-empty">Failed to load matches.</div>';
     }
   }
 
   function render(matches) {
     const listEl = document.createElement('div');
+    listEl.className = 'history-widget-recent-list';
     for (const m of matches) {
       const blue = m.team0_goals ?? 0;
       const orange = m.team1_goals ?? 0;
       const result = historyMatchResult(m);
       const badges = historyMatchBadges(m);
       const card = document.createElement('div');
-      card.className = `match-card ${result.matchClass}`;
+      card.className = `match-card history-widget-card ${result.matchClass}`;
       card.dataset.id = m.ID;
       card.innerHTML = `
         <div class="match-card-left">
@@ -515,26 +583,26 @@ function historySummaryWidget(container) {
     const forfeits = matches.filter(m => m.Forfeit).length;
     const latest = matches[0];
 
-    container.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+    container.innerHTML = `<div class="history-summary-widget">
+      <div class="history-summary-grid">
         ${historySummaryPill('Matches', matches.length)}
         ${historySummaryPill('Blue W', blueWins, 'var(--rl-blue)')}
         ${historySummaryPill('Orange W', orangeWins, 'var(--rl-orange)')}
         ${historySummaryPill('OT', overtime)}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:8px">
-        <div style="min-width:0">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Latest match</div>
-          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(friendlyArena(latest.Arena))}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(formatDate(latest.StartedAt))}</div>
+      <div class="history-summary-latest">
+        <div class="history-summary-latest-main">
+          <div class="history-summary-label">Latest match</div>
+          <div class="history-summary-arena">${esc(friendlyArena(latest.Arena))}</div>
+          <div class="history-summary-date">${esc(formatDate(latest.StartedAt))}</div>
         </div>
-        <div style="text-align:right;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap">
-          <span style="color:var(--rl-blue)">${latest.team0_goals ?? 0}</span>
-          <span style="color:var(--muted)">-</span>
-          <span style="color:var(--rl-orange)">${latest.team1_goals ?? 0}</span>
+        <div class="history-summary-score">
+          <span class="blue">${latest.team0_goals ?? 0}</span>
+          <span class="sep">-</span>
+          <span class="orange">${latest.team1_goals ?? 0}</span>
         </div>
       </div>
-      <div style="font-size:10px;color:var(--muted)">${forfeits} forfeits recorded across saved matches.</div>
+      <div class="history-summary-footnote">${forfeits} forfeits recorded across saved matches.</div>
     </div>`;
   }
 
@@ -549,9 +617,9 @@ function historySummaryWidget(container) {
 }
 
 function historySummaryPill(label, value, color = 'var(--text)') {
-  return `<div style="background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:9px 6px;text-align:center;min-width:0">
-    <div style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:${color}">${value}</div>
-    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${esc(label)}</div>
+  return `<div class="history-summary-pill" style="--history-summary-color:${esc(color)}">
+    <div class="history-summary-pill-value">${value}</div>
+    <div class="history-summary-pill-label">${esc(label)}</div>
   </div>`;
 }
 
@@ -567,5 +635,8 @@ window.pluginInit_history = function() {
     factory: historySummaryWidget,
   });
   const sel = document.getElementById('history-player-filter');
-  if (sel) sel.addEventListener('change', e => fetchMatches(e.target.value));
+  if (sel) sel.addEventListener('change', e => {
+    _historyPlayerID = e.target.value;
+    fetchMatches(_historyPlayerID);
+  });
 };

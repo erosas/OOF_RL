@@ -126,10 +126,15 @@ func (s *Store) MatchByID(id int64) (*Match, error) {
 }
 
 func (s *Store) Matches(playerID string) ([]Match, error) {
+	playerTeamExpr := "NULL"
+	if playerID != "" {
+		playerTeamExpr = "p.team_num"
+	}
 	query := `
 		SELECT m.id, COALESCE(m.match_guid,''), COALESCE(m.arena,''), m.started_at,
 		       COALESCE(m.ended_at,''), COALESCE(m.winner_team_num,-1), m.overtime,
-		       COALESCE(m.incomplete,0), COALESCE(m.forfeit,0), m.playlist_type, m.team_score_0, m.team_score_1
+		       COALESCE(m.incomplete,0), COALESCE(m.forfeit,0), m.playlist_type, m.team_score_0, m.team_score_1,
+		       ` + playerTeamExpr + `
 		FROM hist_matches m`
 	var args []any
 	if playerID != "" {
@@ -145,9 +150,9 @@ func (s *Store) Matches(playerID string) ([]Match, error) {
 	var out []Match
 	for rows.Next() {
 		var m Match
-		var pt, ts0, ts1 sql.NullInt64
+		var pt, ts0, ts1, playerTeam sql.NullInt64
 		if err := rows.Scan(&m.ID, &m.MatchGUID, &m.Arena, &m.StartedAt,
-			&m.EndedAt, &m.WinnerTeamNum, &m.Overtime, &m.Incomplete, &m.Forfeit, &pt, &ts0, &ts1); err != nil {
+			&m.EndedAt, &m.WinnerTeamNum, &m.Overtime, &m.Incomplete, &m.Forfeit, &pt, &ts0, &ts1, &playerTeam); err != nil {
 			return nil, err
 		}
 		if pt.Valid {
@@ -161,6 +166,10 @@ func (s *Store) Matches(playerID string) ([]Match, error) {
 		if ts1.Valid {
 			v := int(ts1.Int64)
 			m.TeamScore1 = &v
+		}
+		if playerTeam.Valid {
+			v := int(playerTeam.Int64)
+			m.PlayerTeam = &v
 		}
 		out = append(out, m)
 	}
