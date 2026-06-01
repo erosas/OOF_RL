@@ -59,41 +59,6 @@
   line-height: var(--oof-line-height-normal);
 }
 
-.dash-toolbar-meta {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--oof-space-2);
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.dash-layout-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--oof-space-1);
-  min-height: 28px;
-  padding: 4px 10px;
-  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .78);
-  border-radius: var(--oof-radius-md);
-  background: rgb(var(--oof-color-bg-rgb) / .28);
-  color: var(--oof-color-text-muted);
-  font-size: var(--oof-font-size-xs);
-  font-weight: var(--oof-font-weight-semibold);
-  white-space: nowrap;
-}
-
-.dash-layout-chip strong {
-  color: var(--oof-color-text);
-  font-weight: var(--oof-font-weight-bold);
-}
-
-.dash-layout-chip--accent {
-  border-color: rgb(var(--oof-color-accent-rgb) / .38);
-  background: rgb(var(--oof-color-accent-rgb) / .10);
-  color: var(--oof-color-accent);
-}
-
 .dash-toolbar-actions {
   position: relative;
   display: flex;
@@ -134,6 +99,18 @@
 
 .dashboard-canvas-note {
   text-align: right;
+}
+
+#dash-grid.dash-editing {
+  border-radius: var(--oof-radius-lg);
+  background-image:
+    linear-gradient(rgb(var(--oof-color-accent-rgb) / .08) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--oof-color-accent-rgb) / .08) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgb(var(--oof-color-accent-rgb) / .10), transparent 34%);
+  background-position: 0 0;
+  background-size: 100% 66px, calc(100% / 12) 100%, 100% 100%;
+  outline: 1px dashed rgb(var(--oof-color-accent-rgb) / .24);
+  outline-offset: -1px;
 }
 
 /* Widget picker panel */
@@ -213,6 +190,8 @@
   font-size: var(--oof-font-size-xs);
   color: var(--oof-color-text-subtle);
   margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
 }
 
 .dash-picker-item .bc-sync-btn {
@@ -220,6 +199,14 @@
   padding: 4px 10px;
   border-color: rgb(var(--oof-color-accent-rgb) / .32);
   color: var(--oof-color-accent);
+}
+
+.dash-picker-empty {
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-sm);
+  line-height: var(--oof-line-height-normal);
+  padding: var(--oof-space-6) var(--oof-space-3);
+  text-align: center;
 }
 
 /* Empty state */
@@ -234,6 +221,21 @@
 
 .dash-empty strong {
   color: var(--oof-color-text);
+}
+
+.dash-empty-title {
+  display: block;
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-md);
+  font-weight: var(--oof-font-weight-bold);
+  line-height: var(--oof-line-height-tight);
+}
+
+.dash-empty-note {
+  display: block;
+  margin-top: var(--oof-space-1);
+  color: var(--oof-color-text-muted);
+  font-size: var(--oof-font-size-sm);
 }
 
 /* Widget item chrome */
@@ -255,10 +257,10 @@
 }
 
 .widget-header {
-  display: none;
+  display: flex;
   align-items: center;
   gap: var(--oof-space-2);
-  cursor: move;
+  cursor: default;
   user-select: none;
   flex-shrink: 0;
   background:
@@ -268,7 +270,10 @@
 }
 
 .dash-editing .widget-header {
-  display: flex;
+  cursor: move;
+  background:
+    linear-gradient(90deg, rgb(var(--oof-color-accent-rgb) / .18), transparent 42%),
+    rgb(var(--oof-color-surface-raised-rgb) / .96);
 }
 
 .dash-editing .grid-stack-item-content {
@@ -277,6 +282,7 @@
 }
 
 .widget-drag-icon {
+  display: none;
   color: var(--oof-color-text-subtle);
   font-size: var(--oof-font-size-sm);
   font-weight: var(--oof-font-weight-bold);
@@ -284,11 +290,30 @@
   opacity: .75;
 }
 
+.dash-editing .widget-drag-icon {
+  display: inline-flex;
+}
+
 .widget-title-text {
   flex: 1;
 }
 
+.widget-plugin-pill {
+  flex: 0 0 auto;
+  max-width: 120px;
+  overflow: hidden;
+  padding: 2px 7px;
+  border: 1px solid rgb(var(--oof-color-border-strong-rgb) / .72);
+  border-radius: 999px;
+  background: rgb(var(--oof-color-bg-rgb) / .28);
+  color: var(--oof-color-text-subtle);
+  text-overflow: ellipsis;
+}
+
 .widget-remove-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: 1px solid transparent;
   color: var(--oof-color-text-muted);
@@ -300,6 +325,10 @@
   border-radius: var(--oof-radius-sm);
   line-height: 1;
   opacity: .7;
+}
+
+.dash-editing .widget-remove-btn {
+  display: inline-flex;
 }
 
 .widget-remove-btn:hover {
@@ -331,7 +360,6 @@
     width: 100%;
   }
 
-  .dash-toolbar-meta,
   .dashboard-canvas-header {
     align-items: stretch;
     flex-direction: column;
@@ -351,14 +379,9 @@
   <section id="dashboard-shell" class="dashboard-shell">
     <div id="dash-toolbar" class="dash-toolbar ui-page-header">
       <div class="dash-toolbar-copy">
-        <div class="ui-page-kicker">Custom board</div>
+        <div class="ui-page-kicker">Personal workspace</div>
         <h2 class="dash-toolbar-title ui-page-title">Dashboard</h2>
-        <p class="dash-toolbar-subtitle">Custom workspace for live match, session, ranks, history, and utility widgets.</p>
-      </div>
-      <div class="dash-toolbar-meta" aria-label="Dashboard layout status">
-        <span class="dash-layout-chip dash-layout-chip--accent">Layout <strong>Custom</strong></span>
-        <span class="dash-layout-chip">Canvas <strong>Grid</strong></span>
-        <span class="dash-layout-chip">Layout <strong>Saved</strong></span>
+        <p class="dash-toolbar-subtitle">Keep your favorite live, session, rank, history, and utility panels in one place.</p>
       </div>
       <div class="dash-toolbar-actions ui-actions">
         <button id="dash-add-widget-btn" class="bc-sync-btn ui-button ui-button--ghost hidden">+ Add Widget</button>
@@ -370,11 +393,12 @@
 
     <div id="dashboard-canvas" class="dashboard-canvas">
       <div class="dashboard-canvas-header">
-        <span class="dashboard-canvas-title">Widget board</span>
-        <span class="dashboard-canvas-note">Registered plugin widgets on a saved grid.</span>
+        <span class="dashboard-canvas-title">My dashboard</span>
+        <span class="dashboard-canvas-note">Your layout is saved after you edit and save.</span>
       </div>
       <div id="dash-empty" class="dash-empty ui-empty-state hidden">
-        Click <strong>Edit</strong> then <strong>+ Add Widget</strong> to build your custom view.
+        <span class="dash-empty-title">No widgets on this board yet.</span>
+        <span class="dash-empty-note">Add widgets when you are ready to shape this workspace.</span>
       </div>
       <div class="grid-stack" id="dash-grid" style="min-height: 200px;"></div>
     </div>
