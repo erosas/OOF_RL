@@ -88,6 +88,6 @@ The overlay shows the same live view as the main window but stays on top of full
 **Blank window or white screen**
 - Check `%LOCALAPPDATA%\OOF_RL\oof_rl.log` for errors
 
-**Ballchasing auto-upload isn't working**
+**Ballchasing uploads are not showing up**
 - Make sure you've entered a valid API key in **Settings → Ballchasing**
-- Replays are uploaded 5 seconds after `MatchDestroyed` fires — wait a moment after leaving the post-match screen
+- Save the replay from Rocket League's post-match screen, then use **Upload** or **Sync from Ballchasing** in the Ballchasing page

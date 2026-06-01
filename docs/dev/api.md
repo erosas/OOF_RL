@@ -28,7 +28,7 @@ Upgrades to a WebSocket connection. The server pushes every RL event and interna
 | `BallHit` | Ball touched by a player |
 | `MatchEnded` | Winner decided |
 | `MatchDestroyed` | Post-game screen dismissed |
-| `bc:uploaded` | `{ "replays": [{ "name", "bc_id", "bc_url" }] }` — auto-upload completed |
+| `bc:uploaded` | `{ "replays": [{ "name", "bc_id", "bc_url" }] }` — Ballchasing upload completed |
 
 ---
 
