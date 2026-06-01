@@ -27,7 +27,8 @@ func Register(id string, f Factory) {
 	factories[id] = f
 }
 
-// Unregister removes a factory from the global registry. Intended for tests.
+// Unregister removes a factory from the global registry.
+// Only for use in tests — use cfg.DisabledPlugins to toggle plugins at runtime.
 func Unregister(id string) {
 	registryMu.Lock()
 	defer registryMu.Unlock()

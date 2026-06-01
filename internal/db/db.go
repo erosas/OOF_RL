@@ -62,22 +62,22 @@ func (d *DB) AddColumnIfNotExists(table, column, columnDef string) error {
 	return err
 }
 
-func (d *DB) UpsertTrackerCache(primaryID, dataJSON string) error {
+func (d *DB) UpsertTrackerCache(key, data string) error {
 	_, err := d.sql.Exec(`
 		INSERT INTO tracker_cache(primary_id, data_json, fetched_at) VALUES(?,?,?)
 		ON CONFLICT(primary_id) DO UPDATE SET data_json=excluded.data_json, fetched_at=excluded.fetched_at`,
-		primaryID, dataJSON, time.Now())
+		key, data, time.Now())
 	return err
 }
 
-func (d *DB) GetTrackerCache(primaryID string) (dataJSON string, fetchedAt time.Time, found bool, err error) {
-	scanErr := d.sql.QueryRow(`SELECT data_json, fetched_at FROM tracker_cache WHERE primary_id=?`, primaryID).
-		Scan(&dataJSON, &fetchedAt)
+func (d *DB) GetTrackerCache(key string) (data string, fetchedAt time.Time, found bool, err error) {
+	scanErr := d.sql.QueryRow(`SELECT data_json, fetched_at FROM tracker_cache WHERE primary_id=?`, key).
+		Scan(&data, &fetchedAt)
 	if scanErr == sql.ErrNoRows {
 		return "", time.Time{}, false, nil
 	}
 	if scanErr != nil {
 		return "", time.Time{}, false, scanErr
 	}
-	return dataJSON, fetchedAt, true, nil
+	return data, fetchedAt, true, nil
 }

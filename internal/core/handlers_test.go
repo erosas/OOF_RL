@@ -301,15 +301,6 @@ func TestPostSettings(t *testing.T) {
 		t.Errorf("bc key: got %q, want test-key", got)
 	}
 
-	newCfg := config.Defaults()
-	newCfg.TrackerCacheTTLMinutes = 30
-	w = postJSON(mux, "/api/config", newCfg)
-	if w.Code != http.StatusOK {
-		t.Fatalf("config status: got %d — body: %s", w.Code, w.Body.String())
-	}
-	if cfg.TrackerCacheTTLMinutes != 30 {
-		t.Errorf("tracker TTL: got %d, want 30", cfg.TrackerCacheTTLMinutes)
-	}
 }
 
 func TestPostSettingsMethodNotAllowed(t *testing.T) {
@@ -393,9 +384,6 @@ func TestTrackerProfileLookupSuccess(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if resp["cached"].(bool) {
-		t.Error("first call should not be cached")
-	}
 	if resp["source"] != "mock" {
 		t.Errorf("source: got %v, want mock", resp["source"])
 	}
@@ -416,35 +404,3 @@ func TestTrackerProfileLookupError(t *testing.T) {
 	}
 }
 
-func TestTrackerProfileCacheHit(t *testing.T) {
-	provider := &mockMMRProvider{
-		name:  "mock",
-		ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 800}},
-	}
-	mux := newTestMuxWithMMR(t, provider)
-
-	// First request — cold cache, goes to provider.
-	w1 := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
-	if w1.Code != http.StatusOK {
-		t.Fatalf("first request: got %d — body: %s", w1.Code, w1.Body.String())
-	}
-	if provider.calls != 1 {
-		t.Fatalf("first request: provider calls: got %d, want 1", provider.calls)
-	}
-
-	// Second request — should hit cache, no additional provider call.
-	w2 := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
-	if w2.Code != http.StatusOK {
-		t.Fatalf("second request: got %d", w2.Code)
-	}
-	var resp map[string]any
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if !resp["cached"].(bool) {
-		t.Error("second call should be cached")
-	}
-	if provider.calls != 1 {
-		t.Errorf("provider calls: got %d, want 1 (second should use cache)", provider.calls)
-	}
-}

@@ -11,13 +11,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"OOF_RL/internal/config"
 	"OOF_RL/internal/events"
 	"OOF_RL/internal/histstore"
 	"OOF_RL/internal/httputil"
-	"OOF_RL/internal/mmr"
 	"OOF_RL/internal/plugin"
 )
 
@@ -295,83 +293,4 @@ func (s *Server) handleDataDir(w http.ResponseWriter, r *http.Request) {
 // them on the bus. All plugin event handling is via bus subscriptions.
 func (s *Server) DispatchEvent(env events.Envelope) {
 	s.translator.Translate(env)
-}
-
-// -- Tracker profile --
-
-func (s *Server) handleTrackerProfile(w http.ResponseWriter, r *http.Request) {
-	if s.mmrProvider == nil {
-		httputil.JSONError(w, 503, "tracker service unavailable")
-		return
-	}
-
-	id := r.URL.Query().Get("id")
-	playerName := r.URL.Query().Get("name")
-	if id == "" {
-		httputil.JSONError(w, 400, "missing id")
-		return
-	}
-
-	sep := strings.IndexAny(id, "|:_")
-	if sep < 1 {
-		httputil.JSONError(w, 400, "invalid id format, expected platform|id")
-		return
-	}
-	rawPlatform := strings.ToLower(id[:sep])
-	primaryID := id[sep+1:]
-	if end := strings.IndexAny(primaryID, "|:_"); end >= 0 {
-		primaryID = primaryID[:end]
-	}
-
-	if mmr.IsAllAsterisks(primaryID) || (rawPlatform != "steam" && mmr.IsAllAsterisks(playerName)) {
-		httputil.JSONError(w, 400, "masked player name")
-		return
-	}
-
-	platform := mmr.NormalizePlatform(rawPlatform)
-	displayName := playerName
-	if displayName == "" {
-		displayName = primaryID
-	}
-	identity := mmr.PlayerIdentity{
-		PrimaryID:   primaryID,
-		DisplayName: displayName,
-		Platform:    platform,
-	}
-
-	ttl := time.Duration(s.cfg.TrackerCacheTTLMinutes) * time.Minute
-	if ttl < 2*time.Minute {
-		ttl = 2 * time.Minute
-	}
-	dataJSON, fetchedAt, found, err := s.db.GetTrackerCache(id)
-	if err == nil && found && time.Since(fetchedAt) < ttl {
-		var ranks []mmr.PlaylistRank
-		if json.Unmarshal([]byte(dataJSON), &ranks) == nil {
-			log.Printf("[tracker] %s — cache hit (age %s)", id, time.Since(fetchedAt).Round(time.Second))
-			trackerWriteRankResponse(w, true, fetchedAt, ranks, "")
-			return
-		}
-	}
-
-	ranks, err := s.mmrProvider.Lookup(identity)
-	if err != nil {
-		log.Printf("[tracker] lookup failed for %s: %v", id, err)
-		httputil.JSONError(w, 502, err.Error())
-		return
-	}
-
-	now := time.Now().UTC()
-	if b, merr := json.Marshal(ranks); merr == nil {
-		_ = s.db.UpsertTrackerCache(id, string(b))
-	}
-	trackerWriteRankResponse(w, false, now, ranks, s.mmrProvider.Name())
-}
-
-func trackerWriteRankResponse(w http.ResponseWriter, cached bool, fetchedAt time.Time, ranks []mmr.PlaylistRank, source string) {
-	httputil.WriteJSON(w, map[string]any{
-		"cached":     cached,
-		"fetched_at": fetchedAt.UTC().Format(time.RFC3339),
-		"source":     source,
-		"ranks":      ranks,
-	})
 }
