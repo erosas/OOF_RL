@@ -51,7 +51,7 @@ all-plugins: $(addprefix wasm/, $(PLUGINS))
 
 # Test the SDK (pure Go, no WASM runtime)
 test-sdk:
-	go -C plugins/sdk test ./...
+	go -C sdk test ./...
 
 # Test a single plugin's logic: make test-plugin/live
 test-plugin/%:

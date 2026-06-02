@@ -28,7 +28,7 @@ Upgrades to a WebSocket connection. The server pushes every RL event and interna
 | `BallHit` | Ball touched by a player |
 | `MatchEnded` | Winner decided |
 | `MatchDestroyed` | Post-game screen dismissed |
-| `bc:uploaded` | `{ "replays": [{ "name", "bc_id", "bc_url" }] }` — auto-upload completed |
+| `bc:uploaded` | `{ "replays": [{ "name", "bc_id", "bc_url" }] }` — Ballchasing upload completed |
 
 ---
 
@@ -161,16 +161,15 @@ Returns an empty array when no match is active.
 ## Tracker
 
 ### `GET /api/tracker/profile?id={primaryID}&name={displayName}`
-Fetches tracker.gg ranks for the player. Results are cached in the database for `tracker_cache_ttl_minutes` minutes.
+Fetches ranked MMR data for the player. Results are cached briefly by the internal MMR provider cache; the TTL is not user-configurable.
 
 `id` format: `platform|accountID` (e.g. `steam|76561198000000001`, `epicgames|GamerTag`).  
 `name` is required for non-Steam platforms to resolve the tracker.gg profile URL.
 
 ```json
 {
-  "cached": false,
   "fetched_at": "2025-01-01T12:00:00Z",
-  "source": "tracker.gg",
+  "source": "tracker.gg/rlstats.net",
   "ranks": [{
     "PlaylistID": 11,
     "PlaylistName": "Ranked Doubles 2v2",

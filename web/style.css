@@ -4149,10 +4149,6 @@ details[open] .settings-details-summary::before { transform: rotate(90deg); }
   font-size: 13px;
 }
 
-.settings-page #cfg-ttl {
-  min-width: 118px;
-}
-
 .settings-page #cfg-overlay-opacity {
   width: min(220px, 34vw);
 }

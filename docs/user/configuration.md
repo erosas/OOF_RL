@@ -20,18 +20,6 @@ rl_install_path = ""  # auto-detected on first run; used to write DefaultStatsAP
 
 ---
 
-## Tracker Cache
-
-```toml
-tracker_cache_ttl_minutes = 5
-```
-
-| Field | Default | Min | Description |
-|-------|---------|-----|-------------|
-| `tracker_cache_ttl_minutes` | `5` | `2` | How long tracker.gg rank results are cached in the database before re-fetching. |
-
----
-
 ## Overlay
 
 ```toml

@@ -44,7 +44,7 @@ async function loadBCStatus() {
       return;
     }
     const j = await r.json();
-    el.innerHTML = `<span class="bc-status-dot bc-dot-ok"></span><span>Connected as <strong>${esc(j.name || '(connected)')}</strong> - Replays auto-upload on match end.</span>`;
+    el.innerHTML = `<span class="bc-status-dot bc-dot-ok"></span><span>Connected as <strong>${esc(j.name || '(connected)')}</strong> - Save replays after matches, then upload or sync manually.</span>`;
   } catch (e) {
     el.innerHTML = `<span class="bc-status-dot bc-dot-err"></span><span>${esc(e.message)}</span>`;
   }
@@ -357,7 +357,7 @@ function handleBCUploaded(data) {
 
   const notify = document.getElementById('bc-notify');
   if (notify) {
-    notify.textContent = `${replays.length} replay${replays.length > 1 ? 's' : ''} auto-uploaded to Ballchasing.`;
+    notify.textContent = `${replays.length} replay${replays.length > 1 ? 's' : ''} uploaded to Ballchasing.`;
     notify.classList.remove('hidden');
     setTimeout(() => notify.classList.add('hidden'), 8000);
   }
