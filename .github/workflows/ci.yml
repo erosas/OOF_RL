@@ -51,7 +51,7 @@ jobs:
           files: ${{ runner.temp }}/coverage.out
           fail_ci_if_error: false
 
-  # ── Release binary ────────────────────────────────────────────────────────
+  # ── Release package ───────────────────────────────────────────────────────
   # Only runs when a version tag (e.g. v1.2.3) is pushed.
   release:
     name: Release
@@ -69,29 +69,27 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build release binary
-        # -H windowsgui suppresses the console window for end-users.
-        # -s -w strips debug info for a smaller binary.
-        run: go build -ldflags="-H windowsgui -s -w" -o oof_rl.exe .
-
-      - name: Generate checksum
-        run: |
-          $hash = (Get-FileHash oof_rl.exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  oof_rl.exe" | Out-File -Encoding utf8 oof_rl.exe.sha256
+      - name: Build release package
+        shell: pwsh
+        run: ./scripts/package-release.ps1 -Version "${{ github.ref_name }}"
 
       - name: VirusTotal scan
         uses: crazy-max/ghaction-virustotal@v4
         id: virustotal
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
-          files: oof_rl.exe
+          files: dist/OOF_RL/oof_rl.exe
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            oof_rl.exe
-            oof_rl.exe.sha256
+            dist/OOF_RL-${{ github.ref_name }}.zip
+            dist/OOF_RL-${{ github.ref_name }}.zip.sha256
           generate_release_notes: true
           body: |
+            Download the release zip, extract the `OOF_RL` folder, and run `oof_rl.exe`.
+
+            The zip includes the public WASM plugins and assets needed for Live, Ranks, Session, Ballchasing, and Dashboard.
+
             **VirusTotal scan:** ${{ steps.virustotal.outputs.analysis }}
