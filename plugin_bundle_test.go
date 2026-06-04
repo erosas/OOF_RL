@@ -12,6 +12,8 @@ func TestCopyBundledWASMPluginsCopiesWASMAndAssets(t *testing.T) {
 	dest := filepath.Join(root, "dest")
 	mustWrite(t, filepath.Join(src, "live.wasm"), "wasm")
 	mustWrite(t, filepath.Join(src, "live", "view.html"), "<main>live</main>")
+	mustWrite(t, filepath.Join(src, "ballchasing.wasm"), "not bundled")
+	mustWrite(t, filepath.Join(src, "ballchasing", "view.html"), "<main>ballchasing</main>")
 	mustWrite(t, filepath.Join(src, "notes.txt"), "not copied")
 
 	if err := copyBundledWASMPlugins(src, dest); err != nil {
@@ -20,6 +22,12 @@ func TestCopyBundledWASMPluginsCopiesWASMAndAssets(t *testing.T) {
 
 	assertFile(t, filepath.Join(dest, "live.wasm"), "wasm")
 	assertFile(t, filepath.Join(dest, "live", "view.html"), "<main>live</main>")
+	if _, err := os.Stat(filepath.Join(dest, "ballchasing.wasm")); !os.IsNotExist(err) {
+		t.Fatalf("ballchasing.wasm copied unexpectedly, stat err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "ballchasing")); !os.IsNotExist(err) {
+		t.Fatalf("ballchasing assets copied unexpectedly, stat err=%v", err)
+	}
 	if _, err := os.Stat(filepath.Join(dest, "notes.txt")); !os.IsNotExist(err) {
 		t.Fatalf("notes.txt copied unexpectedly, stat err=%v", err)
 	}

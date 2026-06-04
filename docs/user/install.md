@@ -12,7 +12,7 @@
 
 Grab the OOF RL release `.zip` from the [Releases](../../releases) page. No installer - extract the `OOF_RL` folder anywhere you like and double-click `oof_rl.exe` inside it.
 
-The release zip includes the public plugin files used by Live, Ranks, Session, Ballchasing, and Dashboard. On startup, OOF RL installs or updates those bundled public plugins in `%LOCALAPPDATA%\OOF_RL\plugins` so fresh installs do not require developer build commands.
+The release zip includes the public plugin files used by Live, Ranks, Session, and Dashboard. On startup, OOF RL installs or updates those bundled public plugins in `%LOCALAPPDATA%\OOF_RL\plugins` so fresh installs do not require developer build commands. Ballchasing is not bundled in the public release zip; manually installed or developer-built Ballchasing plugins can still load from the app-data plugin directory.
 
 On first launch the app creates its data directory at `%LOCALAPPDATA%\OOF_RL\` containing:
 
@@ -91,6 +91,7 @@ The overlay shows the same live view as the main window but stays on top of full
 **Blank window or white screen**
 - Check `%LOCALAPPDATA%\OOF_RL\oof_rl.log` for errors
 
-**Ballchasing uploads are not showing up**
+**Manually installed Ballchasing uploads are not showing up**
+- Ballchasing is not bundled in the public release zip
 - Make sure you've entered a valid API key in **Settings → Ballchasing**
 - Save the replay from Rocket League's post-match screen, then use **Upload** or **Sync from Ballchasing** in the Ballchasing page

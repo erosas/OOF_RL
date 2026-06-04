@@ -11,11 +11,10 @@ import (
 )
 
 var bundledPublicPluginIDs = map[string]struct{}{
-	"ballchasing": {},
-	"dashboard":   {},
-	"live":        {},
-	"ranks":       {},
-	"session":     {},
+	"dashboard": {},
+	"live":      {},
+	"ranks":     {},
+	"session":   {},
 }
 
 func seedBundledWASMPlugins(destDir string) error {

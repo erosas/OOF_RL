@@ -12,7 +12,7 @@ $pluginsDir = Join-Path $packageRoot "plugins"
 $archiveName = if ([string]::IsNullOrWhiteSpace($Version)) { "OOF_RL.zip" } else { "OOF_RL-$Version.zip" }
 $archivePath = Join-Path $distDir $archiveName
 $checksumPath = "$archivePath.sha256"
-$plugins = @("live", "ballchasing", "ranks", "session", "dashboard")
+$plugins = @("live", "ranks", "session", "dashboard")
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments
