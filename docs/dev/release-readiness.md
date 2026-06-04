@@ -6,7 +6,7 @@ This page is a maintainer checklist for pre-tag review. Keep it factual and upda
 
 Status as of the 2026-06-02 packaging branch: release artifact/plugin availability has a candidate fix and still needs artifact inspection plus fresh-user smoke testing before tagging.
 
-The release workflow should publish one normal-user zip with `oof_rl.exe`, bundled public WASM plugins, plugin assets, and a checksum for the zip. On startup, the app seeds known bundled public plugins from the extracted release folder into `%LOCALAPPDATA%\OOF_RL\plugins`, then uses the existing plugin loader. Bundled public plugin files win for `live`, `ranks`, `session`, `ballchasing`, and `dashboard`; unknown/custom app-data plugins are preserved. Missing or unreadable bundled plugin files remain log-only in this branch.
+The release workflow should publish one normal-user zip with `oof_rl.exe`, bundled public WASM plugins, plugin assets, and a checksum for the zip. On startup, the app seeds known bundled public plugins from the extracted release folder into `%LOCALAPPDATA%\OOF_RL\plugins`, then uses the existing plugin loader. Bundled public plugin files win for `live`, `ranks`, `session`, and `dashboard`; unknown/custom app-data plugins are preserved. Ballchasing is not bundled or auto-seeded by the public release zip, but manually installed/developer-built Ballchasing plugins can still load from app data. Missing or unreadable bundled plugin files remain log-only in this branch.
 
 ## Blocker To Resolve Before Tagging
 
@@ -16,7 +16,7 @@ The release workflow should publish one normal-user zip with `oof_rl.exe`, bundl
 - Verify bundled plugins update existing public plugin files when the release zip contains newer/different files.
 - Verify unknown/custom app-data plugin files and directories are preserved.
 - Stale files inside known public plugin asset directories are not deleted by this branch.
-- Run a fresh-user smoke test that verifies the public plugin pages appear: Live, Ranks, Session, Ballchasing, and Dashboard.
+- Run a fresh-user smoke test that verifies the bundled public plugin pages appear: Live, Ranks, Session, and Dashboard.
 
 ## Known Risks To Track
 
@@ -38,7 +38,7 @@ These risks are not fixed by the pre-tag cleanup branch. Do not present them as 
 - Release checksum corresponds to the zip users download.
 - Bundled public plugins seed into app data before plugin loading.
 - Fresh-user app data smoke test is run against the actual release artifact, not only `go run .` or an HTML preview.
-- Live, Ranks, Session, Ballchasing, Dashboard, History, and Settings can be opened from the release artifact.
+- Live, Ranks, Session, Dashboard, History, and Settings can be opened from the release artifact.
 - Ballchasing copy does not promise automatic upload unless auto-upload has been implemented, reviewed, and tested.
 - MMR docs match current code and do not mention nonexistent config fields.
 - Known risks above are either resolved with evidence or carried forward honestly in release notes.

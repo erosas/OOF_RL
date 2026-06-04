@@ -6,7 +6,7 @@
 
 A local Rocket League companion app. Connects to the official RL Stats API, tracks match history in an embedded SQLite database, and shows live stats in a desktop window.
 
-**Plugins included:** Live scoreboard · Match history · Player ranks · Session tracker · Ballchasing.com upload
+**Release bundle includes:** Live scoreboard · Match history · Player ranks · Session tracker · Dashboard. Ballchasing remains available for developer/manual plugin installs, but is not bundled in the public release zip.
 
 ---
 
