@@ -46,14 +46,7 @@ window.pluginInit_session = async function() {
   // Populate player dropdown
   try {
     const players = await fetch('/api/players').then(r => r.json());
-    const sel = document.getElementById('session-player-select');
-    for (const p of (players || [])) {
-      const opt = document.createElement('option');
-      opt.value = p.PrimaryID;
-      opt.textContent = p.Name;
-      if (p.PrimaryID === _sessionPlayerID) opt.selected = true;
-      sel.appendChild(opt);
-    }
+    populateSessionPlayerSelect(players || []);
   } catch(_) {}
 
   updateSinceInput();
@@ -155,6 +148,32 @@ window.pluginInit_session = async function() {
 function toDatetimeLocal(d) {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function populateSessionPlayerSelect(players) {
+  const sel = document.getElementById('session-player-select');
+  if (!sel) return;
+
+  const currentID = _sessionPlayerID;
+  sel.innerHTML = '<option value="">Select player...</option>';
+
+  let hasCurrent = !currentID;
+  for (const p of players) {
+    if (!p?.PrimaryID) continue;
+    const opt = document.createElement('option');
+    opt.value = p.PrimaryID;
+    opt.textContent = p.Name || p.PrimaryID;
+    sel.appendChild(opt);
+    if (p.PrimaryID === currentID) hasCurrent = true;
+  }
+
+  if (currentID && hasCurrent) {
+    sel.value = currentID;
+  } else if (currentID) {
+    _sessionPlayerID = '';
+    localStorage.removeItem('oof_session_player');
+    sel.value = '';
+  }
 }
 
 function updateSinceInput() {
