@@ -82,41 +82,7 @@ function isMaskedName(name) {
   return typeof name === 'string' && name.length > 0 && /^\*+$/.test(name);
 }
 
-// --- Tracker fetch queue ---
-const _trkQueue = [];
-const _TRK_MAX_IN_FLIGHT = 2;
-let   _trkInFlight = 0;
-
-function _drainTrkQueue() {
-  while (_trkInFlight < _TRK_MAX_IN_FLIGHT && _trkQueue.length) {
-    _trkInFlight++;
-    const { id, plat, name } = _trkQueue.shift();
-    const nameParam = plat && plat !== 'steam' && name
-      ? `&name=${encodeURIComponent(name)}` : '';
-    fetch(`/api/tracker/profile?id=${encodeURIComponent(id)}${nameParam}`)
-      .then(r => {
-        const status = `HTTP ${r.status}`;
-        return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
-      })
-      .then(({ json, status }) => {
-        const ranks    = parseRankData(json?.ranks);
-        const fetchedAt = json?.fetched_at || null;
-        trackerCache.set(id, { profile: null, ranks, status, fetchedAt });
-        onTrackerDataArrived();
-      })
-      .catch(e => {
-        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: null });
-        onTrackerDataArrived();
-      })
-      .finally(() => {
-        _trkInFlight = Math.max(0, _trkInFlight - 1);
-        _drainTrkQueue();
-      });
-  }
-}
-
 function prefetchTrackerRanks(players) {
-  let enqueued = false;
   for (const p of players) {
     const id = p.PrimaryId;
     if (!id || trackerCache.has(id)) continue;
@@ -127,10 +93,22 @@ function prefetchTrackerRanks(players) {
       continue;
     }
     trackerCache.set(id, undefined);
-    _trkQueue.push({ id, plat, name: p.Name });
-    enqueued = true;
+    const nameParam = plat && plat !== 'steam' && p.Name
+      ? `&name=${encodeURIComponent(p.Name)}` : '';
+    fetch(`/api/tracker/profile?id=${encodeURIComponent(id)}${nameParam}`)
+      .then(r => {
+        const status = `HTTP ${r.status}`;
+        return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
+      })
+      .then(({ json, status }) => {
+        trackerCache.set(id, { profile: null, ranks: parseRankData(json?.ranks), status, fetchedAt: json?.fetched_at || null });
+        onTrackerDataArrived();
+      })
+      .catch(e => {
+        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: null });
+        onTrackerDataArrived();
+      });
   }
-  if (enqueued) _drainTrkQueue();
 }
 
 // Written by history/view.js; called here when tracker data arrives.

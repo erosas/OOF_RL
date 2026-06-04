@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"sync"
@@ -152,21 +151,17 @@ func parseResponse(body []byte) ([]mmr.PlaylistRank, error) {
 
 // -- rate limiter --
 
-// rateLimiter spaces out requests to look organic rather than machine-like.
-// Each caller reserves the next slot under a mutex, then sleeps outside it,
-// so concurrent callers queue cleanly without holding the lock during sleep.
+// rateLimiter enforces a minimum gap between consecutive provider requests.
+// Each caller reserves the next slot under a mutex, then waits outside it,
+// so concurrent callers queue cleanly without holding the lock during the wait.
 type rateLimiter struct {
-	mu        sync.Mutex
-	nextSlot  time.Time
-	baseDelay time.Duration
-	maxJitter time.Duration
+	mu       sync.Mutex
+	nextSlot time.Time
+	delay    time.Duration
 }
 
 func newRateLimiter() *rateLimiter {
-	return &rateLimiter{
-		baseDelay: 3000 * time.Millisecond,
-		maxJitter: 1500 * time.Millisecond, // effective gap: 3–4.5 s
-	}
+	return &rateLimiter{delay: 150 * time.Millisecond}
 }
 
 func (l *rateLimiter) Wait(ctx context.Context) error {
@@ -179,8 +174,7 @@ func (l *rateLimiter) Wait(ctx context.Context) error {
 	if slot.Before(now) {
 		slot = now
 	}
-	jitter := time.Duration(rand.Int63n(int64(l.maxJitter) + 1))
-	l.nextSlot = slot.Add(l.baseDelay + jitter)
+	l.nextSlot = slot.Add(l.delay)
 	l.mu.Unlock()
 	if wait := slot.Sub(now); wait > 0 {
 		timer := time.NewTimer(wait)
