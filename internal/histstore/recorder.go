@@ -188,8 +188,35 @@ func (r *Recorder) onMatchEnded(e oofevents.OOFEvent) {
 	if !ok || r.matchID == 0 || !r.isActiveMatch(ev.MatchGUID()) {
 		return
 	}
-	forfeit := !r.overtime && r.lastTimeSeconds > 5
+	forfeit := r.isLikelyForfeit(ev.WinnerTeamNum)
 	r.flushMatch(ev.WinnerTeamNum, false, forfeit)
+}
+
+func (r *Recorder) isLikelyForfeit(winnerTeamNum int) bool {
+	if r.overtime || winnerTeamNum < 0 || r.lastTimeSeconds <= 5 {
+		return false
+	}
+	winnerScore, opponentScore, ok := r.teamScoreLead(winnerTeamNum)
+	return ok && winnerScore > opponentScore
+}
+
+func (r *Recorder) teamScoreLead(winnerTeamNum int) (int, int, bool) {
+	winnerScore := 0
+	opponentScore := 0
+	winnerFound := false
+	opponentFound := false
+	for _, t := range r.lastTeams {
+		if t.TeamNum == winnerTeamNum {
+			winnerScore = t.Score
+			winnerFound = true
+			continue
+		}
+		if !opponentFound || t.Score > opponentScore {
+			opponentScore = t.Score
+			opponentFound = true
+		}
+	}
+	return winnerScore, opponentScore, winnerFound && opponentFound
 }
 
 // onMatchDestroyed handles the case where MatchEnded is never sent (private

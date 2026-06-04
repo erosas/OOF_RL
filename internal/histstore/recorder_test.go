@@ -300,6 +300,72 @@ func TestMatchEndedWithSubstantialClockRemainingIsForfeit(t *testing.T) {
 	}
 }
 
+func TestMatchEndedTiedScoreIsNotForfeit(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	r.onStateUpdated(translateUpdateState(updateState("guid-tied-end", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 1, 1, 173)))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-tied-end", 173, false))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-tied-end", 0))
+
+	match := matchByGUID(t, s, "guid-tied-end")
+	if match.Forfeit {
+		t.Fatalf("tied early match end should not be marked forfeit without a winning score snapshot: %+v", match)
+	}
+}
+
+func TestMatchEndedMissingTeamScoreSnapshotIsNotForfeit(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	d := updateState("guid-missing-scores", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 2, 1, 173)
+	d.Game.Teams = nil
+	r.onStateUpdated(translateUpdateState(d))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-missing-scores", 173, false))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-missing-scores", 0))
+
+	match := matchByGUID(t, s, "guid-missing-scores")
+	if match.Forfeit {
+		t.Fatalf("early match end without team scores should not be marked forfeit: %+v", match)
+	}
+}
+
+func TestMatchEndedInvalidWinnerIsNotForfeit(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	r.onStateUpdated(translateUpdateState(updateState("guid-invalid-winner", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 2, 1, 173)))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-invalid-winner", 173, false))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-invalid-winner", -1))
+
+	match := matchByGUID(t, s, "guid-invalid-winner")
+	if match.Forfeit {
+		t.Fatalf("early match end with invalid winner should not be marked forfeit: %+v", match)
+	}
+}
+
+func TestMatchEndedOvertimeIsNotForfeit(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	r.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-ot-end", "TrainStation", []events.Player{
+		player("blue-one", "Blue One", 0, 200),
+		player("orange-one", "Orange One", 1, 100),
+	}, 2, 1, 173, false)))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-ot-end", 173, true))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-ot-end", 0))
+
+	match := matchByGUID(t, s, "guid-ot-end")
+	if match.Forfeit {
+		t.Fatalf("overtime match end should not be marked forfeit: %+v", match)
+	}
+}
+
 func TestUnknownBotIDsAreScopedToMatchAndShortcut(t *testing.T) {
 	r, s := newTestRecorder(t)
 
