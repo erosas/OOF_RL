@@ -334,7 +334,7 @@ function historyEventRow(e, goals, nameTeam, matchStart) {
   const note = historyEventNote(e.event_type);
   return `
     <div class="history-event-row ${teamClass}">
-      <span class="history-event-time">${esc(historyRelTime(e.occurred_at, matchStart))}</span>
+      <span class="history-event-time">${esc(historyEventClock(e, matchStart))}</span>
       <span class="history-event-type">${esc(type)}</span>
       <span class="history-event-player">${actor}${target}</span>
       <span class="history-event-note">
@@ -350,7 +350,7 @@ function historyGoalRow(g, nameTeam) {
   const speed = g.GoalSpeed != null ? `${g.GoalSpeed.toFixed(1)} kph` : '';
   return `
     <div class="history-event-row goal">
-      <span class="history-event-time">${esc(formatDuration(g.GoalTime))}</span>
+      <span class="history-event-time">${esc(historyGoalClock(g))}</span>
       <span class="history-event-type">Goal</span>
       <span class="history-event-player">${scorer}</span>
       <span class="history-event-note">
@@ -375,10 +375,23 @@ function historyEventCompanions(e, goals, nameTeam, matchStart) {
 }
 
 function historyFindGoalForEvent(e, goals, matchStart) {
+  const eventClock = historyGameTimeSeconds(e);
   const eventSecs = matchStart && e.occurred_at
     ? Math.max(0, (new Date(e.occurred_at).getTime() - matchStart) / 1000)
     : null;
   const sameScorer = goals.filter(g => !e.player_name || g.ScorerName === e.player_name);
+  if (eventClock != null) {
+    return sameScorer.find(g => {
+      const goalClock = historyGameTimeSeconds(g);
+      return goalClock != null && Math.abs(goalClock - eventClock) <= 1;
+    })
+      || goals.find(g => {
+        const goalClock = historyGameTimeSeconds(g);
+        return goalClock != null && Math.abs(goalClock - eventClock) <= 1;
+      })
+      || sameScorer[0]
+      || null;
+  }
   if (eventSecs != null) {
     return sameScorer.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
       || goals.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
@@ -386,6 +399,36 @@ function historyFindGoalForEvent(e, goals, matchStart) {
       || null;
   }
   return sameScorer[0] || null;
+}
+
+function historyEventClock(e, matchStart) {
+  const secs = historyGameTimeSeconds(e);
+  if (secs != null) return historyFormatGameClock(secs, historyGameOvertime(e));
+  return historyRelTime(e.occurred_at, matchStart);
+}
+
+function historyGoalClock(g) {
+  const secs = historyGameTimeSeconds(g);
+  if (secs != null) return historyFormatGameClock(secs, historyGameOvertime(g));
+  return formatDuration(g.GoalTime);
+}
+
+function historyGameTimeSeconds(row) {
+  const value = row?.game_time_seconds ?? row?.GameTimeSeconds;
+  if (value == null || value === '') return null;
+  const secs = Number(value);
+  return Number.isFinite(secs) ? secs : null;
+}
+
+function historyGameOvertime(row) {
+  return !!(row?.game_overtime ?? row?.GameOvertime);
+}
+
+function historyFormatGameClock(secs, overtime) {
+  const rounded = Math.max(0, Math.round(Number(secs)));
+  const m = Math.floor(rounded / 60);
+  const s = String(rounded % 60).padStart(2, '0');
+  return overtime ? `OT ${m}:${s}` : `${m}:${s}`;
 }
 
 function historyColoredName(name, nameTeam) {

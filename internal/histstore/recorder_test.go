@@ -520,6 +520,9 @@ func TestOnGoalScored(t *testing.T) {
 	if goals[0].GoalSpeed != 95.5 {
 		t.Errorf("speed: got %f, want 95.5", goals[0].GoalSpeed)
 	}
+	if goals[0].GameTimeSeconds == nil || *goals[0].GameTimeSeconds != 100 {
+		t.Errorf("game clock: got %v, want 100", goals[0].GameTimeSeconds)
+	}
 }
 
 func TestOnGoalScoredIgnoresEmptyScorer(t *testing.T) {
@@ -575,6 +578,30 @@ func TestOnStatFeed(t *testing.T) {
 	}
 	if evts[0].PlayerName != "Alice" {
 		t.Errorf("PlayerName: got %q, want Alice", evts[0].PlayerName)
+	}
+	if evts[0].GameTimeSeconds == nil || *evts[0].GameTimeSeconds != 90 {
+		t.Errorf("game clock: got %v, want 90", evts[0].GameTimeSeconds)
+	}
+}
+
+func TestOnStatFeedUsesLatestClockUpdatedTime(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.onStateUpdated(translateUpdateState(updateState("guid-statfeed-clock", "Wasteland", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 90)))
+	r.onClockUpdated(oofevents.NewClockUpdated("guid-statfeed-clock", 1, false))
+
+	r.onStatFeed(oofevents.NewStatFeed("guid-statfeed-clock", "Shot", "Alice", "steam|alice|0", 0, 0, "", "", -1))
+
+	evts, err := s.MatchStatfeedEvents(r.matchID)
+	if err != nil {
+		t.Fatalf("MatchStatfeedEvents: %v", err)
+	}
+	if len(evts) != 1 {
+		t.Fatalf("expected 1 statfeed event, got %d", len(evts))
+	}
+	if evts[0].GameTimeSeconds == nil || *evts[0].GameTimeSeconds != 1 {
+		t.Errorf("game clock: got %v, want 1", evts[0].GameTimeSeconds)
 	}
 }
 

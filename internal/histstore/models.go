@@ -39,28 +39,32 @@ type PlayerMatchStats struct {
 }
 
 type GoalEvent struct {
-	ID           int64
-	ScorerID     string
-	ScorerName   string
-	AssisterID   string
-	AssisterName string
-	GoalSpeed    float64
-	GoalTime     float64
-	ImpactX      float64
-	ImpactY      float64
-	ImpactZ      float64
-	ScoredAt     time.Time
+	ID              int64
+	ScorerID        string
+	ScorerName      string
+	AssisterID      string
+	AssisterName    string
+	GoalSpeed       float64
+	GoalTime        float64
+	GameTimeSeconds *int `json:"game_time_seconds,omitempty"`
+	GameOvertime    bool `json:"game_overtime,omitempty"`
+	ImpactX         float64
+	ImpactY         float64
+	ImpactZ         float64
+	ScoredAt        time.Time
 }
 
 type StatfeedEvent struct {
-	ID         int64     `json:"id"`
-	PlayerID   string    `json:"player_id"`
-	PlayerName string    `json:"player_name"`
-	TeamNum    int       `json:"team_num"`
-	EventType  string    `json:"event_type"`
-	TargetID   string    `json:"target_id"`
-	TargetName string    `json:"target_name"`
-	OccurredAt time.Time `json:"occurred_at"`
+	ID              int64     `json:"id"`
+	PlayerID        string    `json:"player_id"`
+	PlayerName      string    `json:"player_name"`
+	TeamNum         int       `json:"team_num"`
+	EventType       string    `json:"event_type"`
+	TargetID        string    `json:"target_id"`
+	TargetName      string    `json:"target_name"`
+	GameTimeSeconds *int      `json:"game_time_seconds,omitempty"`
+	GameOvertime    bool      `json:"game_overtime,omitempty"`
+	OccurredAt      time.Time `json:"occurred_at"`
 }
 
 type PlayerAggregate struct {

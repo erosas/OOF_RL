@@ -841,6 +841,30 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
     return `+${m}:${s}`;
   }
 
+  function rowGameClockSeconds(row) {
+    const value = row?.game_time_seconds ?? row?.GameTimeSeconds;
+    if (value == null || value === '') return null;
+    const secs = Number(value);
+    return Number.isFinite(secs) ? secs : null;
+  }
+
+  function rowGameOvertime(row) {
+    return !!(row?.game_overtime ?? row?.GameOvertime);
+  }
+
+  function formatMatchClock(secs, overtime) {
+    const rounded = Math.max(0, Math.round(Number(secs)));
+    const m = Math.floor(rounded / 60);
+    const s = String(rounded % 60).padStart(2, '0');
+    return overtime ? `OT ${m}:${s}` : `${m}:${s}`;
+  }
+
+  function eventClock(row, fallback) {
+    const secs = rowGameClockSeconds(row);
+    if (secs != null) return formatMatchClock(secs, rowGameOvertime(row));
+    return fallback;
+  }
+
   players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
   const rankablePlayers = players.filter(p => !isBot(p.PrimaryId));
   prefetchTrackerRanks(rankablePlayers);
@@ -885,7 +909,7 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
           <td>${colorName(g.ScorerName)}</td>
           <td>${colorName(g.AssisterName)}</td>
           <td>${g.GoalSpeed != null ? g.GoalSpeed.toFixed(1) : '—'}</td>
-          <td>${formatDuration(g.GoalTime)}</td>
+          <td>${eventClock(g, formatDuration(g.GoalTime))}</td>
         </tr>`).join('')
     : '<tr><td colspan="4" style="color:var(--muted)">No goals recorded</td></tr>';
 
@@ -895,7 +919,7 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
         const actor = colorName(e.player_name);
         const tgt   = e.target_name ? ` → ${colorName(e.target_name)}` : '';
         const label = EVENT_LABEL[e.event_type] || e.event_type;
-        const t     = matchRelTime(e.occurred_at);
+        const t     = eventClock(e, matchRelTime(e.occurred_at));
         return `<tr>
           <td style="width:28px;text-align:center">${icon}</td>
           <td style="color:var(--muted);font-size:11px">${esc(label)}</td>

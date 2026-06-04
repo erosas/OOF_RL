@@ -309,6 +309,10 @@ func (s *Store) AllTeamGoals() (map[int64][2]int, error) {
 // --- Goal events ---
 
 func (s *Store) InsertGoal(matchID int64, scorerID, scorerName, assisterID, assisterName, lastTouchID string, speed, goalTime, ix, iy, iz float64) error {
+	return s.InsertGoalWithGameClock(matchID, scorerID, scorerName, assisterID, assisterName, lastTouchID, speed, goalTime, nil, false, ix, iy, iz)
+}
+
+func (s *Store) InsertGoalWithGameClock(matchID int64, scorerID, scorerName, assisterID, assisterName, lastTouchID string, speed, goalTime float64, gameTimeSeconds *int, gameOvertime bool, ix, iy, iz float64) error {
 	var as, lt interface{}
 	if assisterID != "" {
 		as = assisterID
@@ -316,10 +320,14 @@ func (s *Store) InsertGoal(matchID int64, scorerID, scorerName, assisterID, assi
 	if lastTouchID != "" {
 		lt = lastTouchID
 	}
+	var gameTime interface{}
+	if gameTimeSeconds != nil {
+		gameTime = *gameTimeSeconds
+	}
 	_, err := s.conn.Exec(`
-		INSERT INTO hist_goal_events(match_id,scorer_id,scorer_name,assister_id,assister_name,ball_last_touch_id,goal_speed,goal_time,impact_x,impact_y,impact_z,scored_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-		matchID, scorerID, scorerName, as, assisterName, lt, speed, goalTime, ix, iy, iz, time.Now())
+		INSERT INTO hist_goal_events(match_id,scorer_id,scorer_name,assister_id,assister_name,ball_last_touch_id,goal_speed,goal_time,game_time_seconds,game_overtime,impact_x,impact_y,impact_z,scored_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		matchID, scorerID, scorerName, as, assisterName, lt, speed, goalTime, gameTime, gameOvertime, ix, iy, iz, time.Now())
 	return err
 }
 
@@ -329,7 +337,8 @@ func (s *Store) MatchGoals(matchID int64) ([]GoalEvent, error) {
 		       COALESCE(NULLIF(g.scorer_name,''), sp.name, ''),
 		       COALESCE(g.assister_id,''),
 		       COALESCE(NULLIF(g.assister_name,''), ap.name, ''),
-		       g.goal_speed, g.goal_time, g.impact_x, g.impact_y, g.impact_z, g.scored_at
+		       g.goal_speed, g.goal_time, g.game_time_seconds, g.game_overtime,
+		       g.impact_x, g.impact_y, g.impact_z, g.scored_at
 		FROM hist_goal_events g
 		LEFT JOIN hist_players sp ON sp.primary_id=g.scorer_id
 		LEFT JOIN hist_players ap ON ap.primary_id=g.assister_id
@@ -342,12 +351,19 @@ func (s *Store) MatchGoals(matchID int64) ([]GoalEvent, error) {
 	var out []GoalEvent
 	for rows.Next() {
 		var g GoalEvent
+		var gameTime sql.NullInt64
+		var gameOvertime sql.NullBool
 		if err := rows.Scan(&g.ID, &g.ScorerID, &g.ScorerName,
 			&g.AssisterID, &g.AssisterName,
-			&g.GoalSpeed, &g.GoalTime,
+			&g.GoalSpeed, &g.GoalTime, &gameTime, &gameOvertime,
 			&g.ImpactX, &g.ImpactY, &g.ImpactZ, &g.ScoredAt); err != nil {
 			return nil, err
 		}
+		if gameTime.Valid {
+			v := int(gameTime.Int64)
+			g.GameTimeSeconds = &v
+		}
+		g.GameOvertime = gameOvertime.Valid && gameOvertime.Bool
 		out = append(out, g)
 	}
 	return out, rows.Err()
@@ -366,16 +382,24 @@ func (s *Store) InsertBallHit(matchID int64, playerID string, pre, post, x, y, z
 // --- Statfeed events ---
 
 func (s *Store) InsertStatfeedEvent(matchID int64, playerID, playerName string, teamNum int, eventType, targetID, targetName string) error {
+	return s.InsertStatfeedEventWithGameClock(matchID, playerID, playerName, teamNum, eventType, targetID, targetName, nil, false)
+}
+
+func (s *Store) InsertStatfeedEventWithGameClock(matchID int64, playerID, playerName string, teamNum int, eventType, targetID, targetName string, gameTimeSeconds *int, gameOvertime bool) error {
+	var gameTime interface{}
+	if gameTimeSeconds != nil {
+		gameTime = *gameTimeSeconds
+	}
 	_, err := s.conn.Exec(`
-		INSERT INTO hist_statfeed_events(match_id,player_id,player_name,team_num,event_type,target_id,target_name,occurred_at)
-		VALUES(?,?,?,?,?,?,?,?)`,
-		matchID, playerID, playerName, teamNum, eventType, targetID, targetName, time.Now())
+		INSERT INTO hist_statfeed_events(match_id,player_id,player_name,team_num,event_type,target_id,target_name,game_time_seconds,game_overtime,occurred_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		matchID, playerID, playerName, teamNum, eventType, targetID, targetName, gameTime, gameOvertime, time.Now())
 	return err
 }
 
 func (s *Store) MatchStatfeedEvents(matchID int64) ([]StatfeedEvent, error) {
 	rows, err := s.conn.Query(`
-		SELECT id, player_id, player_name, team_num, event_type, target_id, target_name, occurred_at
+		SELECT id, player_id, player_name, team_num, event_type, target_id, target_name, game_time_seconds, game_overtime, occurred_at
 		FROM hist_statfeed_events
 		WHERE match_id=?
 		ORDER BY occurred_at ASC`, matchID)
@@ -386,9 +410,16 @@ func (s *Store) MatchStatfeedEvents(matchID int64) ([]StatfeedEvent, error) {
 	var out []StatfeedEvent
 	for rows.Next() {
 		var e StatfeedEvent
-		if err := rows.Scan(&e.ID, &e.PlayerID, &e.PlayerName, &e.TeamNum, &e.EventType, &e.TargetID, &e.TargetName, &e.OccurredAt); err != nil {
+		var gameTime sql.NullInt64
+		var gameOvertime sql.NullBool
+		if err := rows.Scan(&e.ID, &e.PlayerID, &e.PlayerName, &e.TeamNum, &e.EventType, &e.TargetID, &e.TargetName, &gameTime, &gameOvertime, &e.OccurredAt); err != nil {
 			return nil, err
 		}
+		if gameTime.Valid {
+			v := int(gameTime.Int64)
+			e.GameTimeSeconds = &v
+		}
+		e.GameOvertime = gameOvertime.Valid && gameOvertime.Bool
 		out = append(out, e)
 	}
 	return out, rows.Err()

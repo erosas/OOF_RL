@@ -195,8 +195,9 @@ func TestInsertAndFetchGoal(t *testing.T) {
 	s.UpsertPlayer("touch1", "Dave")
 	matchID, _ := s.UpsertMatch("guid-goal", "Beckwith Park", time.Now())
 
-	if err := s.InsertGoal(matchID, "scorer1", "Bob", "assist1", "Carol", "touch1", 120.5, 45.0, 1.0, 2.0, 3.0); err != nil {
-		t.Fatalf("InsertGoal: %v", err)
+	gameClock := 12
+	if err := s.InsertGoalWithGameClock(matchID, "scorer1", "Bob", "assist1", "Carol", "touch1", 120.5, 45.0, &gameClock, false, 1.0, 2.0, 3.0); err != nil {
+		t.Fatalf("InsertGoalWithGameClock: %v", err)
 	}
 
 	goals, err := s.MatchGoals(matchID)
@@ -215,6 +216,12 @@ func TestInsertAndFetchGoal(t *testing.T) {
 	}
 	if g.GoalSpeed != 120.5 {
 		t.Errorf("GoalSpeed: got %f, want 120.5", g.GoalSpeed)
+	}
+	if g.GameTimeSeconds == nil || *g.GameTimeSeconds != 12 {
+		t.Errorf("GameTimeSeconds: got %v, want 12", g.GameTimeSeconds)
+	}
+	if g.GameOvertime {
+		t.Error("expected GameOvertime false")
 	}
 	if g.ImpactX != 1.0 || g.ImpactY != 2.0 || g.ImpactZ != 3.0 {
 		t.Errorf("impact: got (%f,%f,%f)", g.ImpactX, g.ImpactY, g.ImpactZ)
@@ -443,8 +450,9 @@ func TestInsertAndFetchStatfeedEvent(t *testing.T) {
 	if err := s.InsertStatfeedEvent(matchID, "pid1", "Alice", 0, "Save", "", ""); err != nil {
 		t.Fatalf("InsertStatfeedEvent: %v", err)
 	}
-	if err := s.InsertStatfeedEvent(matchID, "pid1", "Alice", 0, "Demo", "pid2", "Bob"); err != nil {
-		t.Fatalf("InsertStatfeedEvent with target: %v", err)
+	gameClock := 0
+	if err := s.InsertStatfeedEventWithGameClock(matchID, "pid1", "Alice", 0, "Demo", "pid2", "Bob", &gameClock, true); err != nil {
+		t.Fatalf("InsertStatfeedEventWithGameClock with target: %v", err)
 	}
 
 	evts, err := s.MatchStatfeedEvents(matchID)
@@ -459,5 +467,14 @@ func TestInsertAndFetchStatfeedEvent(t *testing.T) {
 	}
 	if evts[1].EventType != "Demo" || evts[1].TargetName != "Bob" {
 		t.Errorf("second event: type=%q target=%q", evts[1].EventType, evts[1].TargetName)
+	}
+	if evts[0].GameTimeSeconds != nil {
+		t.Errorf("old statfeed insert should not set GameTimeSeconds, got %v", *evts[0].GameTimeSeconds)
+	}
+	if evts[1].GameTimeSeconds == nil || *evts[1].GameTimeSeconds != 0 {
+		t.Errorf("GameTimeSeconds: got %v, want 0", evts[1].GameTimeSeconds)
+	}
+	if !evts[1].GameOvertime {
+		t.Error("expected GameOvertime true")
 	}
 }
