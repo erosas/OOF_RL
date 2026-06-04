@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS hist_player_match_stats (
 	id          INTEGER PRIMARY KEY AUTOINCREMENT,
 	match_id    INTEGER NOT NULL REFERENCES hist_matches(id),
 	primary_id  TEXT    NOT NULL REFERENCES hist_players(primary_id),
+	player_name TEXT    NOT NULL DEFAULT '',
 	team_num    INTEGER,
 	score       INTEGER DEFAULT 0,
 	goals       INTEGER DEFAULT 0,
@@ -107,6 +108,13 @@ func Migrate(database *db.DB) error {
 		{"forfeit", "BOOLEAN DEFAULT 0"},
 	} {
 		if err := database.AddColumnIfNotExists("hist_matches", col[0], col[1]); err != nil {
+			return err
+		}
+	}
+	for _, col := range [][2]string{
+		{"player_name", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := database.AddColumnIfNotExists("hist_player_match_stats", col[0], col[1]); err != nil {
 			return err
 		}
 	}

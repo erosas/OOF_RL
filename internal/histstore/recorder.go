@@ -226,7 +226,7 @@ func (r *Recorder) flushMatch(winnerTeamNum int, incomplete, forfeit bool) {
 		if err := r.store.UpsertPlayer(pl.PrimaryID, pl.Name); err != nil {
 			log.Printf("[histstore] UpsertPlayer %s: %v", pl.PrimaryID, err)
 		}
-		if err := r.store.UpsertPlayerMatchStats(r.matchID, pl.PrimaryID,
+		if err := r.store.UpsertPlayerMatchStatsWithName(r.matchID, pl.PrimaryID, pl.Name,
 			pl.TeamNum, pl.Score, pl.Goals, pl.Shots, pl.Assists, pl.Saves,
 			pl.Touches, pl.CarTouches, pl.Demos); err != nil {
 			log.Printf("[histstore] UpsertPlayerMatchStats %s: %v", pl.PrimaryID, err)

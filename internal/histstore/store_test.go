@@ -143,6 +143,51 @@ func TestUpsertPlayerMatchStatsIdempotent(t *testing.T) {
 	}
 }
 
+func TestMatchPlayersPrefersPerMatchNameSnapshot(t *testing.T) {
+	s := newTestStore(t)
+	s.UpsertPlayer("pid1", "Old Name")
+	matchID, _ := s.UpsertMatch("guid-name-snapshot", "Mannfield", time.Now())
+
+	if err := s.UpsertPlayerMatchStatsWithName(matchID, "pid1", "Old Name", 0, 500, 3, 5, 1, 2, 10, 8, 1); err != nil {
+		t.Fatalf("UpsertPlayerMatchStatsWithName: %v", err)
+	}
+	if err := s.UpsertPlayer("pid1", "New Name"); err != nil {
+		t.Fatalf("UpsertPlayer rename: %v", err)
+	}
+
+	players, err := s.MatchPlayers(matchID)
+	if err != nil {
+		t.Fatalf("MatchPlayers: %v", err)
+	}
+	if len(players) != 1 {
+		t.Fatalf("expected 1 player, got %d", len(players))
+	}
+	if players[0].Name != "Old Name" {
+		t.Errorf("Name: got %q, want Old Name", players[0].Name)
+	}
+}
+
+func TestMatchPlayersFallsBackToLatestPlayerName(t *testing.T) {
+	s := newTestStore(t)
+	s.UpsertPlayer("pid1", "Current Name")
+	matchID, _ := s.UpsertMatch("guid-name-fallback", "Mannfield", time.Now())
+
+	if err := s.UpsertPlayerMatchStats(matchID, "pid1", 0, 500, 3, 5, 1, 2, 10, 8, 1); err != nil {
+		t.Fatalf("UpsertPlayerMatchStats: %v", err)
+	}
+
+	players, err := s.MatchPlayers(matchID)
+	if err != nil {
+		t.Fatalf("MatchPlayers: %v", err)
+	}
+	if len(players) != 1 {
+		t.Fatalf("expected 1 player, got %d", len(players))
+	}
+	if players[0].Name != "Current Name" {
+		t.Errorf("Name: got %q, want Current Name", players[0].Name)
+	}
+}
+
 func TestInsertAndFetchGoal(t *testing.T) {
 	s := newTestStore(t)
 	s.UpsertPlayer("scorer1", "Bob")
