@@ -35,6 +35,28 @@ function platformFromId(primaryId) {
 const _PLAT_NORM = { ps4: 'psn', ps5: 'psn', playstation: 'psn', xboxone: 'xbl', xbox: 'xbl', epicgames: 'epic', nintendo: 'switch' };
 function normPlatform(plat) { return _PLAT_NORM[plat] || plat; }
 
+const _PLAT_LABEL = {
+  steam: 'Steam',
+  epic: 'Epic',
+  psn: 'PlayStation',
+  xbl: 'Xbox',
+  switch: 'Switch',
+  bot: 'Bot',
+  unknown: 'Unknown',
+};
+
+function platformLabelFromId(primaryId) {
+  const raw = platformFromId(primaryId);
+  if (!raw) return '';
+  const plat = normPlatform(raw);
+  return _PLAT_LABEL[plat] || plat.toUpperCase();
+}
+
+function playerPlatformBadge(primaryId) {
+  const label = platformLabelFromId(primaryId);
+  return label ? `<span class="player-platform-badge" title="Platform: ${esc(label)}">${esc(label)}</span>` : '';
+}
+
 function trnProfileUrl(primaryId, playerName) {
   if (!primaryId) return '';
   const sep = String(primaryId).search(/[|:_]/);
@@ -142,8 +164,7 @@ function trackerRankHTML(primaryId) {
   if (!primaryId) return '';
   if (!trackerCache.has(primaryId)) return '';
   const entry = trackerCache.get(primaryId);
-  const plat = platformFromId(primaryId);
-  const platformBadge = plat ? `<span class="player-platform-badge">${esc(plat)}</span>` : '';
+  const platformBadge = playerPlatformBadge(primaryId);
   if (entry === undefined) {
     return `<div class="player-trk-rank">${platformBadge}<span class="player-trk-name">···</span></div>`;
   }
@@ -866,7 +887,7 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
   const statsRows = (list, cls) => list.map(p => `
     <tr class="${cls}">
       <td>
-        <div class="font-medium">${esc(p.Name)}${isBot(p.PrimaryId) ? ' <span class="player-platform-badge">BOT</span>' : ''}</div>
+        <div class="font-medium player-name-line"><span class="player-name">${esc(p.Name)}</span>${playerPlatformBadge(p.PrimaryId)}</div>
         ${isBot(p.PrimaryId) ? '' : trackerRankHTML(p.PrimaryId)}
       </td>
       <td>${p.Goals}</td><td>${p.Assists}</td><td>${p.Saves}</td>
