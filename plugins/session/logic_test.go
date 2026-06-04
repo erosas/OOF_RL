@@ -75,6 +75,9 @@ func TestHandleStartGETNoSince(t *testing.T) {
 	if body["active"] != false {
 		t.Errorf("active: got %v, want false", body["active"])
 	}
+	if body["since"] != "" {
+		t.Errorf("since: got %v, want empty string", body["since"])
+	}
 }
 
 func TestHandleStartPOSTSetsSince(t *testing.T) {
@@ -219,6 +222,24 @@ func TestHandleNewResetsSince(t *testing.T) {
 	mu.RUnlock()
 	if s.Equal(fixed) {
 		t.Error("since should have been reset to a new time")
+	}
+}
+
+func TestHandleNewWithoutActiveSessionStillResets(t *testing.T) {
+	resetSince()
+	resp := handleHTTP(sdk.HTTPRequest{
+		Method: "POST",
+		Path:   "/api/session/new",
+		Body:   `{"player_id":"steam|alice|0"}`,
+	})
+	if resp.Status != 200 {
+		t.Fatalf("status: got %d", resp.Status)
+	}
+	mu.RLock()
+	s := since
+	mu.RUnlock()
+	if s.IsZero() {
+		t.Error("since should have been set to a new time")
 	}
 }
 

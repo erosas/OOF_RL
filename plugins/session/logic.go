@@ -112,8 +112,12 @@ func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
 		mu.RLock()
 		s := since
 		mu.RUnlock()
+		sinceStr := ""
+		if !s.IsZero() {
+			sinceStr = s.UTC().Format(time.RFC3339)
+		}
 		b, _ := json.Marshal(map[string]any{
-			"since":  s.UTC().Format(time.RFC3339),
+			"since":  sinceStr,
 			"active": !s.IsZero(),
 		})
 		return sdk.JSONResponse(b)
@@ -164,7 +168,7 @@ func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 	newSince := since
 	mu.Unlock()
 
-	if body.PlayerID != "" {
+	if body.PlayerID != "" && !oldSince.IsZero() {
 		now := time.Now()
 		sdk.DBExec(
 			`INSERT INTO sessions(player_id, started_at, ended_at) VALUES(?,?,?)`,

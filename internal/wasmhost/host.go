@@ -173,6 +173,7 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		wazero.NewModuleConfig().
 			WithStartFunctions("_initialize").
 			WithFSConfig(fsCfg).
+			WithSysWalltime().
 			WithName(""))
 	if err != nil {
 		r.Close(ctx)
