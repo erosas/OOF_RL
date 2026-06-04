@@ -78,9 +78,9 @@ func main() {
 		log.Fatalf("event bus: %v", err)
 	}
 
-	// 5-second TTL: short enough that post-forfeit MMR changes appear quickly,
-	// long enough to absorb burst lookups within a single game event.
-	const trackerCacheTTL = 5 * time.Second
+	// 10-minute TTL keeps History/Ranks responsive while still refreshing ranks
+	// during normal app use without adding user-facing cache configuration.
+	const trackerCacheTTL = 10 * time.Minute
 	trnProvider := mmr.NewCachedProvider(
 		mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
 		database,

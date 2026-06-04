@@ -1,6 +1,7 @@
 package rlstats
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -36,15 +37,15 @@ var playlistInfo = map[string]struct {
 	id   int
 	name string
 }{
-	"1v1 Duel":      {10, "Ranked Duel 1v1"},
-	"2v2 Doubles":   {11, "Ranked Doubles 2v2"},
-	"3v3 Standard":  {13, "Ranked Standard 3v3"},
+	"1v1 Duel":       {10, "Ranked Duel 1v1"},
+	"2v2 Doubles":    {11, "Ranked Doubles 2v2"},
+	"3v3 Standard":   {13, "Ranked Standard 3v3"},
 	"2v2 Heatseeker": {63, "Heatseeker"},
-	"2v2 Hoops":     {27, "Hoops"},
-	"3v3 Rumble":    {28, "Rumble"},
-	"3v3 Dropshot":  {29, "Dropshot"},
-	"3v3 Snow Day":  {30, "Snowday"},
-	"Tournaments":   {34, "Tournament Matches"},
+	"2v2 Hoops":      {27, "Hoops"},
+	"3v3 Rumble":     {28, "Rumble"},
+	"3v3 Dropshot":   {29, "Dropshot"},
+	"3v3 Snow Day":   {30, "Snowday"},
+	"Tournaments":    {34, "Tournament Matches"},
 }
 
 // Provider fetches MMR by scraping the rlstats.net profile page.
@@ -62,7 +63,7 @@ func (p *Provider) Supports(platform mmr.Platform) bool {
 	return platform != mmr.PlatformSwitch
 }
 
-func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+func (p *Provider) Lookup(ctx context.Context, id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	platform, lookup := platformAndLookup(id)
 	if platform == "" || lookup == "" {
 		return nil, fmt.Errorf("rlstats: cannot build URL for %+v", id)
@@ -71,7 +72,7 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	profileURL := fmt.Sprintf("https://rlstats.net/profile/%s/%s",
 		url.PathEscape(platform), url.PathEscape(lookup))
 
-	req, err := http.NewRequest(http.MethodGet, profileURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, profileURL, nil)
 	if err != nil {
 		return nil, err
 	}

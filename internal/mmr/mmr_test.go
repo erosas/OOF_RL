@@ -1,6 +1,7 @@
 package mmr_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -139,9 +140,9 @@ type stubProvider struct {
 	calls    int
 }
 
-func (s *stubProvider) Name() string                                   { return s.name }
-func (s *stubProvider) Supports(_ mmr.Platform) bool                   { return s.supports }
-func (s *stubProvider) Lookup(_ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+func (s *stubProvider) Name() string                 { return s.name }
+func (s *stubProvider) Supports(_ mmr.Platform) bool { return s.supports }
+func (s *stubProvider) Lookup(_ context.Context, _ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	s.calls++
 	return s.ranks, s.err
 }
@@ -187,7 +188,7 @@ func TestCachedProvider_CacheMiss_CallsInner(t *testing.T) {
 	inner := &stubProvider{name: "p", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}}}
 	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
 
-	ranks, err := cp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
+	ranks, err := cp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -204,8 +205,8 @@ func TestCachedProvider_CacheHit_SkipsInner(t *testing.T) {
 	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
 	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
 
-	_, _ = cp.Lookup(id) // populate cache
-	_, err := cp.Lookup(id)
+	_, _ = cp.Lookup(context.Background(), id) // populate cache
+	_, err := cp.Lookup(context.Background(), id)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,9 +220,9 @@ func TestCachedProvider_CacheExpired_RefetchesInner(t *testing.T) {
 	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Millisecond)
 	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
 
-	_, _ = cp.Lookup(id)
+	_, _ = cp.Lookup(context.Background(), id)
 	time.Sleep(5 * time.Millisecond) // let TTL expire
-	_, err := cp.Lookup(id)
+	_, err := cp.Lookup(context.Background(), id)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -235,8 +236,8 @@ func TestCachedProvider_TTLZero_NoCaching(t *testing.T) {
 	cp := mmr.NewCachedProvider(inner, newStubStore(), 0)
 	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
 
-	_, _ = cp.Lookup(id)
-	_, _ = cp.Lookup(id)
+	_, _ = cp.Lookup(context.Background(), id)
+	_, _ = cp.Lookup(context.Background(), id)
 	if inner.calls != 2 {
 		t.Errorf("inner calls = %d, want 2 (ttl=0 disables caching)", inner.calls)
 	}
@@ -247,7 +248,7 @@ func TestCachedProvider_InnerError_NotCached(t *testing.T) {
 	store := newStubStore()
 	cp := mmr.NewCachedProvider(inner, store, time.Minute)
 
-	_, err := cp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
+	_, err := cp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -261,7 +262,7 @@ func TestCachedProvider_StoreGetError_FallsThrough(t *testing.T) {
 	store := &stubStore{data: map[string]string{}, fetchedAt: map[string]time.Time{}, getErr: errors.New("db error")}
 	cp := mmr.NewCachedProvider(inner, store, time.Minute)
 
-	ranks, err := cp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
+	ranks, err := cp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -295,7 +296,7 @@ func TestFallbackProvider_Supports(t *testing.T) {
 
 func TestFallbackProvider_NoProviders(t *testing.T) {
 	fp := mmr.NewFallbackProvider()
-	_, err := fp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	_, err := fp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
 	if err == nil {
 		t.Fatal("expected error with no providers")
 	}
@@ -303,7 +304,7 @@ func TestFallbackProvider_NoProviders(t *testing.T) {
 
 func TestFallbackProvider_NoSupportingProvider(t *testing.T) {
 	fp := mmr.NewFallbackProvider(&stubProvider{name: "p", supports: false})
-	_, err := fp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	_, err := fp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
 	if err == nil {
 		t.Fatal("expected error when no provider supports the platform")
 	}
@@ -313,7 +314,7 @@ func TestFallbackProvider_FirstSucceeds(t *testing.T) {
 	ranks := []mmr.PlaylistRank{{PlaylistID: 10, MMR: 750}}
 	fp := mmr.NewFallbackProvider(&stubProvider{name: "p", supports: true, ranks: ranks})
 
-	got, err := fp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	got, err := fp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -328,11 +329,57 @@ func TestFallbackProvider_PermanentError_NoRetry(t *testing.T) {
 	p := &stubProvider{name: "p", supports: true, err: mmr.Permanentf("http 404")}
 	fp := mmr.NewFallbackProvider(p)
 
-	_, err := fp.Lookup(mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	_, err := fp.Lookup(context.Background(), mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	if p.calls != 1 {
 		t.Errorf("provider called %d times, want 1 (permanent error must not retry)", p.calls)
+	}
+}
+
+func TestFallbackProvider_ContextCancelsRetrySleep(t *testing.T) {
+	p := &stubProvider{name: "p", supports: true, err: errors.New("temporary")}
+	fp := mmr.NewFallbackProvider(p)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := fp.Lookup(ctx, mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context deadline exceeded", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("lookup took %s; retry sleep was not canceled", elapsed)
+	}
+	if p.calls != 1 {
+		t.Errorf("provider called %d times, want 1 before retry sleep cancellation", p.calls)
+	}
+}
+
+func TestFallbackProvider_ContextCancelsProviderDelay(t *testing.T) {
+	first := &stubProvider{name: "first", supports: true, err: errors.New("temporary")}
+	second := &stubProvider{name: "second", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 750}}}
+	fp := mmr.NewFallbackProvider(first, second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := fp.Lookup(ctx, mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context deadline exceeded", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("lookup took %s; provider delay was not canceled", elapsed)
+	}
+	if first.calls != 1 {
+		t.Errorf("first provider calls = %d, want 1", first.calls)
+	}
+	if second.calls != 0 {
+		t.Errorf("second provider calls = %d, want 0 after delay cancellation", second.calls)
 	}
 }

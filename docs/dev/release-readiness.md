@@ -27,7 +27,7 @@ These risks are not fixed by the pre-tag cleanup branch. Do not present them as 
 | Replay touch-counting | Live replay mode can still display touch totals from replay-time events. Confirm whether replay-mode touches can pollute saved History or Session stats in normal release use. | Separate data/stat collection fix or severity decision. |
 | Session time source | Session boundaries use wall-clock time in the Session plugin. WASM/app time behavior was discussed as a separate concern. | Separate Session/core review; do not hide it with UI changes. |
 | Forfeit heuristic | Saved match forfeits are inferred from match clock state and may have edge cases. | Separate match classification review with replay/playtest evidence. |
-| MMR timeout hardening | MMR fallback retries and provider delays may outlive the intended request window. | Decide whether context-aware timeout hardening is required before tag or can wait. |
+| MMR timeout hardening | Candidate behavior bounds `/api/tracker/profile` lookups with an 8-second context and makes provider delays cancelable. | Run History/Ranks responsiveness smoke against real MMR lookups before tag. |
 
 ## Pre-Tag Checklist
 

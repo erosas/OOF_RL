@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -433,3 +434,14 @@ func TestTrackerProfileLookupError(t *testing.T) {
 	}
 }
 
+func TestTrackerProfileLookupTimeout(t *testing.T) {
+	provider := &mockMMRProvider{err: context.DeadlineExceeded}
+	mux := newTestMuxWithMMR(t, provider)
+	w := get(mux, "/api/tracker/profile?id=steam|76561198025501695")
+	if w.Code != http.StatusGatewayTimeout {
+		t.Errorf("status: got %d, want 504", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "timed out") {
+		t.Errorf("body = %q, want timeout message", w.Body.String())
+	}
+}
