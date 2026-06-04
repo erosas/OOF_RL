@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -100,7 +101,7 @@ type testPlugin struct {
 	declaredPaths []string // returned by RoutePaths; nil means BasePlugin default (nil = trusted)
 }
 
-func (p *testPlugin) ID() string       { return p.id }
+func (p *testPlugin) ID() string         { return p.id }
 func (p *testPlugin) Requires() []string { return p.requires }
 
 func (p *testPlugin) Init(_ oofevents.PluginBus, _ plugin.Registry, _ *db.DB) error {
@@ -140,9 +141,9 @@ type mockMMRProvider struct {
 	calls int
 }
 
-func (m *mockMMRProvider) Name() string                                           { return m.name }
-func (m *mockMMRProvider) Supports(_ mmr.Platform) bool                           { return true }
-func (m *mockMMRProvider) Lookup(_ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+func (m *mockMMRProvider) Name() string                 { return m.name }
+func (m *mockMMRProvider) Supports(_ mmr.Platform) bool { return true }
+func (m *mockMMRProvider) Lookup(_ context.Context, _ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	m.calls++
 	return m.ranks, m.err
 }

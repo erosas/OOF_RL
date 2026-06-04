@@ -161,7 +161,7 @@ Returns an empty array when no match is active.
 ## Tracker
 
 ### `GET /api/tracker/profile?id={primaryID}&name={displayName}`
-Fetches ranked MMR data for the player. Results are cached briefly by the internal MMR provider cache; the TTL is not user-configurable.
+Fetches ranked MMR data for the player. Results are cached for 10 minutes by the internal MMR provider cache; the TTL is not user-configurable. Provider lookups are bounded by an 8-second request timeout and return `504` when the lookup times out.
 
 `id` format: `platform|accountID` (e.g. `steam|76561198000000001`, `epicgames|GamerTag`).  
 `name` is required for non-Steam platforms to resolve the tracker.gg profile URL.

@@ -1,14 +1,17 @@
 package trackergg
 
 import (
+	"context"
+	"errors"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestParseResponseFromFixture(t *testing.T) {
 	fixtures := []struct {
 		file        string
-		wantCount   int    // minimum playlist segments expected
+		wantCount   int     // minimum playlist segments expected
 		wantMMR2v2  float64 // expected 2v2 MMR (0 = skip check)
 		wantTier2v2 string
 	}{
@@ -71,5 +74,23 @@ func TestParseResponseFromFixture(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRateLimiterWaitHonorsContext(t *testing.T) {
+	limiter := newRateLimiter()
+	limiter.nextSlot = time.Now().Add(10 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err := limiter.Wait(ctx)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Wait err = %v, want context deadline exceeded", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("Wait took %s; rate-limit wait was not canceled", elapsed)
 	}
 }

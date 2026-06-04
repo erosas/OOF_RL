@@ -1,6 +1,8 @@
 package mmr
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -8,6 +10,8 @@ import (
 
 	"OOF_RL/internal/httputil"
 )
+
+const trackerLookupTimeout = 8 * time.Second
 
 // Handler returns an http.HandlerFunc that looks up MMR ranks for a player.
 // p should be a CachedProvider wrapping the real provider in production.
@@ -48,9 +52,16 @@ func Handler(p Provider) http.HandlerFunc {
 
 		identity := NewPlayerIdentity(rawPlatform, primaryID, playerName)
 
-		ranks, err := p.Lookup(identity)
+		ctx, cancel := context.WithTimeout(r.Context(), trackerLookupTimeout)
+		defer cancel()
+
+		ranks, err := p.Lookup(ctx, identity)
 		if err != nil {
 			log.Printf("[tracker] lookup failed for %s: %v", id, err)
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				httputil.JSONError(w, http.StatusGatewayTimeout, "tracker lookup timed out")
+				return
+			}
 			httputil.JSONError(w, 502, err.Error())
 			return
 		}
