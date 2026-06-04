@@ -13,18 +13,16 @@ import (
 var (
 	mu    sync.RWMutex
 	since time.Time
-
-	dbExec = sdk.DBExec
 )
 
 func initPlugin() uint32 {
-	dbExec(`CREATE TABLE IF NOT EXISTS sessions (
+	sdk.DBExec(`CREATE TABLE IF NOT EXISTS sessions (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		player_id  TEXT NOT NULL,
 		started_at DATETIME NOT NULL,
 		ended_at   DATETIME NOT NULL
 	)`, nil)
-	dbExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
+	sdk.DBExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
 	return 0
 }
 
@@ -172,7 +170,7 @@ func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 
 	if body.PlayerID != "" && !oldSince.IsZero() {
 		now := time.Now()
-		dbExec(
+		sdk.DBExec(
 			`INSERT INTO sessions(player_id, started_at, ended_at) VALUES(?,?,?)`,
 			[]string{body.PlayerID, oldSince.UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339)},
 		)
@@ -211,7 +209,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 
 	switch req.Method {
 	case "DELETE":
-		if dbExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
+		if sdk.DBExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
 			return sdk.JSONError(500, "delete failed")
 		}
 		b, _ := json.Marshal(map[string]string{"status": "ok"})
@@ -233,7 +231,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 		if !endedAt.After(startedAt) {
 			return sdk.JSONError(400, "ended_at must be after started_at")
 		}
-		if dbExec(
+		if sdk.DBExec(
 			`UPDATE sessions SET started_at=?, ended_at=? WHERE id=?`,
 			[]string{startedAt.UTC().Format(time.RFC3339), endedAt.UTC().Format(time.RFC3339), idArg},
 		) < 0 {

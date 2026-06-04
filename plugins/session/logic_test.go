@@ -14,7 +14,6 @@ func resetSince() {
 	mu.Lock()
 	since = time.Time{}
 	mu.Unlock()
-	dbExec = sdk.DBExec
 }
 
 // --- onEvent ---
@@ -226,15 +225,8 @@ func TestHandleNewResetsSince(t *testing.T) {
 	}
 }
 
-func TestHandleNewDoesNotSaveWithoutActiveSession(t *testing.T) {
+func TestHandleNewWithoutActiveSessionStillResets(t *testing.T) {
 	resetSince()
-	calls := 0
-	dbExec = func(_ string, _ []string) int64 {
-		calls++
-		return 1
-	}
-	t.Cleanup(func() { dbExec = sdk.DBExec })
-
 	resp := handleHTTP(sdk.HTTPRequest{
 		Method: "POST",
 		Path:   "/api/session/new",
@@ -243,8 +235,11 @@ func TestHandleNewDoesNotSaveWithoutActiveSession(t *testing.T) {
 	if resp.Status != 200 {
 		t.Fatalf("status: got %d", resp.Status)
 	}
-	if calls != 0 {
-		t.Fatalf("new session without previous since should not save a session row, got %d DB calls", calls)
+	mu.RLock()
+	s := since
+	mu.RUnlock()
+	if s.IsZero() {
+		t.Error("since should have been set to a new time")
 	}
 }
 

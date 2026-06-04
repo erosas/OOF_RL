@@ -4,7 +4,6 @@ package wasmhost
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -175,8 +174,6 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 			WithStartFunctions("_initialize").
 			WithFSConfig(fsCfg).
 			WithSysWalltime().
-			WithSysNanotime().
-			WithRandSource(rand.Reader).
 			WithName(""))
 	if err != nil {
 		r.Close(ctx)
