@@ -338,26 +338,6 @@ func TestFallbackProvider_PermanentError_NoRetry(t *testing.T) {
 	}
 }
 
-func TestFallbackProvider_ContextCancelsRetrySleep(t *testing.T) {
-	p := &stubProvider{name: "p", supports: true, err: errors.New("temporary")}
-	fp := mmr.NewFallbackProvider(p)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-
-	start := time.Now()
-	_, err := fp.Lookup(ctx, mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "x"})
-	elapsed := time.Since(start)
-
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("err = %v, want context deadline exceeded", err)
-	}
-	if elapsed > 500*time.Millisecond {
-		t.Fatalf("lookup took %s; retry sleep was not canceled", elapsed)
-	}
-	if p.calls != 1 {
-		t.Errorf("provider called %d times, want 1 before retry sleep cancellation", p.calls)
-	}
-}
 
 func TestFallbackProvider_ContextCancelsProviderDelay(t *testing.T) {
 	first := &stubProvider{name: "first", supports: true, err: errors.New("temporary")}

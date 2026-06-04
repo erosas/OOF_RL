@@ -78,9 +78,7 @@ func main() {
 		log.Fatalf("event bus: %v", err)
 	}
 
-	// 10-minute TTL keeps History/Ranks responsive while still refreshing ranks
-	// during normal app use without adding user-facing cache configuration.
-	const trackerCacheTTL = 10 * time.Minute
+	const trackerCacheTTL = 10 * time.Second
 	trnProvider := mmr.NewCachedProvider(
 		mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
 		database,

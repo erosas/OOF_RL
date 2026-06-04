@@ -14,7 +14,6 @@ import (
 const trackerLookupTimeout = 8 * time.Second
 
 // Handler returns an http.HandlerFunc that looks up MMR ranks for a player.
-// p should be a CachedProvider wrapping the real provider in production.
 //
 // Query params:
 //

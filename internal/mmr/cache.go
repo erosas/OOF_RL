@@ -43,10 +43,6 @@ func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]Playl
 		}
 	}
 
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
 	ranks, err := c.inner.Lookup(ctx, id)
 	if err != nil {
 		return nil, err

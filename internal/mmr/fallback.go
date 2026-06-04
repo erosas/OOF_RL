@@ -5,24 +5,16 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
-const (
-	maxAttempts    = 3
-	providerDelay  = 2 * time.Second  // between consecutive providers in a round
-	retryBaseDelay = 10 * time.Second // before cycling back to the same provider
-)
+const providerDelay = 2 * time.Second // between consecutive providers
 
-// FallbackProvider tries providers sequentially in round-robin order.
-// A cursor advances on each call so no single provider is always hit first.
+// FallbackProvider tries providers in order until one succeeds.
 // Providers that don't support the requested platform are skipped.
-// A short delay separates each provider within a round; a longer delay
-// is applied before cycling back to re-hit the same provider.
+// A short delay separates consecutive provider attempts.
 type FallbackProvider struct {
 	providers []Provider
-	cursor    atomic.Uint64
 }
 
 func NewFallbackProvider(providers ...Provider) *FallbackProvider {
@@ -55,55 +47,32 @@ func (f *FallbackProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]Pla
 		return nil, err
 	}
 
-	// Advance cursor so each call starts on a different provider.
-	start := int(f.cursor.Add(1)-1) % n
-
 	var lastErr error
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 {
-			delay := time.Duration(attempt) * retryBaseDelay
-			log.Printf("[mmr] all providers failed for %s|%s — retry %d/%d in %s",
-				id.Platform, id.PrimaryID, attempt, maxAttempts-1, delay)
-			if err := waitContext(ctx, delay); err != nil {
+	tried := 0
+	for i := 0; i < n; i++ {
+		p := f.providers[i]
+		if !p.Supports(id.Platform) {
+			continue
+		}
+		if tried > 0 {
+			if err := waitContext(ctx, providerDelay); err != nil {
 				return nil, err
 			}
 		}
+		tried++
+		ranks, err := p.Lookup(ctx, id)
+		if err == nil {
+			return ranks, nil
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		log.Printf("[mmr] %s failed for %s|%s: %v", p.Name(), id.Platform, id.PrimaryID, err)
+		lastErr = err
+	}
 
-		tried := 0
-		permanentCount := 0
-		for i := 0; i < n; i++ {
-			p := f.providers[(start+i)%n]
-			if !p.Supports(id.Platform) {
-				continue
-			}
-			if tried > 0 {
-				if err := waitContext(ctx, providerDelay); err != nil {
-					return nil, err
-				}
-			}
-			tried++
-			ranks, err := p.Lookup(ctx, id)
-			if err == nil {
-				return ranks, nil
-			}
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return nil, ctxErr
-			}
-			log.Printf("[mmr] %s failed for %s|%s: %v", p.Name(), id.Platform, id.PrimaryID, err)
-			lastErr = err
-			if IsPermanent(err) {
-				permanentCount++
-			}
-		}
-
-		if tried == 0 {
-			return nil, fmt.Errorf("mmr: no provider supports platform %s", id.Platform)
-		}
-		// All tried providers returned a permanent error (e.g. HTTP 403/404).
-		// Retrying will not help; return immediately.
-		if permanentCount == tried {
-			return nil, lastErr
-		}
+	if tried == 0 {
+		return nil, fmt.Errorf("mmr: no provider supports platform %s", id.Platform)
 	}
 	return nil, lastErr
 }
