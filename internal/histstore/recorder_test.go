@@ -244,6 +244,55 @@ func TestLatePartialRosterDoesNotShrinkCompletedMatch(t *testing.T) {
 	}
 }
 
+func TestActiveRosterShrinkPreservesDepartedPlayerForFinalFlush(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	departed := player("blue-two", "Blue Two", 0, 200)
+	departed.Goals = 1
+	departed.Shots = 2
+	departed.Saves = 3
+	departed.Touches = 12
+	departed.CarTouches = 9
+	departed.Demos = 1
+
+	r.onStateUpdated(translateUpdateState(updateState("guid-leaver", "Utopia Coliseum", []events.Player{
+		player("blue-one", "Blue One", 0, 100),
+		departed,
+		player("orange-one", "Orange One", 1, 300),
+		player("orange-two", "Orange Two", 1, 400),
+	}, 2, 1, 120)))
+
+	blueOneUpdated := player("blue-one", "Blue One", 0, 500)
+	blueOneUpdated.Goals = 2
+	r.onStateUpdated(translateUpdateState(updateState("guid-leaver", "Utopia Coliseum", []events.Player{
+		blueOneUpdated,
+		player("orange-one", "Orange One", 1, 350),
+		player("orange-two", "Orange Two", 1, 450),
+	}, 2, 1, 90)))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-leaver", 0))
+
+	match := matchByGUID(t, s, "guid-leaver")
+	players, err := s.MatchPlayers(match.ID)
+	if err != nil {
+		t.Fatalf("MatchPlayers: %v", err)
+	}
+	if len(players) != 4 {
+		t.Fatalf("departed player should be preserved at final flush, got %+v", players)
+	}
+
+	byID := map[string]PlayerMatchStats{}
+	for _, pl := range players {
+		byID[pl.PrimaryID] = pl
+	}
+	if byID["blue-one"].Score != 500 || byID["blue-one"].Goals != 2 {
+		t.Fatalf("current player stats should still update, got %+v", byID["blue-one"])
+	}
+	got := byID["blue-two"]
+	if got.Score != 200 || got.Goals != 1 || got.Shots != 2 || got.Saves != 3 || got.Touches != 12 || got.CarTouches != 9 || got.Demos != 1 {
+		t.Fatalf("departed player stats should keep last live snapshot, got %+v", got)
+	}
+}
+
 func TestTerminalUpdateAfterMatchEndedDoesNotReopenMatch(t *testing.T) {
 	r, s := newTestRecorder(t)
 	players := []events.Player{

@@ -89,7 +89,14 @@ func (r *Recorder) onStateUpdated(e oofevents.OOFEvent) {
 				currentPlayers[primaryID] = pl
 			}
 		}
-		if len(currentPlayers) >= len(r.lastPlayers) || !ev.Game.IsReplay {
+		if len(currentPlayers) >= len(r.lastPlayers) {
+			r.lastPlayers = currentPlayers
+		} else if ev.Game.IsReplay {
+			// Replay packets can carry partial rosters after the real match state.
+			// Keep the fuller live snapshot for final match persistence.
+		} else if isActiveLiveClock(ev.Game) {
+			r.mergeCurrentPlayers(currentPlayers)
+		} else {
 			r.lastPlayers = currentPlayers
 		}
 	}
@@ -268,6 +275,23 @@ func (r *Recorder) findPlayerByShortcut(shortcut int) string {
 		}
 	}
 	return ""
+}
+
+func (r *Recorder) mergeCurrentPlayers(currentPlayers map[string]oofevents.PlayerSnapshot) {
+	if r.lastPlayers == nil {
+		r.lastPlayers = currentPlayers
+		return
+	}
+	for id, pl := range currentPlayers {
+		r.lastPlayers[id] = pl
+	}
+}
+
+func isActiveLiveClock(game oofevents.GameSnapshot) bool {
+	if game.HasWinner {
+		return false
+	}
+	return game.IsOvertime || game.TimeSeconds > 5
 }
 
 // resolvePlayerID returns a stable player ID for history purposes.
