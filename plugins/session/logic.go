@@ -13,16 +13,18 @@ import (
 var (
 	mu    sync.RWMutex
 	since time.Time
+
+	dbExec = sdk.DBExec
 )
 
 func initPlugin() uint32 {
-	sdk.DBExec(`CREATE TABLE IF NOT EXISTS sessions (
+	dbExec(`CREATE TABLE IF NOT EXISTS sessions (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		player_id  TEXT NOT NULL,
 		started_at DATETIME NOT NULL,
 		ended_at   DATETIME NOT NULL
 	)`, nil)
-	sdk.DBExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
+	dbExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
 	return 0
 }
 
@@ -112,8 +114,12 @@ func handleStart(req sdk.HTTPRequest) sdk.HTTPResponse {
 		mu.RLock()
 		s := since
 		mu.RUnlock()
+		sinceStr := ""
+		if !s.IsZero() {
+			sinceStr = s.UTC().Format(time.RFC3339)
+		}
 		b, _ := json.Marshal(map[string]any{
-			"since":  s.UTC().Format(time.RFC3339),
+			"since":  sinceStr,
 			"active": !s.IsZero(),
 		})
 		return sdk.JSONResponse(b)
@@ -164,9 +170,9 @@ func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 	newSince := since
 	mu.Unlock()
 
-	if body.PlayerID != "" {
+	if body.PlayerID != "" && !oldSince.IsZero() {
 		now := time.Now()
-		sdk.DBExec(
+		dbExec(
 			`INSERT INTO sessions(player_id, started_at, ended_at) VALUES(?,?,?)`,
 			[]string{body.PlayerID, oldSince.UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339)},
 		)
@@ -205,7 +211,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 
 	switch req.Method {
 	case "DELETE":
-		if sdk.DBExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
+		if dbExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
 			return sdk.JSONError(500, "delete failed")
 		}
 		b, _ := json.Marshal(map[string]string{"status": "ok"})
@@ -227,7 +233,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 		if !endedAt.After(startedAt) {
 			return sdk.JSONError(400, "ended_at must be after started_at")
 		}
-		if sdk.DBExec(
+		if dbExec(
 			`UPDATE sessions SET started_at=?, ended_at=? WHERE id=?`,
 			[]string{startedAt.UTC().Format(time.RFC3339), endedAt.UTC().Format(time.RFC3339), idArg},
 		) < 0 {

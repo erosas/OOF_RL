@@ -14,6 +14,7 @@ func resetSince() {
 	mu.Lock()
 	since = time.Time{}
 	mu.Unlock()
+	dbExec = sdk.DBExec
 }
 
 // --- onEvent ---
@@ -74,6 +75,9 @@ func TestHandleStartGETNoSince(t *testing.T) {
 	json.Unmarshal([]byte(resp.Body), &body)
 	if body["active"] != false {
 		t.Errorf("active: got %v, want false", body["active"])
+	}
+	if body["since"] != "" {
+		t.Errorf("since: got %v, want empty string", body["since"])
 	}
 }
 
@@ -219,6 +223,28 @@ func TestHandleNewResetsSince(t *testing.T) {
 	mu.RUnlock()
 	if s.Equal(fixed) {
 		t.Error("since should have been reset to a new time")
+	}
+}
+
+func TestHandleNewDoesNotSaveWithoutActiveSession(t *testing.T) {
+	resetSince()
+	calls := 0
+	dbExec = func(_ string, _ []string) int64 {
+		calls++
+		return 1
+	}
+	t.Cleanup(func() { dbExec = sdk.DBExec })
+
+	resp := handleHTTP(sdk.HTTPRequest{
+		Method: "POST",
+		Path:   "/api/session/new",
+		Body:   `{"player_id":"steam|alice|0"}`,
+	})
+	if resp.Status != 200 {
+		t.Fatalf("status: got %d", resp.Status)
+	}
+	if calls != 0 {
+		t.Fatalf("new session without previous since should not save a session row, got %d DB calls", calls)
 	}
 }
 
