@@ -1,6 +1,7 @@
 package mmr
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 )
@@ -26,10 +27,10 @@ func NewCachedProvider(p Provider, store CacheStore, ttl time.Duration) *CachedP
 	return &CachedProvider{inner: p, store: store, ttl: ttl}
 }
 
-func (c *CachedProvider) Name() string                    { return c.inner.Name() }
-func (c *CachedProvider) Supports(p Platform) bool        { return c.inner.Supports(p) }
+func (c *CachedProvider) Name() string             { return c.inner.Name() }
+func (c *CachedProvider) Supports(p Platform) bool { return c.inner.Supports(p) }
 
-func (c *CachedProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
+func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, error) {
 	key := "ranks:" + string(id.Platform) + "|" + id.PrimaryID
 
 	if c.ttl > 0 && c.store != nil {
@@ -42,7 +43,11 @@ func (c *CachedProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 		}
 	}
 
-	ranks, err := c.inner.Lookup(id)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ranks, err := c.inner.Lookup(ctx, id)
 	if err != nil {
 		return nil, err
 	}

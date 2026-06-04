@@ -22,7 +22,7 @@ Every data source implements three methods:
 type Provider interface {
     Name() string
     Supports(platform Platform) bool
-    Lookup(id PlayerIdentity) ([]PlaylistRank, error)
+    Lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, error)
 }
 ```
 
@@ -30,7 +30,7 @@ type Provider interface {
 
 **`Supports(platform)`** lets the framework skip a provider without even making a network call. `trackergg.Provider` returns `true` for all platforms. `rlstats.Provider` returns `false` for `PlatformSwitch` because rlstats.net dropped Nintendo Switch support.
 
-**`Lookup(id)`** performs the actual fetch and returns a slice of `PlaylistRank`, one entry per ranked playlist the player has played.
+**`Lookup(ctx, id)`** performs the actual fetch and returns a slice of `PlaylistRank`, one entry per ranked playlist the player has played. Providers must honor context cancellation so UI/API requests have bounded wait time.
 
 ### `PlayerIdentity`
 
@@ -75,7 +75,7 @@ HTTP GET /api/tracker/profile?id=steam|76561198144145654&name=Squishy
 mmr.Handler
   1. Parse platform + primaryID from the ?id= parameter
   2. Build a PlayerIdentity
-  3. Call mmrProvider.Lookup(identity)
+  3. Create an 8-second lookup context and call mmrProvider.Lookup(ctx, identity)
         |
         v
 CachedProvider.Lookup
@@ -107,7 +107,7 @@ mmr.Handler (continued)
 
 ### Cache key
 
-The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 5-second TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
+The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 10-minute TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
 
 ---
 
@@ -135,9 +135,9 @@ If every provider either doesn't support the platform or returns an error, `Fall
 cached := mmr.NewCachedProvider(
     mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
     database,
-    5*time.Second,
+    10*time.Minute,
 )
-ranks, err := cached.Lookup(id) // hits DB first, then network
+ranks, err := cached.Lookup(ctx, id) // hits DB first, then network
 ```
 
 Cache entries are stored as JSON under the key `"ranks:platform|primaryID"`.
@@ -160,8 +160,9 @@ func (p *Provider) Supports(platform mmr.Platform) bool {
     return platform != mmr.PlatformSwitch
 }
 
-func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+func (p *Provider) Lookup(ctx context.Context, id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
     // fetch + parse; map your site's playlist names to the canonical IDs below
+    // use http.NewRequestWithContext(ctx, ...) for network calls
 }
 ```
 

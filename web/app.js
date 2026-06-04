@@ -84,30 +84,35 @@ function isMaskedName(name) {
 
 // --- Tracker fetch queue ---
 const _trkQueue = [];
-let   _trkDraining = false;
+const _TRK_MAX_IN_FLIGHT = 2;
+let   _trkInFlight = 0;
 
 function _drainTrkQueue() {
-  if (!_trkQueue.length) { _trkDraining = false; return; }
-  _trkDraining = true;
-  const { id, plat, name } = _trkQueue.shift();
-  const nameParam = plat && plat !== 'steam' && name
-    ? `&name=${encodeURIComponent(name)}` : '';
-  fetch(`/api/tracker/profile?id=${encodeURIComponent(id)}${nameParam}`)
-    .then(r => {
-      const status = `HTTP ${r.status}`;
-      return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
-    })
-    .then(({ json, status }) => {
-      const ranks    = parseRankData(json?.ranks);
-      const fetchedAt = json?.fetched_at || null;
-      trackerCache.set(id, { profile: null, ranks, status, fetchedAt });
-      onTrackerDataArrived();
-    })
-    .catch(e => {
-      trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: null });
-      onTrackerDataArrived();
-    })
-    .finally(() => setTimeout(_drainTrkQueue, 2500));
+  while (_trkInFlight < _TRK_MAX_IN_FLIGHT && _trkQueue.length) {
+    _trkInFlight++;
+    const { id, plat, name } = _trkQueue.shift();
+    const nameParam = plat && plat !== 'steam' && name
+      ? `&name=${encodeURIComponent(name)}` : '';
+    fetch(`/api/tracker/profile?id=${encodeURIComponent(id)}${nameParam}`)
+      .then(r => {
+        const status = `HTTP ${r.status}`;
+        return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
+      })
+      .then(({ json, status }) => {
+        const ranks    = parseRankData(json?.ranks);
+        const fetchedAt = json?.fetched_at || null;
+        trackerCache.set(id, { profile: null, ranks, status, fetchedAt });
+        onTrackerDataArrived();
+      })
+      .catch(e => {
+        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: null });
+        onTrackerDataArrived();
+      })
+      .finally(() => {
+        _trkInFlight = Math.max(0, _trkInFlight - 1);
+        _drainTrkQueue();
+      });
+  }
 }
 
 function prefetchTrackerRanks(players) {
@@ -125,7 +130,7 @@ function prefetchTrackerRanks(players) {
     _trkQueue.push({ id, plat, name: p.Name });
     enqueued = true;
   }
-  if (enqueued && !_trkDraining) setTimeout(_drainTrkQueue, 2000);
+  if (enqueued) _drainTrkQueue();
 }
 
 // Written by history/view.js; called here when tracker data arrives.

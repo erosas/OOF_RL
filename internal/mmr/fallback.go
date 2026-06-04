@@ -1,6 +1,7 @@
 package mmr
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -45,10 +46,13 @@ func (f *FallbackProvider) Supports(platform Platform) bool {
 	return false
 }
 
-func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
+func (f *FallbackProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, error) {
 	n := len(f.providers)
 	if n == 0 {
 		return nil, fmt.Errorf("mmr: no providers configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// Advance cursor so each call starts on a different provider.
@@ -60,7 +64,9 @@ func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 			delay := time.Duration(attempt) * retryBaseDelay
 			log.Printf("[mmr] all providers failed for %s|%s — retry %d/%d in %s",
 				id.Platform, id.PrimaryID, attempt, maxAttempts-1, delay)
-			time.Sleep(delay)
+			if err := waitContext(ctx, delay); err != nil {
+				return nil, err
+			}
 		}
 
 		tried := 0
@@ -71,12 +77,17 @@ func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 				continue
 			}
 			if tried > 0 {
-				time.Sleep(providerDelay)
+				if err := waitContext(ctx, providerDelay); err != nil {
+					return nil, err
+				}
 			}
 			tried++
-			ranks, err := p.Lookup(id)
+			ranks, err := p.Lookup(ctx, id)
 			if err == nil {
 				return ranks, nil
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
 			}
 			log.Printf("[mmr] %s failed for %s|%s: %v", p.Name(), id.Platform, id.PrimaryID, err)
 			lastErr = err
@@ -95,4 +106,18 @@ func (f *FallbackProvider) Lookup(id PlayerIdentity) ([]PlaylistRank, error) {
 		}
 	}
 	return nil, lastErr
+}
+
+func waitContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

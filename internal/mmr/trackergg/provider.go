@@ -1,6 +1,7 @@
 package trackergg
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,7 +32,7 @@ func (p *Provider) Name() string { return "tracker.gg" }
 
 func (p *Provider) Supports(platform mmr.Platform) bool { return true }
 
-func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+func (p *Provider) Lookup(ctx context.Context, id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	platform, lookup := platformAndLookup(id)
 	if platform == "" || lookup == "" {
 		return nil, fmt.Errorf("trackergg: cannot build URL for %+v", id)
@@ -40,9 +41,11 @@ func (p *Provider) Lookup(id mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
 	trnURL := fmt.Sprintf("https://api.tracker.gg/api/v2/rocket-league/standard/profile/%s/%s",
 		url.PathEscape(platform), url.PathEscape(lookup))
 
-	p.limiter.Wait()
+	if err := p.limiter.Wait(ctx); err != nil {
+		return nil, err
+	}
 
-	req, err := http.NewRequest(http.MethodGet, trnURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, trnURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +93,6 @@ func platformAndLookup(id mmr.PlayerIdentity) (platform, lookup string) {
 		return string(id.Platform), id.PrimaryID
 	}
 }
-
 
 // -- response parsing --
 
@@ -167,7 +169,10 @@ func newRateLimiter() *rateLimiter {
 	}
 }
 
-func (l *rateLimiter) Wait() {
+func (l *rateLimiter) Wait(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	l.mu.Lock()
 	now := time.Now()
 	slot := l.nextSlot
@@ -178,6 +183,14 @@ func (l *rateLimiter) Wait() {
 	l.nextSlot = slot.Add(l.baseDelay + jitter)
 	l.mu.Unlock()
 	if wait := slot.Sub(now); wait > 0 {
-		time.Sleep(wait)
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
+	return nil
 }

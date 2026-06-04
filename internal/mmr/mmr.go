@@ -1,6 +1,7 @@
 package mmr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -48,8 +49,8 @@ type PlayerIdentity struct {
 
 // PlaylistRank holds the MMR result for one ranked playlist.
 type PlaylistRank struct {
-	PlaylistID   int     // RL playlist number (10=duel, 11=doubles, 13=standard…)
-	PlaylistName string  // human-readable ("Ranked Duel 1v1", …)
+	PlaylistID   int    // RL playlist number (10=duel, 11=doubles, 13=standard…)
+	PlaylistName string // human-readable ("Ranked Duel 1v1", …)
 	MMR          float64
 	Tier         int    // 0 = unranked
 	TierName     string // "Gold III", "Champion I", …
@@ -85,5 +86,5 @@ type Provider interface {
 	Supports(platform Platform) bool
 
 	// Lookup fetches ranked MMR data for the given player.
-	Lookup(id PlayerIdentity) ([]PlaylistRank, error)
+	Lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, error)
 }
