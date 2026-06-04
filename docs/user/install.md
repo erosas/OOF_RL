@@ -10,7 +10,9 @@
 
 ## 1. Download
 
-Grab `oof_rl.exe` from the [Releases](../../releases) page. No installer — just put it anywhere you like and double-click.
+Grab the OOF RL release `.zip` from the [Releases](../../releases) page. No installer - extract the `OOF_RL` folder anywhere you like and double-click `oof_rl.exe` inside it.
+
+The release zip includes the public plugin files used by Live, Ranks, Session, Ballchasing, and Dashboard. On startup, OOF RL installs or updates those bundled public plugins in `%LOCALAPPDATA%\OOF_RL\plugins` so fresh installs do not require developer build commands.
 
 On first launch the app creates its data directory at `%LOCALAPPDATA%\OOF_RL\` containing:
 
@@ -20,6 +22,7 @@ On first launch the app creates its data directory at `%LOCALAPPDATA%\OOF_RL\` c
 | `oof_rl.db` | SQLite match database |
 | `oof_rl.log` | Log output (detached from console) |
 | `captures/` | Raw packet captures (if enabled) |
+| `plugins/` | Bundled public plugins installed or updated from the extracted release folder |
 
 ---
 

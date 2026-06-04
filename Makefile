@@ -1,8 +1,9 @@
 .PHONY: build run test cover icon profile profile-heap profile-goroutine \
-        all-plugins test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
+        all-plugins release-package test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
 PLUGINS := live ballchasing ranks session dashboard
+VERSION ?=
 
 # WASM plugins are installed into the same data directory the app reads at runtime.
 # LOCALAPPDATA is inherited from the Windows environment (e.g. C:\Users\you\AppData\Local).
@@ -10,6 +11,9 @@ PLUGINS_DIR := $(LOCALAPPDATA)/OOF_RL/plugins
 
 build:
 	go build -o oof_rl.exe .
+
+release-package:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1 -Version "$(VERSION)"
 
 icon:
 	go run ./tools/genicon

@@ -99,6 +99,9 @@ func main() {
 	if err := srv.LoadPlugins(); err != nil {
 		log.Fatalf("plugin load: %v", err)
 	}
+	if err := seedBundledWASMPlugins(cfg.PluginsDir()); err != nil {
+		log.Printf("[core] bundled wasm plugins: %v", err)
+	}
 	log.Printf("[core] wasm plugins dir: %s", cfg.PluginsDir())
 	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
 		log.Fatalf("wasm plugin load: %v", err)
