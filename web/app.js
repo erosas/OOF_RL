@@ -207,6 +207,21 @@ function connectWS() {
 
   ws.onmessage = e => {
     const msg = JSON.parse(e.data);
+    if (msg.Event === 'config_updated') {
+      const alpha = Math.round((msg.Data.overlay_opacity ?? 1.0) * 255);
+      window.overlayApplyOpacity?.(alpha);
+      const mainSlider = document.getElementById('cfg-overlay-opacity');
+      if (mainSlider) {
+        mainSlider.value = alpha;
+        document.getElementById('cfg-overlay-opacity-pct').textContent = Math.round(alpha / 2.55) + '%';
+      }
+      const ovSlider = document.getElementById('overlay-opacity-slider');
+      if (ovSlider) {
+        ovSlider.value = alpha;
+        document.getElementById('overlay-opacity-pct').textContent = Math.round(alpha / 2.55) + '%';
+      }
+      return;
+    }
     if (msg.Event === '_Status') {
       dot.className = 'dot ' + (msg.Data.connected ? 'connected' : 'disconnected');
       dot.title = msg.Data.connected ? 'Connected to Rocket League' : 'Waiting for Rocket League';
@@ -605,6 +620,7 @@ document.getElementById('cfg-data-dir-open').addEventListener('click', () => {
 document.getElementById('cfg-overlay-opacity').addEventListener('input', e => {
   const alpha = parseInt(e.target.value);
   document.getElementById('cfg-overlay-opacity-pct').textContent = Math.round(alpha / 2.55) + '%';
+  fetch('/api/overlay/opacity', { method: 'POST', body: JSON.stringify({ alpha }), headers: { 'Content-Type': 'application/json' } });
 });
 
 document.getElementById('save-ini').addEventListener('click', async () => {

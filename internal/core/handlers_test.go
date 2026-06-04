@@ -324,6 +324,35 @@ func TestPostSettingsBadJSON(t *testing.T) {
 	}
 }
 
+// --- /api/overlay/opacity ---
+
+func TestOverlayOpacityPreview(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := postJSON(mux, "/api/overlay/opacity", map[string]any{"alpha": 128})
+	if w.Code != http.StatusNoContent {
+		t.Errorf("status: got %d, want 204", w.Code)
+	}
+}
+
+func TestOverlayOpacityPreviewBadJSON(t *testing.T) {
+	mux, _ := newTestMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/overlay/opacity", bytes.NewBufferString("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", w.Code)
+	}
+}
+
+func TestOverlayOpacityPreviewMethodNotAllowed(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := get(mux, "/api/overlay/opacity")
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status: got %d, want 405", w.Code)
+	}
+}
+
 // --- /api/tracker/profile ---
 
 func TestTrackerProfileNoProvider(t *testing.T) {

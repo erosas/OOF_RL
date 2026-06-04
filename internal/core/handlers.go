@@ -36,10 +36,40 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.reconnect()
+		s.BroadcastOpacity(s.cfg.OverlayOpacity)
 		httputil.WriteJSON(w, s.cfg)
 	default:
 		httputil.JSONError(w, 405, "method not allowed")
 	}
+}
+
+// handleOverlayOpacityPreview broadcasts an opacity preview to all windows
+// without saving to disk. Used by the main-app slider for live feedback.
+func (s *Server) handleOverlayOpacityPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		httputil.JSONError(w, 405, "method not allowed")
+		return
+	}
+	var body struct {
+		Alpha int `json:"alpha"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httputil.JSONError(w, 400, err.Error())
+		return
+	}
+	s.BroadcastOpacity(float64(body.Alpha) / 255.0)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) BroadcastOpacity(opacity float64) {
+	msg, err := json.Marshal(map[string]any{
+		"Event": "config_updated",
+		"Data":  map[string]any{"overlay_opacity": opacity},
+	})
+	if err != nil {
+		return
+	}
+	s.hub.Broadcast(msg)
 }
 
 func (s *Server) handleINI(w http.ResponseWriter, r *http.Request) {

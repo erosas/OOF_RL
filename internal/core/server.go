@@ -42,11 +42,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	cfg          *config.Config
-	cfgPath      string
-	db           *db.DB
-	hub          *hub.Hub
-	fs           http.Handler
+	cfg                  *config.Config
+	cfgPath              string
+	db                   *db.DB
+	hub                  *hub.Hub
+	fs                   http.Handler
 	reconnect    func()
 	mmrProvider  mmr.Provider
 	plugins      []plugin.Plugin
@@ -354,6 +354,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/config/ini", s.handleINI)
+	mux.HandleFunc("/api/overlay/opacity", s.handleOverlayOpacityPreview)
 	mux.HandleFunc("/api/nav", s.handleNav)
 	mux.HandleFunc("/api/plugins/", s.handlePluginView)
 	if s.histStore != nil {

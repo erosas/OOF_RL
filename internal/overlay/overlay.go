@@ -3,6 +3,7 @@
 package overlay
 
 import (
+	"sync"
 	"time"
 	"unsafe"
 
@@ -63,6 +64,20 @@ const (
 )
 
 var hwndTopmost = ^uintptr(0)
+
+var (
+	opacityHookMu sync.Mutex
+	opacityHook   func(float64)
+)
+
+// SetOpacityHook registers a function called whenever the overlay sets its own
+// opacity (via the drag-bar slider). Use this to broadcast the change to other
+// windows so their sliders stay in sync.
+func SetOpacityHook(fn func(float64)) {
+	opacityHookMu.Lock()
+	opacityHook = fn
+	opacityHookMu.Unlock()
+}
 
 var vkMap = map[string]uintptr{
 	"F1": 0x70, "F2": 0x71, "F3": 0x72, "F4": 0x73,
@@ -151,6 +166,16 @@ func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
 		go saveRectAfterInteraction(hwnd, cfg, true)
 	})
 
+	ov.Bind("overlayApplyOpacity", func(alpha int) {
+		if alpha < 10 {
+			alpha = 10
+		}
+		if alpha > 255 {
+			alpha = 255
+		}
+		procSetLayeredWindowAttr.Call(uintptr(hwnd), 0, uintptr(alpha), lwAlpha)
+	})
+
 	ov.Bind("overlaySetOpacity", func(alpha int) {
 		if alpha < 10 {
 			alpha = 10
@@ -161,6 +186,12 @@ func bindFunctions(ov webview2.WebView, hwnd windows.HWND, cfg *config.Config) {
 		procSetLayeredWindowAttr.Call(uintptr(hwnd), 0, uintptr(alpha), lwAlpha)
 		cfg.OverlayOpacity = float64(alpha) / 255.0
 		_ = config.Save(config.ConfigPath(), *cfg)
+		opacityHookMu.Lock()
+		fn := opacityHook
+		opacityHookMu.Unlock()
+		if fn != nil {
+			fn(cfg.OverlayOpacity)
+		}
 	})
 }
 

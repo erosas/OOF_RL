@@ -167,6 +167,7 @@ func main() {
 	if ov := overlay.Start(url, &cfg); ov != nil {
 		defer ov.Destroy()
 	}
+	overlay.SetOpacityHook(func(opacity float64) { srv.BroadcastOpacity(opacity) })
 
 	w.Run()
 	srv.ShutdownPlugins()
