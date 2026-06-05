@@ -334,7 +334,7 @@ function historyEventRow(e, goals, nameTeam, matchStart) {
   const note = historyEventNote(e.event_type);
   return `
     <div class="history-event-row ${teamClass}">
-      <span class="history-event-time">${esc(historyEventClock(e, matchStart))}</span>
+      ${historyEventTimeCell(e.occurred_at, e)}
       <span class="history-event-type">${esc(type)}</span>
       <span class="history-event-player">${actor}${target}</span>
       <span class="history-event-note">
@@ -350,7 +350,7 @@ function historyGoalRow(g, nameTeam) {
   const speed = g.GoalSpeed != null ? `${g.GoalSpeed.toFixed(1)} kph` : '';
   return `
     <div class="history-event-row goal">
-      <span class="history-event-time">${esc(historyGoalClock(g))}</span>
+      ${historyEventTimeCell(g.scored_at ?? g.ScoredAt, g)}
       <span class="history-event-type">Goal</span>
       <span class="history-event-player">${scorer}</span>
       <span class="history-event-note">
@@ -401,16 +401,24 @@ function historyFindGoalForEvent(e, goals, matchStart) {
   return sameScorer[0] || null;
 }
 
-function historyEventClock(e, matchStart) {
-  const secs = historyGameTimeSeconds(e);
-  if (secs != null) return historyFormatGameClock(secs, historyGameOvertime(e));
-  return historyRelTime(e.occurred_at, matchStart);
+function historyEventTimeCell(pcTime, row) {
+  return `<span class="history-event-time history-event-time-pair">
+    <span>${esc(historyGameClockLabel(row))}</span>
+    <small>${esc(historyPCClock(pcTime))}</small>
+  </span>`;
 }
 
-function historyGoalClock(g) {
-  const secs = historyGameTimeSeconds(g);
-  if (secs != null) return historyFormatGameClock(secs, historyGameOvertime(g));
-  return formatDuration(g.GoalTime);
+function historyPCClock(value) {
+  if (!value) return 'PC time unavailable';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'PC time unavailable';
+  return `PC ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
+}
+
+function historyGameClockLabel(row) {
+  const secs = historyGameTimeSeconds(row);
+  if (secs == null) return 'Game clock unavailable';
+  return `Game ${historyFormatGameClock(secs, historyGameOvertime(row))}`;
 }
 
 function historyGameTimeSeconds(row) {
@@ -436,14 +444,6 @@ function historyColoredName(name, nameTeam) {
   const team = nameTeam.get(name);
   const cls = team === 'blue' ? 'blue' : team === 'orange' ? 'orange' : '';
   return cls ? `<span class="${cls}">${esc(name)}</span>` : esc(name);
-}
-
-function historyRelTime(occurredAt, matchStart) {
-  if (!matchStart || !occurredAt) return '';
-  const secs = Math.max(0, Math.round((new Date(occurredAt).getTime() - matchStart) / 1000));
-  const m = Math.floor(secs / 60);
-  const s = String(secs % 60).padStart(2, '0');
-  return `+${m}:${s}`;
 }
 
 function historyEventLabel(type) {
