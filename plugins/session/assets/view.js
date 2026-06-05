@@ -4,6 +4,7 @@ let _sessionSince           = null;
 let _sessionPlayerID        = localStorage.getItem('oof_session_player') || '';
 let _sessionElapsedTimer    = null;
 let _sessionExpandedMatchId = null;
+let _selectedSessionHistoryId = null;
 let _liveStats              = null; // non-null only while a match is active
 
 let _sessionSummaryInstances = [];
@@ -290,13 +291,17 @@ function renderSessionStats(data) {
 }
 
 function renderMatchCards(matches) {
-  const listEl = document.getElementById('session-match-list');
+  renderSessionMatchList(document.getElementById('session-match-list'), matches, 'No matches in this session yet.');
+}
+
+function renderSessionMatchList(listEl, matches, emptyMessage) {
   if (!listEl) return;
+  matches = matches || [];
 
   _sessionExpandedMatchId = null;
 
   if (!matches.length) {
-    listEl.innerHTML = '<p class="session-empty-message">No matches in this session yet.</p>';
+    listEl.innerHTML = `<p class="session-empty-message">${esc(emptyMessage)}</p>`;
     return;
   }
 
@@ -370,9 +375,12 @@ async function loadSessionMatchDetail(matchId, panel) {
 async function loadSessionHistory() {
   const section = document.getElementById('session-history-section');
   const list    = document.getElementById('session-history-list');
-  if (!section || !list) return;
+  const detail  = document.getElementById('session-history-detail');
+  if (!section || !list || !detail) return;
   if (!_sessionPlayerID) {
     section.classList.add('hidden');
+    _selectedSessionHistoryId = null;
+    renderSessionHistoryPlaceholder('Select a player to review saved runs.');
     _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Select a player in the Session tab to see previous sessions.'));
     return;
   }
@@ -382,15 +390,24 @@ async function loadSessionHistory() {
     _sessionHistoryInstances.forEach(w => w.renderData(sessions || []));
     if (!sessions || !sessions.length) {
       section.classList.add('hidden');
+      _selectedSessionHistoryId = null;
+      renderSessionHistoryPlaceholder('No saved runs yet.');
       return;
     }
     section.classList.remove('hidden');
+    const selectedStillExists = sessions.some(s => Number(s.id) === Number(_selectedSessionHistoryId));
+    if (!selectedStillExists) {
+      _selectedSessionHistoryId = Number(sessions[0].id);
+    }
     list.innerHTML = '';
     for (const s of sessions) {
       list.appendChild(buildSessionHistoryCard(s));
     }
+    await selectSessionHistory(_selectedSessionHistoryId);
   } catch(_) {
     section.classList.add('hidden');
+    _selectedSessionHistoryId = null;
+    renderSessionHistoryPlaceholder('Failed to load saved runs.');
     _sessionHistoryInstances.forEach(w => w.renderPlaceholder('Failed to load previous sessions.'));
   }
 }
@@ -398,15 +415,14 @@ async function loadSessionHistory() {
 function buildSessionHistoryCard(s) {
   const startDate = new Date(s.started_at);
   const endDate   = new Date(s.ended_at);
-  const durMins   = Math.round((endDate - startDate) / 60000);
-  const h = Math.floor(durMins / 60);
-  const m = durMins % 60;
-  const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const durStr = sessionDurationLabel(s.started_at, s.ended_at);
 
   const wrapper = document.createElement('div');
+  wrapper.className = 'session-history-item';
 
   const card = document.createElement('div');
-  card.className = 'session-history-card';
+  card.className = Number(s.id) === Number(_selectedSessionHistoryId) ? 'session-history-card selected' : 'session-history-card';
+  card.dataset.sessionId = s.id;
   card.innerHTML = `
     <div class="session-history-card-row">
       <div class="session-history-card-main">
@@ -436,22 +452,23 @@ function buildSessionHistoryCard(s) {
     </div>
     <div class="session-history-edit-actions">
       <button class="ui-button ui-button--primary sess-hist-save" type="button">Save</button>
-      <button class="ui-button sess-hist-delete" type="button">Delete</button>
       <span class="sess-hist-msg hidden"></span>
     </div>
   `;
 
-  card.addEventListener('click', () => {
-    const open = !editPanel.classList.contains('hidden');
-    if (open) {
-      editPanel.classList.add('hidden');
-      card.classList.remove('rounded-b-none');
-      card.querySelector('.sess-hist-chevron').style.transform = '';
-    } else {
-      editPanel.classList.remove('hidden');
-      card.classList.add('rounded-b-none');
-      card.querySelector('.sess-hist-chevron').style.transform = 'rotate(90deg)';
-    }
+  const actions = document.createElement('div');
+  actions.className = 'session-history-card-actions';
+  actions.innerHTML = `
+    <button class="session-history-action sess-hist-edit" type="button">Edit</button>
+    <button class="session-history-action sess-hist-delete" type="button">Delete</button>
+  `;
+  card.querySelector('.session-history-card-row')?.insertBefore(actions, card.querySelector('.sess-hist-chevron'));
+
+  card.addEventListener('click', () => selectSessionHistory(s.id));
+
+  actions.querySelector('.sess-hist-edit').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleSessionHistoryEdit(card, editPanel);
   });
 
   editPanel.querySelector('.sess-hist-save').addEventListener('click', async e => {
@@ -488,11 +505,14 @@ function buildSessionHistoryCard(s) {
     }
   });
 
-  editPanel.querySelector('.sess-hist-delete').addEventListener('click', async e => {
+  actions.querySelector('.sess-hist-delete').addEventListener('click', async e => {
     e.stopPropagation();
     if (!confirm('Delete this session from history?')) return;
     try {
       await fetch(`/api/session/history/${s.id}`, { method: 'DELETE' });
+      if (Number(_selectedSessionHistoryId) === Number(s.id)) {
+        _selectedSessionHistoryId = null;
+      }
       loadSessionHistory();
     } catch(_) {}
   });
@@ -500,6 +520,78 @@ function buildSessionHistoryCard(s) {
   wrapper.appendChild(card);
   wrapper.appendChild(editPanel);
   return wrapper;
+}
+
+function toggleSessionHistoryEdit(card, editPanel) {
+  const open = !editPanel.classList.contains('hidden');
+  if (open) {
+    editPanel.classList.add('hidden');
+    card.classList.remove('rounded-b-none');
+  } else {
+    editPanel.classList.remove('hidden');
+    card.classList.add('rounded-b-none');
+  }
+}
+
+async function selectSessionHistory(sessionId) {
+  const detail = document.getElementById('session-history-detail');
+  if (!detail || !sessionId) return;
+  _selectedSessionHistoryId = Number(sessionId);
+  document.querySelectorAll('#session-history-list .session-history-card').forEach(card => {
+    card.classList.toggle('selected', Number(card.dataset.sessionId) === _selectedSessionHistoryId);
+  });
+  renderSessionHistoryPlaceholder('Loading saved run...');
+  try {
+    const res = await fetch(`/api/session/history/${sessionId}`);
+    if (!res.ok) throw new Error('failed');
+    const data = await res.json();
+    renderSessionHistoryDetail(data);
+  } catch(_) {
+    renderSessionHistoryPlaceholder('Failed to load this saved run.');
+  }
+}
+
+function renderSessionHistoryDetail(data) {
+  const detail = document.getElementById('session-history-detail');
+  if (!detail) return;
+  const s = data.session || {};
+  const matches = data.matches || [];
+  const duration = sessionDurationLabel(s.started_at, s.ended_at);
+  detail.innerHTML = `
+    <div class="session-history-detail-summary">
+      <div>
+        <div class="session-eyebrow">Selected run</div>
+        <div class="session-history-detail-title">${esc(formatDate(s.started_at))}</div>
+        <div class="session-history-card-meta">${esc(duration)} &middot; ${matches.length} match${matches.length === 1 ? '' : 'es'}</div>
+      </div>
+      <div class="session-history-detail-record">
+        <span class="session-win-text">${s.wins || 0}W</span>
+        <span class="session-loss-text">${s.losses || 0}L</span>
+      </div>
+    </div>
+    <div id="session-history-match-list" class="session-history-match-list"></div>
+  `;
+  renderSessionMatchList(
+    document.getElementById('session-history-match-list'),
+    matches,
+    'No matches were saved in this run.'
+  );
+}
+
+function renderSessionHistoryPlaceholder(message) {
+  const detail = document.getElementById('session-history-detail');
+  if (!detail) return;
+  detail.innerHTML = `<div class="session-history-detail-empty">${esc(message)}</div>`;
+}
+
+function sessionDurationLabel(startedAt, endedAt) {
+  const startDate = new Date(startedAt);
+  const endDate = new Date(endedAt);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return '0m';
+  const durMins = Math.max(0, Math.round((endDate - startDate) / 60000));
+  const h = Math.floor(durMins / 60);
+  const m = durMins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function set(id, val) {
