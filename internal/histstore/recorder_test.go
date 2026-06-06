@@ -136,6 +136,15 @@ func matchCount(t *testing.T, s *Store) int {
 	return len(matches)
 }
 
+func ballHitCount(t *testing.T, s *Store, matchID int64) int {
+	t.Helper()
+	var count int
+	if err := s.conn.QueryRow(`SELECT COUNT(*) FROM hist_ball_hit_events WHERE match_id=?`, matchID).Scan(&count); err != nil {
+		t.Fatalf("ball hit count: %v", err)
+	}
+	return count
+}
+
 func TestNewMatchGUIDFlushesPreviousMatchAndDoesNotCarryPlayers(t *testing.T) {
 	r, s := newTestRecorder(t)
 
@@ -279,7 +288,6 @@ func TestActiveRosterShrinkPreservesDepartedPlayerForFinalFlush(t *testing.T) {
 	if len(players) != 4 {
 		t.Fatalf("departed player should be preserved at final flush, got %+v", players)
 	}
-
 	byID := map[string]PlayerMatchStats{}
 	for _, pl := range players {
 		byID[pl.PrimaryID] = pl
@@ -290,6 +298,58 @@ func TestActiveRosterShrinkPreservesDepartedPlayerForFinalFlush(t *testing.T) {
 	got := byID["blue-two"]
 	if got.Score != 200 || got.Goals != 1 || got.Shots != 2 || got.Saves != 3 || got.Touches != 12 || got.CarTouches != 9 || got.Demos != 1 {
 		t.Fatalf("departed player stats should keep last live snapshot, got %+v", got)
+	}
+}
+
+func TestReplayUpdateDoesNotInflateSavedTouchStats(t *testing.T) {
+	r, s := newTestRecorder(t)
+
+	aliceLive := player("steam|alice|0", "Alice", 0, 100)
+	aliceLive.Goals = 1
+	aliceLive.Touches = 10
+	aliceLive.CarTouches = 8
+	bobLive := player("steam|bob|1", "Bob", 1, 50)
+	bobLive.Touches = 7
+	bobLive.CarTouches = 6
+	r.onStateUpdated(translateUpdateState(updateState("guid-replay-touches", "Utopia Coliseum", []events.Player{
+		aliceLive,
+		bobLive,
+	}, 1, 0, 15)))
+
+	aliceReplay := player("steam|alice|0", "Alice", 0, 250)
+	aliceReplay.Goals = 2
+	aliceReplay.Saves = 1
+	aliceReplay.Touches = 99
+	aliceReplay.CarTouches = 88
+	bobReplay := player("steam|bob|1", "Bob", 1, 75)
+	bobReplay.Touches = 77
+	bobReplay.CarTouches = 66
+	r.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-replay-touches", "Utopia Coliseum", []events.Player{
+		aliceReplay,
+		bobReplay,
+	}, 2, 0, 0, true)))
+	r.onMatchEnded(oofevents.NewMatchEnded("guid-replay-touches", 0))
+
+	match := matchByGUID(t, s, "guid-replay-touches")
+	players, err := s.MatchPlayers(match.ID)
+	if err != nil {
+		t.Fatalf("MatchPlayers: %v", err)
+	}
+	byID := map[string]PlayerMatchStats{}
+	for _, pl := range players {
+		byID[pl.PrimaryID] = pl
+	}
+
+	alice := byID["steam|alice|0"]
+	if alice.Score != 250 || alice.Goals != 2 || alice.Saves != 1 {
+		t.Fatalf("replay non-touch stats should still update, got %+v", alice)
+	}
+	if alice.Touches != 10 || alice.CarTouches != 8 {
+		t.Fatalf("replay touches should not inflate Alice, got %+v", alice)
+	}
+	bob := byID["steam|bob|1"]
+	if bob.Touches != 7 || bob.CarTouches != 6 {
+		t.Fatalf("replay touches should not inflate Bob, got %+v", bob)
 	}
 }
 
@@ -547,6 +607,27 @@ func TestOnBallHit(t *testing.T) {
 	}, 0, 0, 60)))
 
 	r.onBallHit(oofevents.NewBallHit("guid-ballhit", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+}
+
+func TestOnBallHitSkippedDuringReplay(t *testing.T) {
+	r, s := newTestRecorder(t)
+	r.cfg.Storage.BallHitEvents = true
+	r.onStateUpdated(translateUpdateState(updateState("guid-ballhit-replay", "Aquadome", []events.Player{
+		player("steam|alice|0", "Alice", 0, 100),
+	}, 0, 0, 60)))
+
+	r.onBallHit(oofevents.NewBallHit("guid-ballhit-replay", "Alice", "steam|alice|0", 0, 0, 55.0, 70.0, 1.0, 2.0, 3.0))
+	if got := ballHitCount(t, s, r.matchID); got != 1 {
+		t.Fatalf("live ball hit should be stored, got %d", got)
+	}
+
+	r.onStateUpdated(translateUpdateState(updateStateWithReplay("guid-ballhit-replay", "Aquadome", []events.Player{
+		player("steam|alice|0", "Alice", 0, 150),
+	}, 0, 0, 0, true)))
+	r.onBallHit(oofevents.NewBallHit("guid-ballhit-replay", "Alice", "steam|alice|0", 0, 0, 70.0, 80.0, 4.0, 5.0, 6.0))
+	if got := ballHitCount(t, s, r.matchID); got != 1 {
+		t.Fatalf("replay ball hit should not be stored, got %d", got)
+	}
 }
 
 func TestOnBallHitSkippedWhenDisabled(t *testing.T) {

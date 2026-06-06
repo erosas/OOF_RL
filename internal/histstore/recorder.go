@@ -25,6 +25,7 @@ type Recorder struct {
 	lastTeams       []oofevents.TeamSnapshot
 	lastTimeSeconds int
 	lastClockKnown  bool
+	replayActive    bool
 }
 
 func NewRecorder(s *Store, cfg *config.Config) *Recorder {
@@ -74,6 +75,7 @@ func (r *Recorder) onStateUpdated(e oofevents.OOFEvent) {
 	r.overtime = ev.Game.IsOvertime
 	r.lastTimeSeconds = ev.Game.TimeSeconds
 	r.lastClockKnown = true
+	r.replayActive = ev.Game.IsReplay
 
 	if r.matchID == 0 && r.matchGuid != "" {
 		id, err := r.store.UpsertMatch(r.matchGuid, ev.Game.Arena, time.Now())
@@ -91,11 +93,14 @@ func (r *Recorder) onStateUpdated(e oofevents.OOFEvent) {
 				currentPlayers[primaryID] = pl
 			}
 		}
-		if len(currentPlayers) >= len(r.lastPlayers) {
+		if ev.Game.IsReplay {
+			// Replay packets: preserve live touch counts, only accept if roster is at least as large.
+			if len(currentPlayers) >= len(r.lastPlayers) {
+				r.preserveLiveTouchCounts(currentPlayers)
+				r.lastPlayers = currentPlayers
+			}
+		} else if len(currentPlayers) >= len(r.lastPlayers) {
 			r.lastPlayers = currentPlayers
-		} else if ev.Game.IsReplay {
-			// Replay packets can carry partial rosters after the real match state.
-			// Keep the fuller live snapshot for final match persistence.
 		} else if isActiveLiveClock(ev.Game) {
 			r.mergeCurrentPlayers(currentPlayers)
 		} else {
@@ -150,6 +155,9 @@ func (r *Recorder) onBallHit(e oofevents.OOFEvent) {
 	}
 	ev, ok := oofevents.Unwrap(e).(oofevents.BallHitEvent)
 	if !ok || !r.isActiveMatch(ev.MatchGUID()) {
+		return
+	}
+	if r.replayActive {
 		return
 	}
 	playerID := resolvePlayerID(ev.MatchGUID(), ev.PlayerPrimaryID, ev.PlayerShortcut, ev.PlayerName)
@@ -283,6 +291,7 @@ func (r *Recorder) resetMatchState() {
 	r.lastTeams = nil
 	r.lastTimeSeconds = 0
 	r.lastClockKnown = false
+	r.replayActive = false
 }
 
 func (r *Recorder) switchMatch(matchGuid string) {
@@ -332,6 +341,16 @@ func (r *Recorder) gameClockSeconds() *int {
 	}
 	v := r.lastTimeSeconds
 	return &v
+}
+
+func (r *Recorder) preserveLiveTouchCounts(currentPlayers map[string]oofevents.PlayerSnapshot) {
+	for id, current := range currentPlayers {
+		if previous, ok := r.lastPlayers[id]; ok {
+			current.Touches = previous.Touches
+			current.CarTouches = previous.CarTouches
+			currentPlayers[id] = current
+		}
+	}
 }
 
 // resolvePlayerID returns a stable player ID for history purposes.
