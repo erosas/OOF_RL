@@ -78,7 +78,7 @@ func main() {
 		log.Fatalf("event bus: %v", err)
 	}
 
-	const trackerCacheTTL = 10 * time.Second
+	const trackerCacheTTL = 60 * time.Second
 	trnProvider := mmr.NewCachedProvider(
 		mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
 		database,

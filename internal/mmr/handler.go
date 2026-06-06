@@ -11,7 +11,7 @@ import (
 	"OOF_RL/internal/httputil"
 )
 
-const trackerLookupTimeout = 8 * time.Second
+const trackerLookupTimeout = 15 * time.Second
 
 // Handler returns an http.HandlerFunc that looks up MMR ranks for a player.
 //

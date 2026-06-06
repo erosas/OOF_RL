@@ -107,7 +107,7 @@ mmr.Handler (continued)
 
 ### Cache key
 
-The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 10-minute TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
+The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 60-second TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
 
 ---
 
@@ -135,7 +135,7 @@ If every provider either doesn't support the platform or returns an error, `Fall
 cached := mmr.NewCachedProvider(
     mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
     database,
-    10*time.Minute,
+    60*time.Second,
 )
 ranks, err := cached.Lookup(ctx, id) // hits DB first, then network
 ```

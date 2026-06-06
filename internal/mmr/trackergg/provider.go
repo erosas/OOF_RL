@@ -23,7 +23,7 @@ type Provider struct {
 func New() *Provider {
 	return &Provider{
 		limiter: newRateLimiter(),
-		client:  &http.Client{Timeout: 12 * time.Second},
+		client:  &http.Client{Timeout: 20 * time.Second},
 	}
 }
 
