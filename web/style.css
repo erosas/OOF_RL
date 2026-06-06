@@ -973,6 +973,16 @@ main.live-active {
 .player-name      { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-name-link { color: inherit; text-decoration: none; }
 .player-name-link:hover { color: var(--rl-blue); text-decoration: underline; }
+.player-name-line {
+  align-items: center;
+  display: flex;
+  gap: var(--oof-space-1);
+  min-width: 0;
+}
+.player-name-line .player-name,
+.player-name-line .player-name-link {
+  min-width: 0;
+}
 
 .live-player-stats {
   display: grid;
@@ -1155,6 +1165,8 @@ main.live-active {
   white-space: nowrap;
 }
 .player-platform-badge {
+  align-items: center;
+  display: inline-flex;
   font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2986,9 +2998,20 @@ main.live-active {
 }
 
 .history-player-name {
+  align-items: center;
   color: var(--oof-color-text);
+  display: flex;
   font-size: var(--oof-font-size-sm);
   font-weight: var(--oof-font-weight-semibold);
+  gap: var(--oof-space-1);
+  min-width: 0;
+}
+
+.history-player-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-team-player-row {

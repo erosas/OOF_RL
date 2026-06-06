@@ -296,7 +296,7 @@ function historyTeamPlayerRow(p) {
   return `
     <div class="history-team-player-row">
       <div class="history-player-cell">
-        <div class="history-player-name">${esc(p.Name)}${isBot(p.PrimaryId) ? ' <span class="player-platform-badge">BOT</span>' : ''}</div>
+        <div class="history-player-name"><span class="history-player-name-text">${esc(p.Name)}</span>${playerPlatformBadge(p.PrimaryId)}</div>
         ${rankDetails}
       </div>
       <div class="history-player-stat-grid">

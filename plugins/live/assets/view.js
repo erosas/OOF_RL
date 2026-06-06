@@ -146,7 +146,7 @@ function teamPanel(name, cls, players, teamHexColor = null) {
     return `
       <div class="player-row live-player-row ${demolished}">
         <div class="player-name-cell">
-          ${nameEl}
+          <div class="player-name-line">${nameEl}${playerPlatformBadge(p.PrimaryId)}</div>
           ${rankBlock}
         </div>
         <div class="live-player-stats">
