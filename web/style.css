@@ -2062,6 +2062,7 @@ main.live-active {
   flex-direction: column;
   gap: var(--oof-space-3);
   min-width: 0;
+  min-height: 0;
 }
 
 .session-stats-panel.hidden {
@@ -2072,6 +2073,18 @@ main.live-active {
   display: grid;
   grid-template-columns: repeat(3, minmax(240px, 1fr));
   gap: var(--oof-space-4);
+}
+
+.session-list-panel,
+.session-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.session-list-panel {
+  flex: 0 0 auto;
 }
 
 .session-summary-card {
@@ -2144,11 +2157,91 @@ main.live-active {
 }
 
 .session-match-list,
-.session-history-list {
+.session-history-list,
+.session-history-match-list {
   display: flex;
   flex-direction: column;
   gap: var(--oof-space-2);
+  min-height: 0;
   padding: var(--oof-space-2);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.session-match-list {
+  flex: 0 0 auto;
+  max-height: calc((76px * 5) + (var(--oof-space-2) * 6));
+}
+
+.session-match-list > .session-match-card,
+.session-match-list > .session-match-panel,
+.session-match-list > .session-empty-message {
+  flex: 0 0 auto;
+}
+
+.session-history-browser {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: var(--oof-space-3);
+  min-height: 360px;
+  padding: var(--oof-space-2);
+}
+
+.session-history-list,
+.session-history-detail {
+  max-height: clamp(320px, 44vh, 560px);
+}
+
+.session-history-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: rgb(var(--oof-color-bg-subtle-rgb) / .54);
+  border-left: 1px solid rgb(var(--oof-color-border-rgb) / .8);
+}
+
+.session-history-detail-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oof-space-3);
+  flex: 0 0 auto;
+  padding: var(--oof-space-3);
+  border-bottom: 1px solid rgb(var(--oof-color-border-rgb) / .8);
+}
+
+.session-history-detail-title {
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-sm);
+  font-weight: var(--oof-font-weight-bold);
+}
+
+.session-history-detail-record {
+  display: flex;
+  gap: var(--oof-space-2);
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-lg);
+  font-weight: var(--oof-font-weight-black);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-history-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 220px;
+  padding: var(--oof-space-5);
+  color: var(--oof-color-text-subtle);
+  font-size: var(--oof-font-size-sm);
+  text-align: center;
+}
+
+.session-history-match-list {
+  flex: 1 1 auto;
 }
 
 .session-match-card,
@@ -2176,6 +2269,13 @@ main.live-active {
 .session-history-card:hover {
   border-color: rgb(var(--oof-color-accent-rgb) / .5);
   background: rgb(var(--oof-color-surface-raised-rgb) / .62);
+}
+
+.session-history-card.selected {
+  border-color: rgb(var(--oof-color-accent-rgb) / .72);
+  background:
+    linear-gradient(90deg, rgb(var(--oof-color-accent-rgb) / .14), transparent 72%),
+    rgb(var(--oof-color-surface-raised-rgb) / .68);
 }
 
 .session-match-card.win,
@@ -2276,6 +2376,31 @@ main.live-active {
   min-width: 0;
 }
 
+.session-history-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--oof-space-1);
+  margin-left: auto;
+}
+
+.session-history-action {
+  min-height: 28px;
+  padding: 0 var(--oof-space-2);
+  border: 1px solid rgb(var(--oof-color-border-rgb) / .8);
+  border-radius: var(--oof-radius-sm);
+  background: rgb(var(--oof-color-surface-raised-rgb) / .58);
+  color: var(--oof-color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--oof-font-size-xs);
+  font-weight: var(--oof-font-weight-semibold);
+}
+
+.session-history-action:hover {
+  border-color: rgb(var(--oof-color-accent-rgb) / .48);
+  color: var(--oof-color-text);
+}
+
 .session-history-card-title {
   color: var(--oof-color-text);
   font-size: var(--oof-font-size-sm);
@@ -2354,6 +2479,20 @@ main.live-active {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .session-history-browser {
+    grid-template-columns: 1fr;
+  }
+
+  .session-history-list,
+  .session-history-detail {
+    max-height: none;
+  }
+
+  .session-history-list,
+  .session-history-match-list {
+    max-height: 360px;
+  }
+
   .session-match-card {
     grid-template-columns: 52px minmax(0, 1fr) 20px;
   }
@@ -2372,6 +2511,7 @@ main.live-active {
   }
 
   .session-suggest-actions,
+  .session-history-card-actions,
   .session-history-edit-actions {
     align-items: stretch;
     flex-direction: column;

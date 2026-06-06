@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,15 @@ func resetSince() {
 	mu.Lock()
 	since = time.Time{}
 	mu.Unlock()
+}
+
+func stubDBQuery(t *testing.T, fn func(string, []string) []map[string]any) {
+	t.Helper()
+	old := dbQuery
+	dbQuery = fn
+	t.Cleanup(func() {
+		dbQuery = old
+	})
 }
 
 // --- onEvent ---
@@ -162,9 +172,81 @@ func TestHandleHistoryBadMethod(t *testing.T) {
 // --- handleHistoryItem ---
 
 func TestHandleHistoryItemBadID(t *testing.T) {
-	resp := handleHTTP(sdk.HTTPRequest{Method: "DELETE", Path: "/api/session/history/notanumber"})
+	resp := handleHTTP(sdk.HTTPRequest{Method: "GET", Path: "/api/session/history/notanumber"})
 	if resp.Status != 400 {
 		t.Fatalf("status: got %d, want 400", resp.Status)
+	}
+}
+
+func TestHandleHistoryItemGETReturnsSessionMatches(t *testing.T) {
+	playerID := "steam|alice|0"
+	startedAt := "2024-01-01T12:00:00Z"
+	endedAt := "2024-01-01T13:00:00Z"
+	stubDBQuery(t, func(sql string, args []string) []map[string]any {
+		switch {
+		case strings.Contains(sql, "FROM sessions WHERE id=?"):
+			if len(args) != 1 || args[0] != "1" {
+				t.Fatalf("session query args: got %v", args)
+			}
+			return []map[string]any{{
+				"id":         float64(1),
+				"player_id":  playerID,
+				"started_at": startedAt,
+				"ended_at":   endedAt,
+			}}
+		case strings.Contains(sql, "FROM hist_matches"):
+			if len(args) != 1 || args[0] != playerID {
+				t.Fatalf("match query args: got %v", args)
+			}
+			return []map[string]any{{
+				"match_id":        float64(10),
+				"arena":           "DFH Stadium",
+				"started_at":      "2024-01-01T12:15:00Z",
+				"winner_team_num": float64(0),
+				"incomplete":      float64(0),
+				"forfeit":         float64(0),
+				"team_num":        float64(0),
+				"goals":           float64(2),
+				"assists":         float64(1),
+				"saves":           float64(3),
+				"shots":           float64(4),
+				"demos":           float64(1),
+				"score":           float64(500),
+				"playlist_type":   float64(13),
+				"player_count":    float64(6),
+			}}
+		default:
+			return nil
+		}
+	})
+
+	resp := handleHTTP(sdk.HTTPRequest{Method: "GET", Path: "/api/session/history/1"})
+	if resp.Status != 200 {
+		t.Fatalf("status: got %d, want 200; body=%s", resp.Status, resp.Body)
+	}
+	var body struct {
+		Session SavedSession   `json:"session"`
+		Matches []SessionMatch `json:"matches"`
+	}
+	if err := json.Unmarshal([]byte(resp.Body), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Session.ID != 1 || body.Session.PlayerID != playerID {
+		t.Fatalf("session: got %+v", body.Session)
+	}
+	if body.Session.Games != 1 || body.Session.Wins != 1 || body.Session.Goals != 2 {
+		t.Fatalf("session stats: got %+v", body.Session)
+	}
+	if len(body.Matches) != 1 || body.Matches[0].MatchID != 10 {
+		t.Fatalf("matches: got %+v", body.Matches)
+	}
+}
+
+func TestHandleHistoryItemGETUnknownID(t *testing.T) {
+	stubDBQuery(t, func(string, []string) []map[string]any { return nil })
+	resp := handleHTTP(sdk.HTTPRequest{Method: "GET", Path: "/api/session/history/404"})
+	if resp.Status != 404 {
+		t.Fatalf("status: got %d, want 404", resp.Status)
 	}
 }
 
@@ -191,7 +273,7 @@ func TestHandleHistoryItemPUTEndBeforeStart(t *testing.T) {
 }
 
 func TestHandleHistoryItemBadMethod(t *testing.T) {
-	resp := handleHTTP(sdk.HTTPRequest{Method: "GET", Path: "/api/session/history/1"})
+	resp := handleHTTP(sdk.HTTPRequest{Method: "PATCH", Path: "/api/session/history/1"})
 	if resp.Status != 405 {
 		t.Fatalf("status: got %d, want 405", resp.Status)
 	}

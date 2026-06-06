@@ -13,16 +13,19 @@ import (
 var (
 	mu    sync.RWMutex
 	since time.Time
+
+	dbExec  = sdk.DBExec
+	dbQuery = sdk.DBQuery
 )
 
 func initPlugin() uint32 {
-	sdk.DBExec(`CREATE TABLE IF NOT EXISTS sessions (
+	dbExec(`CREATE TABLE IF NOT EXISTS sessions (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		player_id  TEXT NOT NULL,
 		started_at DATETIME NOT NULL,
 		ended_at   DATETIME NOT NULL
 	)`, nil)
-	sdk.DBExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
+	dbExec(`CREATE INDEX IF NOT EXISTS idx_sessions_player ON sessions(player_id, started_at)`, nil)
 	return 0
 }
 
@@ -170,7 +173,7 @@ func handleNew(req sdk.HTTPRequest) sdk.HTTPResponse {
 
 	if body.PlayerID != "" && !oldSince.IsZero() {
 		now := time.Now()
-		sdk.DBExec(
+		dbExec(
 			`INSERT INTO sessions(player_id, started_at, ended_at) VALUES(?,?,?)`,
 			[]string{body.PlayerID, oldSince.UTC().Format(time.RFC3339), now.UTC().Format(time.RFC3339)},
 		)
@@ -208,8 +211,26 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 	idArg := strconv.FormatInt(id, 10)
 
 	switch req.Method {
+	case "GET":
+		sess, ok := sessionByID(id)
+		if !ok {
+			return sdk.JSONError(404, "session not found")
+		}
+		start := sdk.ParseTime(sess.StartedAt)
+		end := sdk.ParseTime(sess.EndedAt)
+		matches := sessionMatchesBetween(start, end, sess.PlayerID)
+		if matches == nil {
+			matches = []SessionMatch{}
+		}
+		populateSessionStatsFromMatches(&sess, matches)
+		b, _ := json.Marshal(map[string]any{
+			"session": sess,
+			"matches": matches,
+		})
+		return sdk.JSONResponse(b)
+
 	case "DELETE":
-		if sdk.DBExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
+		if dbExec(`DELETE FROM sessions WHERE id=?`, []string{idArg}) < 0 {
 			return sdk.JSONError(500, "delete failed")
 		}
 		b, _ := json.Marshal(map[string]string{"status": "ok"})
@@ -231,7 +252,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 		if !endedAt.After(startedAt) {
 			return sdk.JSONError(400, "ended_at must be after started_at")
 		}
-		if sdk.DBExec(
+		if dbExec(
 			`UPDATE sessions SET started_at=?, ended_at=? WHERE id=?`,
 			[]string{startedAt.UTC().Format(time.RFC3339), endedAt.UTC().Format(time.RFC3339), idArg},
 		) < 0 {
@@ -246,7 +267,7 @@ func handleHistoryItem(req sdk.HTTPRequest) sdk.HTTPResponse {
 }
 
 func handleSuggestPlayer(_ sdk.HTTPRequest) sdk.HTTPResponse {
-	rows := sdk.DBQuery(`
+	rows := dbQuery(`
 		SELECT s.primary_id, pl.name
 		FROM hist_player_match_stats s
 		JOIN hist_players pl ON pl.primary_id = s.primary_id
@@ -303,38 +324,62 @@ type SessionMatch struct {
 // --- DB helpers ---
 
 func listSessionsWithStats(playerID string) []SavedSession {
-	rows := sdk.DBQuery(
+	rows := dbQuery(
 		`SELECT id, player_id, started_at, ended_at FROM sessions WHERE player_id=? ORDER BY started_at DESC LIMIT 50`,
 		[]string{playerID})
 
 	var sessions []SavedSession
 	for _, row := range rows {
-		sess := SavedSession{
-			ID:        rowInt(row, "id"),
-			PlayerID:  rowStr(row, "player_id"),
-			StartedAt: rowStr(row, "started_at"),
-			EndedAt:   rowStr(row, "ended_at"),
-		}
-		start := sdk.ParseTime(sess.StartedAt)
-		end := sdk.ParseTime(sess.EndedAt)
-		for _, m := range sessionMatchesBetween(start, end, playerID) {
-			sess.Games++
-			sess.Goals += m.Goals
-			sess.Assists += m.Assists
-			sess.Saves += m.Saves
-			sess.Shots += m.Shots
-			sess.Demos += m.Demos
-			if !m.Incomplete && m.WinnerTeamNum >= 0 {
-				if m.PlayerTeam == m.WinnerTeamNum {
-					sess.Wins++
-				} else {
-					sess.Losses++
-				}
-			}
-		}
+		sess := sessionFromRow(row)
+		populateSessionStats(&sess)
 		sessions = append(sessions, sess)
 	}
 	return sessions
+}
+
+func sessionByID(id int64) (SavedSession, bool) {
+	idArg := strconv.FormatInt(id, 10)
+	rows := dbQuery(
+		`SELECT id, player_id, started_at, ended_at FROM sessions WHERE id=? LIMIT 1`,
+		[]string{idArg})
+	if len(rows) == 0 {
+		return SavedSession{}, false
+	}
+	sess := sessionFromRow(rows[0])
+	return sess, true
+}
+
+func sessionFromRow(row map[string]any) SavedSession {
+	return SavedSession{
+		ID:        rowInt(row, "id"),
+		PlayerID:  rowStr(row, "player_id"),
+		StartedAt: rowStr(row, "started_at"),
+		EndedAt:   rowStr(row, "ended_at"),
+	}
+}
+
+func populateSessionStats(sess *SavedSession) {
+	start := sdk.ParseTime(sess.StartedAt)
+	end := sdk.ParseTime(sess.EndedAt)
+	populateSessionStatsFromMatches(sess, sessionMatchesBetween(start, end, sess.PlayerID))
+}
+
+func populateSessionStatsFromMatches(sess *SavedSession, matches []SessionMatch) {
+	for _, m := range matches {
+		sess.Games++
+		sess.Goals += m.Goals
+		sess.Assists += m.Assists
+		sess.Saves += m.Saves
+		sess.Shots += m.Shots
+		sess.Demos += m.Demos
+		if !m.Incomplete && m.WinnerTeamNum >= 0 {
+			if m.PlayerTeam == m.WinnerTeamNum {
+				sess.Wins++
+			} else {
+				sess.Losses++
+			}
+		}
+	}
 }
 
 func sessionMatchesByPlayer(start time.Time, playerID string) ([]SessionMatch, error) {
@@ -342,7 +387,7 @@ func sessionMatchesByPlayer(start time.Time, playerID string) ([]SessionMatch, e
 }
 
 func sessionMatchesBetween(start, end time.Time, playerID string) []SessionMatch {
-	rows := sdk.DBQuery(`
+	rows := dbQuery(`
 		SELECT m.id AS match_id,
 		       COALESCE(m.arena,'') AS arena,
 		       m.started_at AS started_at,
