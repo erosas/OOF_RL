@@ -179,20 +179,25 @@ func (s *Store) Matches(playerID string) ([]Match, error) {
 // --- Player match stats ---
 
 func (s *Store) UpsertPlayerMatchStats(matchID int64, primaryID string, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos int) error {
+	return s.UpsertPlayerMatchStatsWithName(matchID, primaryID, "", teamNum, score, goals, shots, assists, saves, touches, carTouches, demos)
+}
+
+func (s *Store) UpsertPlayerMatchStatsWithName(matchID int64, primaryID, playerName string, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos int) error {
 	_, err := s.conn.Exec(`
-		INSERT INTO hist_player_match_stats(match_id,primary_id,team_num,score,goals,shots,assists,saves,touches,car_touches,demos)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO hist_player_match_stats(match_id,primary_id,player_name,team_num,score,goals,shots,assists,saves,touches,car_touches,demos)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(match_id,primary_id) DO UPDATE SET
+			player_name=CASE WHEN excluded.player_name!='' THEN excluded.player_name ELSE player_name END,
 			team_num=excluded.team_num, score=excluded.score, goals=excluded.goals,
 			shots=excluded.shots, assists=excluded.assists, saves=excluded.saves,
 			touches=excluded.touches, car_touches=excluded.car_touches, demos=excluded.demos`,
-		matchID, primaryID, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos)
+		matchID, primaryID, playerName, teamNum, score, goals, shots, assists, saves, touches, carTouches, demos)
 	return err
 }
 
 func (s *Store) MatchPlayers(matchID int64) ([]PlayerMatchStats, error) {
 	rows, err := s.conn.Query(`
-		SELECT s.primary_id, p.name, s.team_num, s.score, s.goals, s.shots,
+		SELECT s.primary_id, COALESCE(NULLIF(s.player_name,''), p.name), s.team_num, s.score, s.goals, s.shots,
 		       s.assists, s.saves, s.touches, s.car_touches, s.demos
 		FROM hist_player_match_stats s
 		JOIN hist_players p ON p.primary_id=s.primary_id
