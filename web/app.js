@@ -662,13 +662,6 @@ function formatDate(d) {
   return new Date(d).toLocaleString();
 }
 
-function formatDuration(secs) {
-  if (secs == null || isNaN(secs)) return '—';
-  const m = Math.floor(secs / 60);
-  const s = (secs % 60).toFixed(0).padStart(2, '0');
-  return `${m}:${s}`;
-}
-
 function formatBytes(n) {
   const v = Number(n || 0);
   if (v < 1024)         return `${v} B`;
@@ -831,14 +824,40 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
   const players    = data.players || [];
   const goals      = data.goals   || [];
   const events     = data.events  || [];
-  const matchStart = data.match?.StartedAt ? new Date(data.match.StartedAt).getTime() : null;
 
-  function matchRelTime(occurredAt) {
-    if (!matchStart || !occurredAt) return '';
-    const secs = Math.max(0, Math.round((new Date(occurredAt).getTime() - matchStart) / 1000));
-    const m = Math.floor(secs / 60);
-    const s = String(secs % 60).padStart(2, '0');
-    return `+${m}:${s}`;
+  function rowGameClockSeconds(row) {
+    const value = row?.game_time_seconds ?? row?.GameTimeSeconds;
+    if (value == null || value === '') return null;
+    const secs = Number(value);
+    return Number.isFinite(secs) ? secs : null;
+  }
+
+  function rowGameOvertime(row) {
+    return !!(row?.game_overtime ?? row?.GameOvertime);
+  }
+
+  function formatMatchClock(secs, overtime) {
+    const rounded = Math.max(0, Math.round(Number(secs)));
+    const m = Math.floor(rounded / 60);
+    const s = String(rounded % 60).padStart(2, '0');
+    return overtime ? `OT ${m}:${s}` : `${m}:${s}`;
+  }
+
+  function pcClock(value) {
+    if (!value) return 'PC time unavailable';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'PC time unavailable';
+    return `PC ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
+  }
+
+  function gameClockLabel(row) {
+    const secs = rowGameClockSeconds(row);
+    if (secs == null) return 'Game clock unavailable';
+    return `Game ${formatMatchClock(secs, rowGameOvertime(row))}`;
+  }
+
+  function eventClockCell(pcTime, row) {
+    return `<span class="event-clock-pair"><span>${esc(gameClockLabel(row))}</span><small>${esc(pcClock(pcTime))}</small></span>`;
   }
 
   players.forEach(p => { if (!p.PrimaryId) p.PrimaryId = p.PrimaryID; });
@@ -885,7 +904,7 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
           <td>${colorName(g.ScorerName)}</td>
           <td>${colorName(g.AssisterName)}</td>
           <td>${g.GoalSpeed != null ? g.GoalSpeed.toFixed(1) : '—'}</td>
-          <td>${formatDuration(g.GoalTime)}</td>
+          <td>${eventClockCell(g.scored_at ?? g.ScoredAt, g)}</td>
         </tr>`).join('')
     : '<tr><td colspan="4" style="color:var(--muted)">No goals recorded</td></tr>';
 
@@ -895,7 +914,7 @@ window.renderMatchDetailPanel = function(data, panel, activeMatchId, matchID) {
         const actor = colorName(e.player_name);
         const tgt   = e.target_name ? ` → ${colorName(e.target_name)}` : '';
         const label = EVENT_LABEL[e.event_type] || e.event_type;
-        const t     = matchRelTime(e.occurred_at);
+        const t     = eventClockCell(e.occurred_at, e);
         return `<tr>
           <td style="width:28px;text-align:center">${icon}</td>
           <td style="color:var(--muted);font-size:11px">${esc(label)}</td>

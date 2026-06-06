@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS hist_goal_events (
 	ball_last_touch_id   TEXT REFERENCES hist_players(primary_id),
 	goal_speed           REAL,
 	goal_time            REAL,
+	game_time_seconds    INTEGER,
+	game_overtime        BOOLEAN DEFAULT 0,
 	impact_x             REAL,
 	impact_y             REAL,
 	impact_z             REAL,
@@ -84,6 +86,8 @@ CREATE TABLE IF NOT EXISTS hist_statfeed_events (
 	event_type   TEXT NOT NULL,
 	target_id    TEXT NOT NULL DEFAULT '',
 	target_name  TEXT NOT NULL DEFAULT '',
+	game_time_seconds INTEGER,
+	game_overtime     BOOLEAN DEFAULT 0,
 	occurred_at  DATETIME NOT NULL
 );
 
@@ -115,6 +119,17 @@ func Migrate(database *db.DB) error {
 		{"player_name", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := database.AddColumnIfNotExists("hist_player_match_stats", col[0], col[1]); err != nil {
+			return err
+		}
+	}
+	for _, col := range [][2]string{
+		{"game_time_seconds", "INTEGER"},
+		{"game_overtime", "BOOLEAN DEFAULT 0"},
+	} {
+		if err := database.AddColumnIfNotExists("hist_goal_events", col[0], col[1]); err != nil {
+			return err
+		}
+		if err := database.AddColumnIfNotExists("hist_statfeed_events", col[0], col[1]); err != nil {
 			return err
 		}
 	}

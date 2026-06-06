@@ -334,7 +334,7 @@ function historyEventRow(e, goals, nameTeam, matchStart) {
   const note = historyEventNote(e.event_type);
   return `
     <div class="history-event-row ${teamClass}">
-      <span class="history-event-time">${esc(historyRelTime(e.occurred_at, matchStart))}</span>
+      ${historyEventTimeCell(e.occurred_at, e)}
       <span class="history-event-type">${esc(type)}</span>
       <span class="history-event-player">${actor}${target}</span>
       <span class="history-event-note">
@@ -350,7 +350,7 @@ function historyGoalRow(g, nameTeam) {
   const speed = g.GoalSpeed != null ? `${g.GoalSpeed.toFixed(1)} kph` : '';
   return `
     <div class="history-event-row goal">
-      <span class="history-event-time">${esc(formatDuration(g.GoalTime))}</span>
+      ${historyEventTimeCell(g.scored_at ?? g.ScoredAt, g)}
       <span class="history-event-type">Goal</span>
       <span class="history-event-player">${scorer}</span>
       <span class="history-event-note">
@@ -375,10 +375,23 @@ function historyEventCompanions(e, goals, nameTeam, matchStart) {
 }
 
 function historyFindGoalForEvent(e, goals, matchStart) {
+  const eventClock = historyGameTimeSeconds(e);
   const eventSecs = matchStart && e.occurred_at
     ? Math.max(0, (new Date(e.occurred_at).getTime() - matchStart) / 1000)
     : null;
   const sameScorer = goals.filter(g => !e.player_name || g.ScorerName === e.player_name);
+  if (eventClock != null) {
+    return sameScorer.find(g => {
+      const goalClock = historyGameTimeSeconds(g);
+      return goalClock != null && Math.abs(goalClock - eventClock) <= 1;
+    })
+      || goals.find(g => {
+        const goalClock = historyGameTimeSeconds(g);
+        return goalClock != null && Math.abs(goalClock - eventClock) <= 1;
+      })
+      || sameScorer[0]
+      || null;
+  }
   if (eventSecs != null) {
     return sameScorer.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
       || goals.find(g => Math.abs((g.GoalTime ?? -9999) - eventSecs) <= 3)
@@ -388,19 +401,49 @@ function historyFindGoalForEvent(e, goals, matchStart) {
   return sameScorer[0] || null;
 }
 
+function historyEventTimeCell(pcTime, row) {
+  return `<span class="history-event-time history-event-time-pair">
+    <span>${esc(historyGameClockLabel(row))}</span>
+    <small>${esc(historyPCClock(pcTime))}</small>
+  </span>`;
+}
+
+function historyPCClock(value) {
+  if (!value) return 'PC time unavailable';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'PC time unavailable';
+  return `PC ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
+}
+
+function historyGameClockLabel(row) {
+  const secs = historyGameTimeSeconds(row);
+  if (secs == null) return 'Game clock unavailable';
+  return `Game ${historyFormatGameClock(secs, historyGameOvertime(row))}`;
+}
+
+function historyGameTimeSeconds(row) {
+  const value = row?.game_time_seconds ?? row?.GameTimeSeconds;
+  if (value == null || value === '') return null;
+  const secs = Number(value);
+  return Number.isFinite(secs) ? secs : null;
+}
+
+function historyGameOvertime(row) {
+  return !!(row?.game_overtime ?? row?.GameOvertime);
+}
+
+function historyFormatGameClock(secs, overtime) {
+  const rounded = Math.max(0, Math.round(Number(secs)));
+  const m = Math.floor(rounded / 60);
+  const s = String(rounded % 60).padStart(2, '0');
+  return overtime ? `OT ${m}:${s}` : `${m}:${s}`;
+}
+
 function historyColoredName(name, nameTeam) {
   if (!name) return '<span class="history-name-muted">-</span>';
   const team = nameTeam.get(name);
   const cls = team === 'blue' ? 'blue' : team === 'orange' ? 'orange' : '';
   return cls ? `<span class="${cls}">${esc(name)}</span>` : esc(name);
-}
-
-function historyRelTime(occurredAt, matchStart) {
-  if (!matchStart || !occurredAt) return '';
-  const secs = Math.max(0, Math.round((new Date(occurredAt).getTime() - matchStart) / 1000));
-  const m = Math.floor(secs / 60);
-  const s = String(secs % 60).padStart(2, '0');
-  return `+${m}:${s}`;
 }
 
 function historyEventLabel(type) {

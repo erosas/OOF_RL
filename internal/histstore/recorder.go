@@ -24,6 +24,7 @@ type Recorder struct {
 	lastPlayers     map[string]oofevents.PlayerSnapshot
 	lastTeams       []oofevents.TeamSnapshot
 	lastTimeSeconds int
+	lastClockKnown  bool
 }
 
 func NewRecorder(s *Store, cfg *config.Config) *Recorder {
@@ -72,6 +73,7 @@ func (r *Recorder) onStateUpdated(e oofevents.OOFEvent) {
 	}
 	r.overtime = ev.Game.IsOvertime
 	r.lastTimeSeconds = ev.Game.TimeSeconds
+	r.lastClockKnown = true
 
 	if r.matchID == 0 && r.matchGuid != "" {
 		id, err := r.store.UpsertMatch(r.matchGuid, ev.Game.Arena, time.Now())
@@ -133,9 +135,10 @@ func (r *Recorder) onGoalScored(e oofevents.OOFEvent) {
 		assisterName = ev.Assister
 	}
 	lastTouchID := r.findPlayerByShortcut(ev.LastTouchShortcut)
-	if err := r.store.InsertGoal(r.matchID,
+	gameTimeSeconds := r.gameClockSeconds()
+	if err := r.store.InsertGoalWithGameClock(r.matchID,
 		scorerID, ev.Scorer, assisterID, assisterName, lastTouchID,
-		ev.GoalSpeed, ev.GoalTime,
+		ev.GoalSpeed, ev.GoalTime, gameTimeSeconds, r.overtime,
 		ev.ImpactX, ev.ImpactY, ev.ImpactZ); err != nil {
 		log.Printf("[histstore] InsertGoal match %d: %v", r.matchID, err)
 	}
@@ -167,6 +170,7 @@ func (r *Recorder) onClockUpdated(e oofevents.OOFEvent) {
 	}
 	r.overtime = ev.IsOvertime
 	r.lastTimeSeconds = ev.TimeSeconds
+	r.lastClockKnown = true
 }
 
 func (r *Recorder) onStatFeed(e oofevents.OOFEvent) {
@@ -184,7 +188,7 @@ func (r *Recorder) onStatFeed(e oofevents.OOFEvent) {
 		targetName = ev.SecondaryTarget
 	}
 	if r.matchID != 0 {
-		if err := r.store.InsertStatfeedEvent(r.matchID, actorID, ev.MainTarget, ev.MainTargetTeamNum, ev.EventName, targetID, targetName); err != nil {
+		if err := r.store.InsertStatfeedEventWithGameClock(r.matchID, actorID, ev.MainTarget, ev.MainTargetTeamNum, ev.EventName, targetID, targetName, r.gameClockSeconds(), r.overtime); err != nil {
 			log.Printf("[histstore] InsertStatfeedEvent match %d: %v", r.matchID, err)
 		}
 	}
@@ -278,6 +282,7 @@ func (r *Recorder) resetMatchState() {
 	r.lastPlayers = nil
 	r.lastTeams = nil
 	r.lastTimeSeconds = 0
+	r.lastClockKnown = false
 }
 
 func (r *Recorder) switchMatch(matchGuid string) {
@@ -319,6 +324,14 @@ func isActiveLiveClock(game oofevents.GameSnapshot) bool {
 		return false
 	}
 	return game.IsOvertime || game.TimeSeconds > 5
+}
+
+func (r *Recorder) gameClockSeconds() *int {
+	if !r.lastClockKnown {
+		return nil
+	}
+	v := r.lastTimeSeconds
+	return &v
 }
 
 // resolvePlayerID returns a stable player ID for history purposes.

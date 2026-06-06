@@ -1822,6 +1822,25 @@ main.live-active {
 .detail-table tr:last-child td { border-bottom: none; }
 .detail-table .blue-row   { border-left: 3px solid var(--rl-blue);   }
 .detail-table .orange-row { border-left: 3px solid var(--rl-orange); }
+.event-clock-pair {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.event-clock-pair > span {
+  color: var(--oof-color-text, var(--fg, #fff));
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-clock-pair small {
+  color: var(--muted);
+  font-size: 10px;
+}
 
 /* Session refresh */
 .session-page {
@@ -3256,7 +3275,7 @@ main.live-active {
 
 .history-event-row {
   display: grid;
-  grid-template-columns: 66px 120px minmax(0, 1fr) minmax(150px, .55fr);
+  grid-template-columns: 116px 120px minmax(0, 1fr) minmax(150px, .55fr);
   gap: var(--oof-space-3);
   align-items: center;
   min-height: 34px;
@@ -3288,6 +3307,24 @@ main.live-active {
 .history-event-time {
   color: var(--oof-color-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.history-event-time-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.15;
+}
+
+.history-event-time-pair > span {
+  color: var(--oof-color-text);
+  font-size: var(--oof-font-size-sm);
+  font-weight: var(--oof-font-weight-bold);
+}
+
+.history-event-time-pair small {
+  color: var(--oof-color-text-subtle);
+  font-size: 10px;
 }
 
 .history-event-type {
@@ -3532,7 +3569,7 @@ main.live-active {
   }
 
   .history-event-row {
-    grid-template-columns: 56px minmax(80px, .5fr) minmax(0, 1fr);
+    grid-template-columns: 104px minmax(80px, .5fr) minmax(0, 1fr);
   }
 
   .history-event-note {
