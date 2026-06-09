@@ -141,6 +141,7 @@ func loadBytes(wasmBytes []byte, database *db.DB, h *hub.Hub, cfg *config.Config
 		NewFunctionBuilder().WithFunc(p.hostDBExec).Export("host_db_exec").
 		NewFunctionBuilder().WithFunc(p.hostDBQuery).Export("host_db_query").
 		NewFunctionBuilder().WithFunc(p.hostHTTPFetch).Export("host_http_fetch").
+		NewFunctionBuilder().WithFunc(p.hostHTTPDownload).Export("host_http_download").
 		NewFunctionBuilder().WithFunc(p.hostUploadFile).Export("host_upload_file").
 		NewFunctionBuilder().WithFunc(p.hostBroadcastWS).Export("host_broadcast_ws").
 		NewFunctionBuilder().WithFunc(p.hostGetConfig).Export("host_get_config").
@@ -237,7 +238,7 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 	for i, s := range p.meta.Settings {
 		t := plugin.SettingType(s.Type)
 		switch t {
-		case plugin.SettingTypeText, plugin.SettingTypeNumber, plugin.SettingTypeCheckbox, plugin.SettingTypePassword, plugin.SettingTypeSelect:
+		case plugin.SettingTypeText, plugin.SettingTypeNumber, plugin.SettingTypeCheckbox, plugin.SettingTypePassword, plugin.SettingTypeSelect, plugin.SettingTypeAction:
 		default:
 			t = plugin.SettingTypeText
 		}
@@ -253,14 +254,18 @@ func (p *Plugin) SettingsSchema() []plugin.Setting {
 			label = s.Key
 		}
 		out[i] = plugin.Setting{
-			Key:         s.Key,
-			Label:       label,
-			Description: s.Description,
-			Type:        t,
-			Default:     s.Default,
-			Options:     options,
-			Placeholder: s.Placeholder,
-			Developer:   s.Developer,
+			Key:          s.Key,
+			Label:        label,
+			Description:  s.Description,
+			Type:         t,
+			Default:      s.Default,
+			Options:      options,
+			Placeholder:  s.Placeholder,
+			ActionPath:   s.ActionPath,
+			ActionMethod: s.ActionMethod,
+			StatusPath:   s.StatusPath,
+			DownloadPath: s.DownloadPath,
+			Developer:    s.Developer,
 		}
 	}
 	return out

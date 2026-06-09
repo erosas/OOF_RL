@@ -35,6 +35,12 @@ func hostDBQuery(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax uint32) uint32
 //go:wasmimport env host_http_fetch
 func hostHTTPFetch(reqPtr, reqLen, outPtr, outMax uint32) uint32
 
+// host_http_download streams a URL to a WASI-mounted destination path.
+// Writes a JSON-encoded HTTPDownloadResult to outPtr. Returns bytes written, 0 on error.
+//
+//go:wasmimport env host_http_download
+func hostHTTPDownload(reqPtr, reqLen, outPtr, outMax uint32) uint32
+
 // host_broadcast_ws sends a raw byte message to all connected WebSocket clients.
 //
 //go:wasmimport env host_broadcast_ws
@@ -56,11 +62,12 @@ func hostUploadFile(pathPtr, pathLen, urlPtr, urlLen, headersPtr, headersLen, fi
 
 // Output buffer sizes for each host call.
 const (
-	dbExecBufSize    = 32         // int64 JSON is at most 20 chars
-	dbQueryBufSize   = 256 * 1024 // 256 KB
-	httpFetchBufSize = 4 * 1024 * 1024 // 4 MB — external APIs can return large payloads
-	getConfigBufSize = 4096
-	uploadFileBufSize = 64 * 1024 // 64 KB — upload responses are always small JSON
+	dbExecBufSize       = 32              // int64 JSON is at most 20 chars
+	dbQueryBufSize      = 256 * 1024      // 256 KB
+	httpFetchBufSize    = 4 * 1024 * 1024 // 4 MB — external APIs can return large payloads
+	httpDownloadBufSize = 64 * 1024       // download metadata only; file bytes stream on the host
+	getConfigBufSize    = 4096
+	uploadFileBufSize   = 64 * 1024 // 64 KB — upload responses are always small JSON
 )
 
 // readResult calls the given host function with a fresh output buffer of outSize
@@ -230,6 +237,25 @@ func HTTPFetch(req HTTPFetchRequest) HTTPFetchResult {
 	var result HTTPFetchResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return HTTPFetchResult{Error: "unmarshal response: " + err.Error()}
+	}
+	return result
+}
+
+// HTTPDownload streams a URL into a plugin-mounted WASI destination path.
+func HTTPDownload(req HTTPDownloadRequest) HTTPDownloadResult {
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		return HTTPDownloadResult{Error: "marshal request: " + err.Error()}
+	}
+	data := readResult(func(out, max uint32) uint32 {
+		return hostHTTPDownload(ptrOf(reqJSON), uint32(len(reqJSON)), out, max)
+	}, httpDownloadBufSize)
+	if data == nil {
+		return HTTPDownloadResult{Error: "download failed"}
+	}
+	var result HTTPDownloadResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return HTTPDownloadResult{Error: "unmarshal response: " + err.Error()}
 	}
 	return result
 }

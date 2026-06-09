@@ -197,7 +197,7 @@ func TestReadINIFileNotFound(t *testing.T) {
 
 func TestConfigLookup(t *testing.T) {
 	cfg := Config{PluginSettings: map[string]string{
-		"ballchasing_api_key":            "abc",
+		"ballchasing_api_key":             "abc",
 		"ballchasing_delete_after_upload": "true",
 	}}
 	if got := cfg.Lookup("ballchasing_api_key"); got != "abc" {
@@ -208,6 +208,12 @@ func TestConfigLookup(t *testing.T) {
 	}
 	if got := cfg.Lookup("replay_dir"); got != DetectReplayDir() {
 		t.Errorf("replay_dir: got %q, want %q", got, DetectReplayDir())
+	}
+	oldVersion := AppVersion
+	AppVersion = "v9.9.9"
+	t.Cleanup(func() { AppVersion = oldVersion })
+	if got := cfg.Lookup("app_version"); got != "v9.9.9" {
+		t.Errorf("app_version: got %q, want v9.9.9", got)
 	}
 	if got := cfg.Lookup("unknown_key"); got != "" {
 		t.Errorf("unknown_key: got %q, want empty", got)

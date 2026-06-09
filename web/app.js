@@ -426,6 +426,20 @@ function renderSettingRow(s, cfg) {
   const descHtml = s.description
     ? `<span class="help-icon">?<span class="help-tip">${esc(s.description)}</span></span>`
     : '';
+  if (s.type === 'action') {
+    const method = (s.action_method || 'POST').toUpperCase();
+    return `<div class="settings-row settings-action-row"
+        data-action-key="${esc(s.key)}"
+        data-action-path="${esc(s.action_path || '')}"
+        data-action-method="${esc(method)}"
+        data-status-path="${esc(s.status_path || '')}"
+        data-download-path="${esc(s.download_path || '')}">
+      <span class="settings-label">${esc(s.label)}${descHtml}</span>
+      <button type="button" class="btn-action settings-action-btn">${esc(s.placeholder || s.label || 'Run')}</button>
+      <button type="button" class="btn-action settings-download-btn hidden">Download</button>
+      <span class="settings-action-status settings-hint">Idle</span>
+    </div>`;
+  }
   if (s.type === 'checkbox') {
     const checked = val === true || val === 'true' || val === '1' ? 'checked' : '';
     return `<div class="settings-row">
@@ -441,6 +455,76 @@ function renderSettingRow(s, cfg) {
     <input type="${inputType}" id="pfield-${esc(s.key)}" value="${esc(String(val))}"
            placeholder="${esc(s.placeholder || '')}" class="settings-input" style="width:200px" autocomplete="off">
   </div>`;
+}
+
+function describeActionState(state) {
+  if (!state) return 'Idle';
+  if (state.last_error) return `Error: ${state.last_error}`;
+  if (state.downloaded && state.downloaded_path) return `Downloaded ${state.latest_version || ''}`.trim();
+  if (state.update_available) return `Update available ${state.latest_version || ''}`.trim();
+  if (state.latest_version) return `Up to date (${state.latest_version})`;
+  return 'Idle';
+}
+
+function applyActionState(row, state) {
+  const status = row.querySelector('.settings-action-status');
+  const downloadBtn = row.querySelector('.settings-download-btn');
+  if (status) status.textContent = describeActionState(state);
+  if (downloadBtn) {
+    downloadBtn.classList.toggle('hidden', !(state && state.update_available && row.dataset.downloadPath));
+  }
+}
+
+async function fetchActionState(row) {
+  const statusPath = row.dataset.statusPath;
+  if (!statusPath) return null;
+  const res = await fetch(statusPath);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const state = await res.json();
+  applyActionState(row, state);
+  return state;
+}
+
+function wireSettingsActionRows(container) {
+  container.querySelectorAll('.settings-action-row').forEach(row => {
+    const status = row.querySelector('.settings-action-status');
+    const actionBtn = row.querySelector('.settings-action-btn');
+    const downloadBtn = row.querySelector('.settings-download-btn');
+
+    fetchActionState(row).catch(() => {});
+
+    actionBtn?.addEventListener('click', async () => {
+      if (!row.dataset.actionPath) return;
+      actionBtn.disabled = true;
+      if (status) status.textContent = 'Checking...';
+      try {
+        const res = await fetch(row.dataset.actionPath, { method: row.dataset.actionMethod || 'POST' });
+        const state = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(state.error || `HTTP ${res.status}`);
+        applyActionState(row, state);
+      } catch (e) {
+        if (status) status.textContent = `Error: ${e.message || e}`;
+      } finally {
+        actionBtn.disabled = false;
+      }
+    });
+
+    downloadBtn?.addEventListener('click', async () => {
+      if (!row.dataset.downloadPath) return;
+      downloadBtn.disabled = true;
+      if (status) status.textContent = 'Downloading...';
+      try {
+        const res = await fetch(row.dataset.downloadPath, { method: 'POST' });
+        const state = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(state.error || `HTTP ${res.status}`);
+        applyActionState(row, state);
+      } catch (e) {
+        if (status) status.textContent = `Error: ${e.message || e}`;
+      } finally {
+        downloadBtn.disabled = false;
+      }
+    });
+  });
 }
 
 function renderCoreSettings(blob, cfg) {
@@ -499,7 +583,7 @@ function renderPluginAccordion(blobs, cfg) {
     if (blob.plugin_id === 'core') continue;
 
     const msgId    = `plugin-msg-${blob.plugin_id}`;
-    const hasFields = (blob.settings || []).length > 0;
+    const hasFields = (blob.settings || []).some(s => s.type !== 'action');
     const isEnabled = blob.enabled;
     const hostCore = blob.plugin_id === 'history';
 
@@ -589,6 +673,7 @@ function renderPluginAccordion(blobs, cfg) {
       item.querySelector('.plugin-save-btn').addEventListener('click', async () => {
         const values = {};
         for (const s of blob.settings) {
+          if (s.type === 'action') continue;
           const el = document.getElementById(`pfield-${s.key}`);
           if (el) values[s.key] = s.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value.trim();
         }
@@ -600,6 +685,7 @@ function renderPluginAccordion(blobs, cfg) {
         showMsg(msgId, res.ok ? 'Saved!' : 'Error saving settings.', res.ok);
       });
     }
+    wireSettingsActionRows(item);
 
     container.appendChild(item);
   }

@@ -4,6 +4,7 @@ use (
 	.
 	./sdk
 	./plugins/live
+	./plugins/autoupdate
 	./plugins/ballchasing
 	./plugins/ranks
 	./plugins/session

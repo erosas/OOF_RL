@@ -25,15 +25,19 @@ type DeclaredEvent struct {
 // The host resolves each key against its config store and passes the
 // resulting map to plugin_apply_settings on startup (and on change).
 type SettingSchema struct {
-	Key         string         `json:"key"`
-	Label       string         `json:"label,omitempty"`
-	Description string         `json:"description,omitempty"`
-	Type        string         `json:"type,omitempty"`
-	Default     string         `json:"default,omitempty"`
-	Options     []SelectOption `json:"options,omitempty"`
-	Placeholder string         `json:"placeholder,omitempty"`
-	Developer   bool           `json:"developer,omitempty"`
-	Secret      bool           `json:"secret,omitempty"` // compatibility hint; maps to password when Type is empty
+	Key          string         `json:"key"`
+	Label        string         `json:"label,omitempty"`
+	Description  string         `json:"description,omitempty"`
+	Type         string         `json:"type,omitempty"`
+	Default      string         `json:"default,omitempty"`
+	Options      []SelectOption `json:"options,omitempty"`
+	Placeholder  string         `json:"placeholder,omitempty"`
+	ActionPath   string         `json:"action_path,omitempty"`
+	ActionMethod string         `json:"action_method,omitempty"`
+	StatusPath   string         `json:"status_path,omitempty"`
+	DownloadPath string         `json:"download_path,omitempty"`
+	Developer    bool           `json:"developer,omitempty"`
+	Secret       bool           `json:"secret,omitempty"` // compatibility hint; maps to password when Type is empty
 }
 
 // SelectOption is one option for a select setting.
@@ -59,16 +63,34 @@ type HTTPFetchResult struct {
 	Error   string            `json:"error,omitempty"`
 }
 
+// HTTPDownloadRequest describes an outbound HTTP GET streamed by the host into
+// a plugin-mounted WASI destination path, such as /data/downloads/update.zip.
+type HTTPDownloadRequest struct {
+	URL         string            `json:"url"`
+	Destination string            `json:"destination"`
+	Headers     map[string]string `json:"headers,omitempty"`
+}
+
+// HTTPDownloadResult is returned by host_http_download.
+type HTTPDownloadResult struct {
+	Status      int               `json:"status"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Destination string            `json:"destination,omitempty"`
+	Bytes       int64             `json:"bytes,omitempty"`
+	SHA256      string            `json:"sha256,omitempty"`
+	Error       string            `json:"error,omitempty"`
+}
+
 // PluginMeta is returned by plugin_metadata() at load time.
 // It is the plugin's identity card — the host uses it to wire routes,
 // nav tabs, event subscriptions, and dependency ordering without calling any
 // other function first.
 type PluginMeta struct {
-	ID             string           `json:"id"`
-	NavTab         NavTabMeta       `json:"nav_tab"`
-	Routes         []RouteMeta      `json:"routes"`
-	Events         []string         `json:"events"`                    // event types to subscribe to
-	Requires       []string         `json:"requires,omitempty"`        // plugin IDs that must init first
+	ID             string          `json:"id"`
+	NavTab         NavTabMeta      `json:"nav_tab"`
+	Routes         []RouteMeta     `json:"routes"`
+	Events         []string        `json:"events"`                    // event types to subscribe to
+	Requires       []string        `json:"requires,omitempty"`        // plugin IDs that must init first
 	DeclaredEvents []DeclaredEvent `json:"declared_events,omitempty"` // event types this plugin may emit
 	Settings       []SettingSchema `json:"settings,omitempty"`        // config keys the plugin needs
 }

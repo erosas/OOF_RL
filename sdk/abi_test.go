@@ -13,6 +13,14 @@ func TestPluginMetaRoundTrip(t *testing.T) {
 		NavTab: sdk.NavTabMeta{ID: "live", Label: "Live", Order: 10},
 		Routes: []sdk.RouteMeta{{Path: "/api/live/state", Method: "GET"}},
 		Events: []string{"state.updated", "match.destroyed"},
+		Settings: []sdk.SettingSchema{{
+			Key:          "autoupdate_check_url",
+			Type:         "action",
+			ActionPath:   "/api/autoupdate/check",
+			ActionMethod: "POST",
+			StatusPath:   "/api/autoupdate/status",
+			DownloadPath: "/api/autoupdate/download",
+		}},
 	}
 
 	b, err := json.Marshal(meta)
@@ -33,6 +41,9 @@ func TestPluginMetaRoundTrip(t *testing.T) {
 	}
 	if len(got.Events) != 2 {
 		t.Errorf("Events: got %v", got.Events)
+	}
+	if len(got.Settings) != 1 || got.Settings[0].ActionPath != "/api/autoupdate/check" || got.Settings[0].DownloadPath == "" {
+		t.Errorf("Settings: got %v", got.Settings)
 	}
 }
 

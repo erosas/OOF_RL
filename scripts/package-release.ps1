@@ -12,7 +12,7 @@ $pluginsDir = Join-Path $packageRoot "plugins"
 $archiveName = if ([string]::IsNullOrWhiteSpace($Version)) { "OOF_RL.zip" } else { "OOF_RL-$Version.zip" }
 $archivePath = Join-Path $distDir $archiveName
 $checksumPath = "$archivePath.sha256"
-$plugins = @("live", "ranks", "session", "dashboard")
+$plugins = @("live", "ranks", "session", "dashboard", "autoupdate")
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments
@@ -61,7 +61,11 @@ if ([string]::IsNullOrWhiteSpace($env:GOCACHE)) {
 Push-Location $repoRoot
 try {
     $exePath = Join-Path $packageRoot "oof_rl.exe"
-    Invoke-Checked "go" @("build", "-ldflags=-H windowsgui -s -w", "-o", $exePath, ".")
+    $ldflags = "-H windowsgui -s -w"
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $ldflags = "$ldflags -X OOF_RL/internal/config.AppVersion=$Version"
+    }
+    Invoke-Checked "go" @("build", "-ldflags=$ldflags", "-o", $exePath, ".")
 
     $oldGOOS = $env:GOOS
     $oldGOARCH = $env:GOARCH
@@ -85,7 +89,8 @@ Run oof_rl.exe from this folder.
 
 This release includes bundled public plugins in the plugins folder. On startup,
 OOF RL copies those bundled plugins into %LOCALAPPDATA%\OOF_RL\plugins so the
-public pages are available without running developer build commands.
+public pages and Settings plugin actions are available without running developer
+build commands.
 "@ | Out-File -Encoding utf8 (Join-Path $packageRoot "README.txt")
 
     Compress-Archive -LiteralPath $packageRoot -DestinationPath $archivePath -Force

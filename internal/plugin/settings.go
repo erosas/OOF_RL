@@ -9,17 +9,22 @@ const (
 	SettingTypeCheckbox SettingType = "checkbox"
 	SettingTypePassword SettingType = "password"
 	SettingTypeSelect   SettingType = "select"
+	SettingTypeAction   SettingType = "action"
 )
 
 // Setting declares one user-configurable value a plugin exposes.
 type Setting struct {
-	Key         string         `json:"key"`
-	Label       string         `json:"label"`
-	Description string         `json:"description,omitempty"`
-	Type        SettingType    `json:"type"`
-	Default     string         `json:"default"`
-	Options     []SelectOption `json:"options,omitempty"`
-	Placeholder string         `json:"placeholder,omitempty"`
+	Key          string         `json:"key"`
+	Label        string         `json:"label"`
+	Description  string         `json:"description,omitempty"`
+	Type         SettingType    `json:"type"`
+	Default      string         `json:"default"`
+	Options      []SelectOption `json:"options,omitempty"`
+	Placeholder  string         `json:"placeholder,omitempty"`
+	ActionPath   string         `json:"action_path,omitempty"`
+	ActionMethod string         `json:"action_method,omitempty"`
+	StatusPath   string         `json:"status_path,omitempty"`
+	DownloadPath string         `json:"download_path,omitempty"`
 	// Developer marks the setting as intended for developers/debugging only.
 	// The UI hides these in a collapsed section to discourage casual enabling.
 	Developer bool `json:"developer,omitempty"`

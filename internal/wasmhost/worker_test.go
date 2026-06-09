@@ -415,12 +415,21 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 						{Value: "lite", Label: "Lite"},
 					},
 				},
+				{
+					Key:          "autoupdate_check_url",
+					Label:        "Check for updates",
+					Type:         "action",
+					ActionPath:   "/api/autoupdate/check",
+					ActionMethod: "POST",
+					StatusPath:   "/api/autoupdate/status",
+					DownloadPath: "/api/autoupdate/download",
+				},
 			},
 		},
 	}
 	schema := p.SettingsSchema()
-	if len(schema) != 2 {
-		t.Fatalf("want 2 settings, got %d", len(schema))
+	if len(schema) != 3 {
+		t.Fatalf("want 3 settings, got %d", len(schema))
 	}
 	if schema[0].Key != "api_key" || schema[0].Type != plugin.SettingTypePassword {
 		t.Errorf("first setting: got key=%q type=%q", schema[0].Key, schema[0].Type)
@@ -433,6 +442,9 @@ func TestSettingsSchema_WithSettings(t *testing.T) {
 	}
 	if len(schema[1].Options) != 2 || schema[1].Options[0].Value != "full" {
 		t.Errorf("second setting options: got %+v", schema[1].Options)
+	}
+	if schema[2].Type != plugin.SettingTypeAction || schema[2].ActionPath != "/api/autoupdate/check" || schema[2].DownloadPath != "/api/autoupdate/download" {
+		t.Errorf("action setting: got %+v", schema[2])
 	}
 }
 
@@ -473,5 +485,3 @@ func TestWriteResult_ExactFit(t *testing.T) {
 		t.Errorf("memory content: got %q", got)
 	}
 }
-
-

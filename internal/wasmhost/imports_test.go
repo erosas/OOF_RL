@@ -2,9 +2,12 @@ package wasmhost
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -226,6 +229,76 @@ func TestHostHTTPFetch_DefaultMethod(t *testing.T) {
 	json.Unmarshal(data, &result)
 	if result.Status != 200 {
 		t.Errorf("status: got %d, want 200", result.Status)
+	}
+}
+
+// --- host_http_download ---
+
+func TestHostHTTPDownload_Success(t *testing.T) {
+	payload := []byte("release zip bytes")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write(payload)
+	}))
+	defer srv.Close()
+
+	dataDir := t.TempDir()
+	p := &Plugin{
+		meta:       sdk.PluginMeta{ID: "test"},
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		mounts:     map[string]string{"/data": dataDir},
+	}
+	mod := newMemModule(t)
+	ctx := context.Background()
+
+	reqJSON, _ := json.Marshal(sdk.HTTPDownloadRequest{
+		URL:         srv.URL,
+		Destination: "/data/downloads/OOF_RL.zip",
+	})
+	mod.Memory().Write(0, reqJSON)
+	n := p.hostHTTPDownload(ctx, mod, 0, uint32(len(reqJSON)), 4096, 32*1024)
+	if n == 0 {
+		t.Fatal("hostHTTPDownload returned 0")
+	}
+	data, _ := mod.Memory().Read(4096, n)
+	var result sdk.HTTPDownloadResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	wantHash := fmt.Sprintf("%x", sha256.Sum256(payload))
+	if result.Status != http.StatusOK || result.SHA256 != wantHash || result.Bytes != int64(len(payload)) {
+		t.Fatalf("download result: got %+v", result)
+	}
+	saved, err := os.ReadFile(filepath.Join(dataDir, "downloads", "OOF_RL.zip"))
+	if err != nil {
+		t.Fatalf("read downloaded file: %v", err)
+	}
+	if string(saved) != string(payload) {
+		t.Fatalf("downloaded payload mismatch: got %q", saved)
+	}
+}
+
+func TestHostHTTPDownloadRejectsEscapingDestination(t *testing.T) {
+	p := &Plugin{
+		meta:       sdk.PluginMeta{ID: "test"},
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		mounts:     map[string]string{"/data": t.TempDir()},
+	}
+	mod := newMemModule(t)
+	reqJSON, _ := json.Marshal(sdk.HTTPDownloadRequest{
+		URL:         "https://example.test/file.zip",
+		Destination: "/other/file.zip",
+	})
+	mod.Memory().Write(0, reqJSON)
+	n := p.hostHTTPDownload(context.Background(), mod, 0, uint32(len(reqJSON)), 4096, 32*1024)
+	if n == 0 {
+		t.Fatal("hostHTTPDownload should return an error result")
+	}
+	data, _ := mod.Memory().Read(4096, n)
+	var result sdk.HTTPDownloadResult
+	json.Unmarshal(data, &result)
+	if result.Error == "" {
+		t.Fatal("expected path error")
 	}
 }
 

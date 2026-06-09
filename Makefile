@@ -2,7 +2,7 @@
         all-plugins release-package test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
-PLUGINS := live ballchasing ranks session dashboard
+PLUGINS := live ballchasing ranks session dashboard autoupdate
 VERSION ?=
 
 # WASM plugins are installed into the same data directory the app reads at runtime.

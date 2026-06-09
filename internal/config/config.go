@@ -11,26 +11,29 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// AppVersion is set by release builds with -ldflags. Development builds report "dev".
+var AppVersion = "dev"
+
 type StorageSettings struct {
 	BallHitEvents bool `toml:"ball_hit_events" json:"ball_hit_events"`
 	RawPackets    bool `toml:"raw_packets"     json:"raw_packets"`
 }
 
 type Config struct {
-	AppPort                      int             `toml:"app_port"                  json:"app_port"`
-	DataDir                      string          `toml:"data_dir"                  json:"data_dir"`
-	RLInstallPath                string          `toml:"rl_install_path"           json:"rl_install_path"`
-	PluginSettings               map[string]string `toml:"plugin_settings"           json:"plugin_settings"`
-	OverlayHotkey                string            `toml:"overlay_hotkey"            json:"overlay_hotkey"`
-	OverlayX                     int             `toml:"overlay_x"                 json:"overlay_x"`
-	OverlayY                     int             `toml:"overlay_y"                 json:"overlay_y"`
-	OverlayWidth                 int             `toml:"overlay_width"             json:"overlay_width"`
-	OverlayHeight                int             `toml:"overlay_height"            json:"overlay_height"`
-	OverlayOpacity               float64         `toml:"overlay_opacity"           json:"overlay_opacity"`
-	OverlayHoldMode              bool            `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
-	Storage                      StorageSettings `toml:"storage"                   json:"storage"`
-	DisabledPlugins              []string        `toml:"disabled_plugins"          json:"disabled_plugins"`
-	DevMode                      bool            `toml:"dev_mode"                  json:"dev_mode"`
+	AppPort         int               `toml:"app_port"                  json:"app_port"`
+	DataDir         string            `toml:"data_dir"                  json:"data_dir"`
+	RLInstallPath   string            `toml:"rl_install_path"           json:"rl_install_path"`
+	PluginSettings  map[string]string `toml:"plugin_settings"           json:"plugin_settings"`
+	OverlayHotkey   string            `toml:"overlay_hotkey"            json:"overlay_hotkey"`
+	OverlayX        int               `toml:"overlay_x"                 json:"overlay_x"`
+	OverlayY        int               `toml:"overlay_y"                 json:"overlay_y"`
+	OverlayWidth    int               `toml:"overlay_width"             json:"overlay_width"`
+	OverlayHeight   int               `toml:"overlay_height"            json:"overlay_height"`
+	OverlayOpacity  float64           `toml:"overlay_opacity"           json:"overlay_opacity"`
+	OverlayHoldMode bool              `toml:"overlay_hold_mode"         json:"overlay_hold_mode"`
+	Storage         StorageSettings   `toml:"storage"                   json:"storage"`
+	DisabledPlugins []string          `toml:"disabled_plugins"          json:"disabled_plugins"`
+	DevMode         bool              `toml:"dev_mode"                  json:"dev_mode"`
 }
 
 // defaultDataDir returns %LOCALAPPDATA%\OOF_RL — the Windows standard for
@@ -65,16 +68,16 @@ func (c *Config) PluginsDir() string { return filepath.Join(c.DataDir, "plugins"
 func Defaults() Config {
 	dataDir := defaultDataDir()
 	return Config{
-		AppPort:                8080,
-		DataDir:                dataDir,
-		RLInstallPath: DetectRLPath(),
-		OverlayHotkey: "F9",
-		OverlayX:               -1,
-		OverlayY:               -1,
-		OverlayWidth:           860,
-		OverlayHeight:          620,
-		OverlayOpacity:         1.0,
-		OverlayHoldMode:        false,
+		AppPort:         8080,
+		DataDir:         dataDir,
+		RLInstallPath:   DetectRLPath(),
+		OverlayHotkey:   "F9",
+		OverlayX:        -1,
+		OverlayY:        -1,
+		OverlayWidth:    860,
+		OverlayHeight:   620,
+		OverlayOpacity:  1.0,
+		OverlayHoldMode: false,
 		Storage: StorageSettings{
 			BallHitEvents: false,
 			RawPackets:    false,
@@ -145,6 +148,8 @@ func (c *Config) Set(key, value string) {
 		c.DevMode = value == "true" || value == "1" || value == "on"
 	case "replay_dir":
 		// read-only: detected from filesystem, not user-settable
+	case "app_version":
+		// read-only: set by release build flags
 	default:
 		if c.PluginSettings == nil {
 			c.PluginSettings = make(map[string]string)
@@ -166,6 +171,8 @@ func (c *Config) Lookup(key string) string {
 		return "false"
 	case "replay_dir":
 		return DetectReplayDir()
+	case "app_version":
+		return AppVersion
 	default:
 		return c.PluginSettings[key]
 	}

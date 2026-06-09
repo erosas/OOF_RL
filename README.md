@@ -6,7 +6,7 @@
 
 A local Rocket League companion app. Connects to the official RL Stats API, tracks match history in an embedded SQLite database, and shows live stats in a desktop window.
 
-**Release bundle includes:** Live scoreboard · Match history · Player ranks · Session tracker · Dashboard. Ballchasing remains available for developer/manual plugin installs, but is not bundled in the public release zip.
+**Release bundle includes:** Live scoreboard · Match history · Player ranks · Session tracker · Dashboard · Manual update checks. Ballchasing remains available for developer/manual plugin installs, but is not bundled in the public release zip.
 
 ---
 
@@ -49,6 +49,7 @@ For full setup details and troubleshooting: [docs/user/install.md](docs/user/ins
 | [Event Bus](docs/dev/event-bus.md) | OOFEvent model, Certainty, PluginBus interface |
 | [MMR Providers](docs/dev/mmr-providers.md) | Adding or extending rank lookup providers |
 | [Developer Mode](docs/dev/developer-mode.md) | pprof, statsviz, and developer settings |
+| [Auto Update Plugin](docs/dev/auto-update.md) | Manual update checks, SHA256 download verification, and M1 trust boundary |
 | [Release Readiness](docs/dev/release-readiness.md) | Pre-tag blockers, known risks, and release smoke checklist |
 
 ---

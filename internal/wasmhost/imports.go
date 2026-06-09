@@ -3,6 +3,7 @@ package wasmhost
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -226,6 +227,94 @@ func (p *Plugin) hostHTTPFetch(_ context.Context, m api.Module, reqPtr, reqLen, 
 func (p *Plugin) writeHTTPFetchError(m api.Module, msg string, outPtr, outMax uint32) uint32 {
 	result := sdk.HTTPFetchResult{Error: msg}
 	out, _ := json.Marshal(result)
+	return p.writeResult(m, out, outPtr, outMax)
+}
+
+// hostHTTPDownload streams an HTTP GET response directly to a WASI-mounted path.
+func (p *Plugin) hostHTTPDownload(_ context.Context, m api.Module, reqPtr, reqLen, outPtr, outMax uint32) uint32 {
+	writeErr := func(msg string) uint32 {
+		out, _ := json.Marshal(sdk.HTTPDownloadResult{Error: msg})
+		return p.writeResult(m, out, outPtr, outMax)
+	}
+
+	reqBytes, ok := m.Memory().Read(reqPtr, reqLen)
+	if !ok {
+		return writeErr("read request from guest memory failed")
+	}
+	var req sdk.HTTPDownloadRequest
+	if err := json.Unmarshal(reqBytes, &req); err != nil {
+		return writeErr("parse request: " + err.Error())
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		return writeErr("url required")
+	}
+	if strings.TrimSpace(req.Destination) == "" {
+		return writeErr("destination required")
+	}
+
+	realPath, err := p.resolveWASIPath(req.Destination)
+	if err != nil {
+		return writeErr(err.Error())
+	}
+	if err := os.MkdirAll(filepath.Dir(realPath), 0755); err != nil {
+		return writeErr("create destination dir: " + err.Error())
+	}
+
+	httpReq, err := http.NewRequest(http.MethodGet, req.URL, nil)
+	if err != nil {
+		return writeErr("bad request: " + err.Error())
+	}
+	for k, v := range req.Headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return writeErr(err.Error())
+	}
+	defer resp.Body.Close()
+
+	respHeaders := make(map[string]string, len(resp.Header))
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		out, _ := json.Marshal(sdk.HTTPDownloadResult{
+			Status:  resp.StatusCode,
+			Headers: respHeaders,
+			Error:   fmt.Sprintf("unexpected HTTP status %d", resp.StatusCode),
+		})
+		return p.writeResult(m, out, outPtr, outMax)
+	}
+
+	tmpPath := realPath + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return writeErr("create file: " + err.Error())
+	}
+	hasher := sha256.New()
+	n, copyErr := io.Copy(io.MultiWriter(f, hasher), resp.Body)
+	closeErr := f.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmpPath)
+		return writeErr("write file: " + copyErr.Error())
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmpPath)
+		return writeErr("close file: " + closeErr.Error())
+	}
+	if err := os.Rename(tmpPath, realPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return writeErr("finalize file: " + err.Error())
+	}
+
+	out, _ := json.Marshal(sdk.HTTPDownloadResult{
+		Status:      resp.StatusCode,
+		Headers:     respHeaders,
+		Destination: req.Destination,
+		Bytes:       n,
+		SHA256:      fmt.Sprintf("%x", hasher.Sum(nil)),
+	})
 	return p.writeResult(m, out, outPtr, outMax)
 }
 
