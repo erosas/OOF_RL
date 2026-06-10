@@ -11,11 +11,12 @@ captures/
 # API documentation PDFs
 *.pdf
 
-# Test / coverage artifacts
+# Test / coverage artifacts (root-anchored: a bare "core" would also ignore
+# new files under internal/core/)
 coverage.out
 coverage.html
-core
-corecov
+/core
+/corecov
 dist/
 
 # Local config — may contain API keys and machine-specific paths

@@ -134,7 +134,7 @@ func main() {
 		writeTimeout = 90 * time.Second
 	}
 	httpSrv := &http.Server{
-		Handler:           mux,
+		Handler:           core.LocalhostGuard(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      writeTimeout,
 		IdleTimeout:       120 * time.Second,

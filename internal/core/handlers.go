@@ -271,8 +271,10 @@ func (s *Server) handleSettingsSchema(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, blobs)
 }
 
+// handleDBOpenFolder launches a file explorer — state-changing, so POST only
+// to keep it out of reach of cross-site GETs (img tags, link prefetch).
 func (s *Server) handleDBOpenFolder(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		httputil.JSONError(w, 405, "method not allowed")
 		return
 	}

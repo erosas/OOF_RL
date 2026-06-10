@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,15 +28,7 @@ var upgrader = websocket.Upgrader{
 	// is rejected to prevent cross-site WebSocket hijacking.
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-		u, err := url.Parse(origin)
-		if err != nil {
-			return false
-		}
-		h := u.Hostname()
-		return h == "localhost" || h == "127.0.0.1"
+		return origin == "" || isLoopbackOrigin(origin)
 	},
 }
 
