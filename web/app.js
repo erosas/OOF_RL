@@ -618,7 +618,7 @@ document.getElementById('save-cfg').addEventListener('click', async () => {
 });
 
 document.getElementById('cfg-data-dir-open').addEventListener('click', () => {
-  fetch('/api/db/open-folder').catch(() => {});
+  fetch('/api/db/open-folder', { method: 'POST' }).catch(() => {});
 });
 
 document.getElementById('cfg-overlay-opacity').addEventListener('input', e => {

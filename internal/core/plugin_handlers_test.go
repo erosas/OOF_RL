@@ -211,12 +211,14 @@ func TestHandleWS_NonUpgradable(t *testing.T) {
 // --- /api/db/open-folder ---
 
 func TestHandleDBOpenFolder_MethodNotAllowed(t *testing.T) {
+	// State-changing (launches explorer) — GET must be rejected so cross-site
+	// GETs (img tags, prefetch) cannot trigger it.
 	mux, _ := newTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/db/open-folder", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/db/open-folder", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("handleDBOpenFolder POST: got %d, want 405", w.Code)
+		t.Errorf("handleDBOpenFolder GET: got %d, want 405", w.Code)
 	}
 }
 

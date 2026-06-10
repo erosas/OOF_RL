@@ -211,5 +211,5 @@ Local upload history: `{ "2024-01-01.replay": { "ballchasing_id": "...", "bc_url
 ### `GET /api/data-dir`
 Returns `{ "path": "C:\\Users\\...\\OOF_RL" }` — the data directory path.
 
-### `GET /api/db/open-folder`
+### `POST /api/db/open-folder`
 Opens the data directory in Windows Explorer.
