@@ -130,9 +130,9 @@ Use a namespaced type string (e.g. `live.state.changed`) to avoid colliding with
 
 `PluginMeta` fields are interpreted as follows:
 
-- `id` (`PluginID`): canonical runtime identity; used for init, view loading, assets, and plugin data paths.
+- `id` (`PluginID`): canonical runtime identity; used for init, view loading, assets, and plugin data paths. Must be lowercase letters, digits, `-`, or `_`, and must not be a host-reserved namespace (`config`, `settings`, `nav`, `plugins`, `players`, `matches`, `tracker`, `db`, `data-dir`, `overlay`, `history`, `ws`, `debug`).
 - `nav_tab.id` (`ViewID`): UI navigation slug only.
-- `routes`: plugin-owned HTTP routes handled via `plugin_handle_http`, declared as `{ "path": "...", "method": "GET|POST|..." }`. `method` is optional when a route supports multiple methods.
+- `routes`: plugin-owned HTTP routes handled via `plugin_handle_http`, declared as `{ "path": "...", "method": "GET|POST|..." }`. `method` is optional when a route supports multiple methods. Every path must live under `/api/<pluginID>/` — the host rejects the plugin at load time otherwise. This keeps plugins out of core and each other's route namespaces (a duplicate mux pattern would crash the app at startup).
 - `requires`: dependency plugin IDs for startup ordering/validation.
 - `declared_events`: optional event declarations for plugin-emitted event types; types must be non-empty/unique and certainty must be valid.
 - `settings`: plugin settings metadata surfaced in settings schema (`key`, `label`, `type`, `default`, `options`, `placeholder`, `developer`, `description`).

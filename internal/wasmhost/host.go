@@ -402,7 +402,10 @@ func (p *Plugin) readMeta() error {
 	if err := json.Unmarshal(data, &p.meta); err != nil {
 		return fmt.Errorf("wasmhost: plugin_metadata unmarshal: %w", err)
 	}
-	if err := validateRouteMeta(p.meta.Routes); err != nil {
+	if err := validatePluginID(p.meta.ID); err != nil {
+		return fmt.Errorf("wasmhost: plugin_metadata: %w", err)
+	}
+	if err := validateRouteMeta(p.meta.ID, p.meta.Routes); err != nil {
 		return fmt.Errorf("wasmhost: plugin_metadata routes: %w", err)
 	}
 	if err := validateDeclaredEventsMeta(p.meta.DeclaredEvents); err != nil {

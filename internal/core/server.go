@@ -334,10 +334,16 @@ func (s *Server) LoadWASMPlugins(dir string) error {
 func (s *Server) Register(mux *http.ServeMux) {
 	// Seed the registered-routes set with every core pattern so plugins can be
 	// checked against it before their Routes() call touches the mux.
+	// Must list every pattern this function passes to the mux: a plugin route
+	// duplicating an unlisted core pattern panics http.ServeMux at startup.
+	// validateRouteMeta's /api/<pluginID>/ prefix rule is the primary guard;
+	// this map is the backstop.
 	registered := map[string]string{
+		"/":                    "core",
 		"/ws":                  "core",
 		"/api/config":          "core",
 		"/api/config/ini":      "core",
+		"/api/overlay/opacity": "core",
 		"/api/nav":             "core",
 		"/api/plugins/":        "core",
 		"/api/players":         "core",
