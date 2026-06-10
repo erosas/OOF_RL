@@ -10,18 +10,28 @@ import (
 const writeTimeout = 10 * time.Second
 
 // Hub broadcasts raw RL event JSON to all connected browser WebSocket clients.
+//
+// Broadcast is called concurrently — from the RL client read loop, from each
+// WASM plugin's event worker, and from HTTP handlers. gorilla/websocket
+// forbids concurrent writers on one connection, so each client carries its
+// own write mutex.
 type Hub struct {
 	mu      sync.RWMutex
-	clients map[*websocket.Conn]struct{}
+	clients map[*websocket.Conn]*client
+}
+
+type client struct {
+	conn    *websocket.Conn
+	writeMu sync.Mutex
 }
 
 func New() *Hub {
-	return &Hub{clients: make(map[*websocket.Conn]struct{})}
+	return &Hub{clients: make(map[*websocket.Conn]*client)}
 }
 
 func (h *Hub) Register(c *websocket.Conn) {
 	h.mu.Lock()
-	h.clients[c] = struct{}{}
+	h.clients[c] = &client{conn: c}
 	h.mu.Unlock()
 }
 
@@ -36,17 +46,20 @@ func (h *Hub) Unregister(c *websocket.Conn) {
 // client cannot block delivery to the rest.
 func (h *Hub) Broadcast(msg []byte) {
 	h.mu.RLock()
-	clients := make([]*websocket.Conn, 0, len(h.clients))
-	for c := range h.clients {
+	clients := make([]*client, 0, len(h.clients))
+	for _, c := range h.clients {
 		clients = append(clients, c)
 	}
 	h.mu.RUnlock()
 
 	var dead []*websocket.Conn
 	for _, c := range clients {
-		c.SetWriteDeadline(time.Now().Add(writeTimeout))
-		if err := c.WriteMessage(websocket.TextMessage, msg); err != nil {
-			dead = append(dead, c)
+		c.writeMu.Lock()
+		c.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+		err := c.conn.WriteMessage(websocket.TextMessage, msg)
+		c.writeMu.Unlock()
+		if err != nil {
+			dead = append(dead, c.conn)
 		}
 	}
 	if len(dead) == 0 {

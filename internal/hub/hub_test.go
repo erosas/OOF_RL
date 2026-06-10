@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -190,6 +191,39 @@ func TestHubBroadcastDropsDeadClient(t *testing.T) {
 	if string(got) != string(msg) {
 		t.Errorf("got %s, want %s", got, msg)
 	}
+}
+
+// TestHubConcurrentBroadcasts exercises Broadcast from many goroutines at
+// once, matching production where the RL client loop, plugin event workers,
+// and HTTP handlers all broadcast concurrently. gorilla/websocket panics on
+// concurrent writes to one connection, so this fails without per-client
+// write locking.
+func TestHubConcurrentBroadcasts(t *testing.T) {
+	h := hub.New()
+	client := dialHub(t, h)
+
+	const goroutines = 8
+	const perGoroutine = 25
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				h.Broadcast([]byte(`{"Event":"concurrent"}`))
+			}
+		}()
+	}
+
+	received := 0
+	client.SetReadDeadline(time.Now().Add(5 * time.Second))
+	for received < goroutines*perGoroutine {
+		if _, _, err := client.ReadMessage(); err != nil {
+			t.Fatalf("ReadMessage after %d messages: %v", received, err)
+		}
+		received++
+	}
+	wg.Wait()
 }
 
 func TestHubMultipleBroadcasts(t *testing.T) {
