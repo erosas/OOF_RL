@@ -8,15 +8,55 @@ import (
 	sdk "github.com/erosas/oof-plugin-sdk"
 )
 
-func validateRouteMeta(routes []sdk.RouteMeta) error {
+// reservedPluginIDs are namespaces owned by the host. A plugin with one of
+// these IDs could register routes that collide with core mux patterns —
+// http.ServeMux panics on duplicate patterns, so a bad .wasm file would
+// crash the app at startup.
+var reservedPluginIDs = map[string]struct{}{
+	"config":   {},
+	"data-dir": {},
+	"db":       {},
+	"debug":    {},
+	"history":  {},
+	"matches":  {},
+	"nav":      {},
+	"overlay":  {},
+	"players":  {},
+	"plugins":  {},
+	"settings": {},
+	"tracker":  {},
+	"ws":       {},
+}
+
+func validatePluginID(id string) error {
+	if id == "" {
+		return fmt.Errorf("plugin id is required")
+	}
+	if _, reserved := reservedPluginIDs[id]; reserved {
+		return fmt.Errorf("plugin id %q is reserved by the host", id)
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
+			return fmt.Errorf("plugin id %q: only lowercase letters, digits, '-' and '_' allowed", id)
+		}
+	}
+	return nil
+}
+
+// validateRouteMeta checks a plugin's declared routes. Every route must live
+// under /api/<pluginID>/ — this keeps plugins out of core and other plugins'
+// namespaces (a duplicate mux pattern is a startup panic) and lets the
+// frontend trust that a plugin-supplied path belongs to that plugin.
+func validateRouteMeta(pluginID string, routes []sdk.RouteMeta) error {
+	prefix := "/api/" + pluginID + "/"
 	seenPath := make(map[string]struct{}, len(routes))
 	for _, r := range routes {
 		path := strings.TrimSpace(r.Path)
 		if path == "" {
 			return fmt.Errorf("route path is required")
 		}
-		if !strings.HasPrefix(path, "/") {
-			return fmt.Errorf("route path must start with '/': %q", path)
+		if !strings.HasPrefix(path, prefix) || len(path) == len(prefix) {
+			return fmt.Errorf("route path %q must be under %q", path, prefix)
 		}
 		if _, exists := seenPath[path]; exists {
 			return fmt.Errorf("duplicate route path %q", path)

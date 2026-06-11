@@ -202,19 +202,19 @@ func TestPlugin_Assets(t *testing.T) {
 // and that requests without fnHandleHTTP get a 501 Not Implemented.
 func TestPlugin_Routes_NoHandler(t *testing.T) {
 	p := &Plugin{
-		meta: sdk.PluginMeta{Routes: []sdk.RouteMeta{{Path: "/api/wasm-test", Method: "GET"}}},
+		meta: sdk.PluginMeta{ID: "wasm-test", Routes: []sdk.RouteMeta{{Path: "/api/wasm-test/state", Method: "GET"}}},
 	}
 	mux := http.NewServeMux()
 	p.Routes(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/wasm-test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/wasm-test/state", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("serveHTTP without handler: got %d, want 501", w.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/wasm-test", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/wasm-test/state", nil)
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
@@ -224,9 +224,9 @@ func TestPlugin_Routes_NoHandler(t *testing.T) {
 
 func TestValidateRouteMeta(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		err := validateRouteMeta([]sdk.RouteMeta{
-			{Path: "/api/a", Method: "GET"},
-			{Path: "/api/b"},
+		err := validateRouteMeta("demo", []sdk.RouteMeta{
+			{Path: "/api/demo/a", Method: "GET"},
+			{Path: "/api/demo/b"},
 		})
 		if err != nil {
 			t.Fatalf("validateRouteMeta: %v", err)
@@ -234,9 +234,9 @@ func TestValidateRouteMeta(t *testing.T) {
 	})
 
 	t.Run("duplicate path", func(t *testing.T) {
-		err := validateRouteMeta([]sdk.RouteMeta{
-			{Path: "/api/a", Method: "GET"},
-			{Path: "/api/a", Method: "POST"},
+		err := validateRouteMeta("demo", []sdk.RouteMeta{
+			{Path: "/api/demo/a", Method: "GET"},
+			{Path: "/api/demo/a", Method: "POST"},
 		})
 		if err == nil {
 			t.Fatal("expected duplicate path error")
@@ -244,18 +244,41 @@ func TestValidateRouteMeta(t *testing.T) {
 	})
 
 	t.Run("invalid method", func(t *testing.T) {
-		err := validateRouteMeta([]sdk.RouteMeta{{Path: "/api/a", Method: "BREW"}})
+		err := validateRouteMeta("demo", []sdk.RouteMeta{{Path: "/api/demo/a", Method: "BREW"}})
 		if err == nil {
 			t.Fatal("expected invalid method error")
 		}
 	})
 
 	t.Run("empty path", func(t *testing.T) {
-		err := validateRouteMeta([]sdk.RouteMeta{{Method: "GET"}})
+		err := validateRouteMeta("demo", []sdk.RouteMeta{{Method: "GET"}})
 		if err == nil {
 			t.Fatal("expected empty path error")
 		}
 	})
+
+	t.Run("outside plugin namespace", func(t *testing.T) {
+		// A route on a core pattern would panic http.ServeMux at startup.
+		for _, path := range []string{"/api/config", "/api/other/a", "/", "/api/demo", "/api/demo/"} {
+			err := validateRouteMeta("demo", []sdk.RouteMeta{{Path: path, Method: "GET"}})
+			if err == nil {
+				t.Errorf("path %q: expected namespace error", path)
+			}
+		}
+	})
+}
+
+func TestValidatePluginID(t *testing.T) {
+	for _, id := range []string{"live", "auto-update", "my_plugin2"} {
+		if err := validatePluginID(id); err != nil {
+			t.Errorf("id %q: unexpected error: %v", id, err)
+		}
+	}
+	for _, id := range []string{"", "History", "has space", "config", "plugins", "history", "ws"} {
+		if err := validatePluginID(id); err == nil {
+			t.Errorf("id %q: expected error", id)
+		}
+	}
 }
 
 func TestValidateDeclaredEventsMeta(t *testing.T) {
