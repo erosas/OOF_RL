@@ -211,6 +211,8 @@ function _closePicker() {
 // ── Plugin init ────────────────────────────────────────────────
 
 window.pluginInit_dashboard = async function() {
+  window.registerView?.('dashboard', { onShow: loadDashboard, fullWidth: true });
+
   if (!window.GridStack) {
     await loadScript('/plugins/dashboard/gridstack-all.js');
   }

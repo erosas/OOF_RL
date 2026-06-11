@@ -140,6 +140,25 @@ availability. Navigation must remain discovery-first.
 - Use `view_id` for view DOM IDs, active-view state, and nav identity.
 - Unknown future plugin views should appear without editing `web/app.js`.
 
+### View registration
+
+A plugin view wires itself into navigation by calling `window.registerView`
+(typically from its `pluginInit_<pluginID>`), keyed by its `view_id`:
+
+```js
+window.registerView?.('session', {
+  onShow:       refreshSession,                       // run when the view becomes active
+  onPostMatch:  () => { refreshSession(); loadSessionHistory(); }, // run after MatchEnded/MatchDestroyed
+  fullWidth:    true,   // use full shell width (adds main.view-fullwidth)
+  densePadding: true,   // tighter page padding (adds main.view-dense)
+});
+```
+
+All fields are optional. `showView` and `refreshPostMatchViews` drive entirely
+off this registry — core must not hardcode plugin view names or loader function
+names. `settings` is the one core-shell view handled inline. Layout appetite is
+declared here, not via per-view CSS class names.
+
 ## Global vs Page Local
 
 Put a style in `web/style.css` when it is:

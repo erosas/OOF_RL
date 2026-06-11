@@ -427,6 +427,8 @@ function renderPager(el, total, pageSize, currentPage, onPageChange) {
 // ── Plugin init ────────────────────────────────────────────────
 
 window.pluginInit_ballchasing = function() {
+  window.registerView?.('bc', { onShow: loadBC });
+
   const matchesContainer  = document.getElementById('bc-matches-widget');
   const uploadedContainer = document.getElementById('bc-uploaded-widget');
   const groupsContainer   = document.getElementById('bc-groups-widget');
