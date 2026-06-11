@@ -100,7 +100,7 @@ All parameters are `uint32` — pointers or byte lengths in the module's linear 
 | `env.host_db_exec` | `(sqlPtr, sqlLen, argsPtr, argsLen, outPtr, outMax u32) → n u32` | Write SQL statement; returns rows-affected JSON |
 | `env.host_http_fetch` | `(reqPtr, reqLen, outPtr, outMax u32) → n u32` | Outbound HTTP request; JSON in/out |
 | `env.host_broadcast_ws` | `(ptr, len u32)` | Send raw bytes to all WebSocket clients |
-| `env.host_get_config` | `(keyPtr, keyLen, outPtr, outMax u32) → n u32` | Read a config value by key |
+| `env.host_get_config` | `(keyPtr, keyLen, outPtr, outMax u32) → n u32` | Read a config value by key. Only keys declared in the plugin's own `settings` metadata are served, plus the public keys `data_dir`, `replay_dir`, `dev_mode`, `app_version` |
 | `env.host_upload_file` | `(pathPtr, pathLen, urlPtr, urlLen, headersPtr, headersLen, fieldPtr, fieldLen, outPtr, outMax u32) → n u32` | Stream a WASI-mounted file to a URL via multipart POST; host reads file from disk |
 
 ## Host mounts and sandbox paths

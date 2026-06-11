@@ -394,10 +394,13 @@ func TestHostGetConfig_NilCfg(t *testing.T) {
 	}
 }
 
-// TestHostGetConfig_WithCfg verifies a known config key is written to the output buffer.
+// TestHostGetConfig_WithCfg verifies a declared config key is written to the output buffer.
 func TestHostGetConfig_WithCfg(t *testing.T) {
 	cfg := &config.Config{PluginSettings: map[string]string{"ballchasing_api_key": "test-key-123"}}
-	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: cfg}
+	p := &Plugin{meta: sdk.PluginMeta{
+		ID:       "test",
+		Settings: []sdk.SettingSchema{{Key: "ballchasing_api_key"}},
+	}, cfg: cfg}
 	mod := newMemModule(t)
 	ctx := context.Background()
 
@@ -416,6 +419,42 @@ func TestHostGetConfig_WithCfg(t *testing.T) {
 	}
 	if string(data) != "test-key-123" {
 		t.Errorf("got %q, want %q", string(data), "test-key-123")
+	}
+}
+
+// TestHostGetConfig_DeniesUndeclaredKey verifies a plugin cannot read config
+// keys it does not declare — another plugin's API key must not be readable.
+func TestHostGetConfig_DeniesUndeclaredKey(t *testing.T) {
+	cfg := &config.Config{PluginSettings: map[string]string{"ballchasing_api_key": "secret"}}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "other"}, cfg: cfg}
+	mod := newMemModule(t)
+
+	key := []byte("ballchasing_api_key")
+	if !mod.Memory().Write(0, key) {
+		t.Fatal("write key to memory")
+	}
+	if n := p.hostGetConfig(context.Background(), mod, 0, uint32(len(key)), 64, 128); n != 0 {
+		t.Fatalf("undeclared key must be denied, got %d bytes", n)
+	}
+}
+
+// TestHostGetConfig_AllowsPublicKey verifies public host keys need no declaration.
+func TestHostGetConfig_AllowsPublicKey(t *testing.T) {
+	cfg := &config.Config{DataDir: `C:\data`}
+	p := &Plugin{meta: sdk.PluginMeta{ID: "test"}, cfg: cfg}
+	mod := newMemModule(t)
+
+	key := []byte("data_dir")
+	if !mod.Memory().Write(0, key) {
+		t.Fatal("write key to memory")
+	}
+	n := p.hostGetConfig(context.Background(), mod, 0, uint32(len(key)), 64, 128)
+	if n == 0 {
+		t.Fatal("public key must be readable")
+	}
+	data, _ := mod.Memory().Read(64, n)
+	if string(data) != `C:\data` {
+		t.Errorf("got %q", data)
 	}
 }
 
