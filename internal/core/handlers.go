@@ -26,15 +26,27 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		httputil.WriteJSON(w, s.cfg)
 	case http.MethodPost:
-		if err := json.NewDecoder(r.Body).Decode(s.cfg); err != nil {
+		// Decode into a copy and swap only after everything succeeded — a
+		// decode error partway through the JSON must not leave the live
+		// config half-mutated. Maps are copied because json merges objects
+		// into an existing map in place.
+		updated := *s.cfg
+		if len(s.cfg.PluginSettings) > 0 {
+			updated.PluginSettings = make(map[string]string, len(s.cfg.PluginSettings))
+			for k, v := range s.cfg.PluginSettings {
+				updated.PluginSettings[k] = v
+			}
+		}
+		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
 			httputil.JSONError(w, 400, err.Error())
 			return
 		}
-		s.cfg.DisabledPlugins = sanitizeDisabledPlugins(s.cfg.DisabledPlugins)
-		if err := config.Save(s.cfgPath, *s.cfg); err != nil {
+		updated.DisabledPlugins = sanitizeDisabledPlugins(updated.DisabledPlugins)
+		if err := config.Save(s.cfgPath, updated); err != nil {
 			httputil.JSONError(w, 500, err.Error())
 			return
 		}
+		*s.cfg = updated
 		s.reconnect()
 		s.BroadcastOpacity(s.cfg.OverlayOpacity)
 		httputil.WriteJSON(w, s.cfg)
