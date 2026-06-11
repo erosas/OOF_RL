@@ -12,7 +12,7 @@ This document captures the host/plugin ownership matrix and the trust model for 
 | Event bus fan-out and translation | **Host** (`internal/rlevents`, `internal/hub`) | Plugins subscribe; they do not produce events |
 | RL WebSocket client (auto-reconnect) | **Host** (`internal/rl`) | |
 | Config read/write | **Host** (`internal/config`, `internal/core`) | Plugins receive settings via `apply_settings` call |
-| SQLite schema and migrations | **Host** (`internal/db`) | Plugins have no direct DB access |
+| SQLite schema and migrations | **Host** (`internal/db`) | Plugins run SQL via `host_db_query`/`host_db_exec` but own no schema or migrations |
 | HTTP server, routing, middleware | **Host** (`internal/core`) | Plugin routes registered by host at startup |
 | WebSocket broadcast to browser | **Host** (`internal/hub`) | |
 | Static web shell (`web/`) | **Host** | Plugin views injected dynamically |

@@ -75,7 +75,7 @@ HTTP GET /api/tracker/profile?id=steam|76561198144145654&name=Squishy
 mmr.Handler
   1. Parse platform + primaryID from the ?id= parameter
   2. Build a PlayerIdentity
-  3. Create an 8-second lookup context and call mmrProvider.Lookup(ctx, identity)
+  3. Create a 15-second lookup context and call mmrProvider.Lookup(ctx, identity)
         |
         v
 CachedProvider.Lookup
@@ -84,9 +84,10 @@ CachedProvider.Lookup
         │
         ▼
 FallbackProvider.Lookup
-  6. Iterate over registered providers from a rotating cursor
+  6. Iterate over registered providers in registration order
   7. Skip any provider where Supports(platform) == false
-  8. Call supported providers until one succeeds, or retry/fail by policy
+  8. Call supported providers until one succeeds (2s delay between
+     attempts), or return the last error
         │
         ▼
 trackergg.Provider.Lookup  (or rlstats.Provider.Lookup)
@@ -113,7 +114,7 @@ The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|7656119814414565
 
 ## The `FallbackProvider`
 
-`FallbackProvider` wraps a list of providers and tries them from a rotating cursor:
+`FallbackProvider` wraps a list of providers and tries them in registration order, waiting 2 seconds between consecutive attempts:
 
 ```go
 trnProvider := mmr.NewFallbackProvider(trackergg.New(), rlstats.New())
