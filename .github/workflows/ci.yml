@@ -86,10 +86,11 @@ jobs:
           files: |
             dist/OOF_RL-${{ github.ref_name }}.zip
             dist/OOF_RL-${{ github.ref_name }}.zip.sha256
+            dist/update-manifest.json
           generate_release_notes: true
           body: |
             Download the release zip, extract the `OOF_RL` folder, and run `oof_rl.exe`.
 
-            The zip includes the public WASM plugins and assets needed for Live, Ranks, Session, Ballchasing, and Dashboard.
+            The zip includes the public WASM plugins and assets needed for Live, Ranks, Session, and Dashboard.
 
             **VirusTotal scan:** ${{ steps.virustotal.outputs.analysis }}

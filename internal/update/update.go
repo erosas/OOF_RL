@@ -14,6 +14,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -266,8 +267,10 @@ type writerFunc func([]byte) (int, error)
 
 func (w writerFunc) Write(p []byte) (int, error) { return w(p) }
 
-// ParseManifest decodes and validates an update manifest.
+// ParseManifest decodes and validates an update manifest. A UTF-8 BOM is
+// tolerated — Windows tooling (PowerShell 5.1 Out-File) likes to prepend one.
 func ParseManifest(data []byte) (Manifest, error) {
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 	var m Manifest
 	if err := json.Unmarshal(data, &m); err != nil {
 		return m, fmt.Errorf("invalid manifest JSON: %w", err)

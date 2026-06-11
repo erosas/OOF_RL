@@ -48,6 +48,11 @@ WASM plugins cannot claim them.
 `version`, `artifact_url`, `artifact_name`, and `artifact_sha256` are
 required; the manifest is rejected otherwise.
 
+`scripts/package-release.ps1 -Version vX.Y.Z` generates
+`dist/update-manifest.json` alongside the zip, and the release job in
+`.github/workflows/ci.yml` attaches it to the GitHub release — that is what
+makes the `releases/latest/download/update-manifest.json` URL resolve.
+
 ## Trust Boundary
 
 Milestone 1 is SHA256-only. The hash and the artifact URL come from the same
