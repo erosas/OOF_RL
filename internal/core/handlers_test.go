@@ -82,6 +82,29 @@ func TestPostConfigBadJSON(t *testing.T) {
 	}
 }
 
+func TestPostConfigPartialDecodeErrorLeavesConfigUntouched(t *testing.T) {
+	// json.Decoder mutates the target as it goes; a type error after valid
+	// fields must not leave the live config half-applied.
+	mux, cfg := newTestMux(t)
+	cfg.AppPort = 8080
+	cfg.PluginSettings = map[string]string{"existing": "kept"}
+
+	body := `{"app_port": 9999, "data_dir": 12345}` // data_dir wrong type
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400", w.Code)
+	}
+	if cfg.AppPort != 8080 {
+		t.Errorf("app_port mutated by failed decode: got %d, want 8080", cfg.AppPort)
+	}
+	if cfg.PluginSettings["existing"] != "kept" {
+		t.Errorf("plugin_settings mutated by failed decode: got %v", cfg.PluginSettings)
+	}
+}
+
 func TestConfigMethodNotAllowed(t *testing.T) {
 	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodDelete, "/api/config", nil)
