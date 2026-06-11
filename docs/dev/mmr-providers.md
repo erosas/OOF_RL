@@ -108,7 +108,7 @@ mmr.Handler (continued)
 
 ### Cache key
 
-The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring currently uses a hard-coded 60-second TTL. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
+The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring uses a hard-coded 5-second TTL — the cache exists only to collapse bursts (all players in a match looked up at once, or rapid view re-opens) into one upstream fetch. MMR changes every match, so any real revisit re-fetches. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
 
 ---
 
@@ -136,7 +136,7 @@ If every provider either doesn't support the platform or returns an error, `Fall
 cached := mmr.NewCachedProvider(
     mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
     database,
-    60*time.Second,
+    5*time.Second,
 )
 ranks, err := cached.Lookup(ctx, id) // hits DB first, then network
 ```
@@ -205,3 +205,38 @@ trnProvider := mmr.NewCachedProvider(
 | PSN | ✓ | ✓ |
 | Xbox | ✓ | ✓ |
 | Switch | ✓ | ✗ (deprecated by rlstats.net) |
+
+---
+
+## Reliability: how others do it, and where we're headed
+
+Both current providers are third-party scrapes and are inherently fragile:
+tracker.gg is Cloudflare-fronted (intermittent 403s, needs a browser-like
+User-Agent) and rlstats.net is HTML parsing that breaks on layout changes.
+
+How other Rocket League tools get MMR:
+
+- **BakkesMod plugins** read MMR straight from the game client's memory via
+  the BakkesMod SDK (`MMRWrapper`). Most reliable and zero network, but only
+  works inside an injected in-game plugin, and only for players the client has
+  loaded (you + your current lobby). OOF connects via the RL **Stats API**
+  WebSocket, which carries match events but **not** MMR, so this path isn't
+  available to us.
+- **tracker.gg / rl.tracker.network** scrape and re-expose Psyonix's own data.
+  We hit their API directly today — same fragility as them, without their
+  Cloudflare allowances.
+- **PsyNet (Psyonix's first-party API)** is what the game itself uses:
+  `https://api.rlpp.psynet.gg/rpc/`, `GetPlayerSkill` returns per-playlist
+  Mu/Sigma/Tier/Division/MatchesPlayed/WinStreak. No Cloudflare, no scraping.
+  Reference implementation: [`github.com/dank/rlapi`](https://github.com/dank/rlapi)
+  (Go) has the full Epic/Steam → PsyNet auth chain and the WebSocket transport.
+
+**Direction:** add a `psynet` provider as the *primary*, demoting trackergg and
+rlstats to fallbacks. It slots into the existing `Provider` interface with no
+framework changes. The work is in flight on `feature/psynet-provider`
+(`GetPlayersSkills` + auth chain); the open blocker is the `go get` dependency
+resolution for `dank/rlapi` against the local-replaced plugin SDK module.
+
+The 5-second cache (above) makes "fetch every time" cheap regardless of which
+provider is primary: it only collapses same-player bursts, so once PsyNet lands
+the app effectively shows live MMR without hammering any single source.
