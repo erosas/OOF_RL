@@ -32,7 +32,10 @@ jobs:
           #   OOF_RL/tools/genicon    — one-off build tool
           $exclude = '^(OOF_RL|OOF_RL/internal/overlay|OOF_RL/internal/rl|OOF_RL/tools/genicon)$'
           $coverpkgs = (go list ./... | Where-Object { $_ -notmatch $exclude }) -join ','
-          go test -coverprofile="$env:RUNNER_TEMP/coverage.out" -coverpkg=$coverpkgs ./...
+          # Quote -coverpkg: PowerShell mangles an unquoted `-flag=$var` whose value
+          # contains commas, so Go matched no packages and wrote an empty profile
+          # ("coverage: [no statements]"), leaving the Codecov badge blank.
+          go test "-coverprofile=$env:RUNNER_TEMP/coverage.out" "-coverpkg=$coverpkgs" ./...
 
       - name: Run SDK and plugin module tests
         shell: pwsh
