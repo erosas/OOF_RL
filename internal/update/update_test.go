@@ -37,6 +37,14 @@ func TestParseManifestValid(t *testing.T) {
 	}
 }
 
+func TestParseManifestToleratesBOM(t *testing.T) {
+	hash := fmt.Sprintf("%064x", 1)
+	body := append([]byte{0xEF, 0xBB, 0xBF}, []byte(manifestJSON("v1.2.3", "https://example.test/OOF_RL.zip", hash))...)
+	if _, err := ParseManifest(body); err != nil {
+		t.Fatalf("ParseManifest with BOM: %v", err)
+	}
+}
+
 func TestParseManifestRejectsMissingRequiredFields(t *testing.T) {
 	for _, body := range []string{
 		`{"version":"v1.2.3"}`,

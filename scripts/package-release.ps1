@@ -12,6 +12,7 @@ $pluginsDir = Join-Path $packageRoot "plugins"
 $archiveName = if ([string]::IsNullOrWhiteSpace($Version)) { "OOF_RL.zip" } else { "OOF_RL-$Version.zip" }
 $archivePath = Join-Path $distDir $archiveName
 $checksumPath = "$archivePath.sha256"
+$manifestPath = Join-Path $distDir "update-manifest.json"
 $plugins = @("live", "ranks", "session", "dashboard")
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
@@ -50,6 +51,9 @@ if (Test-Path -LiteralPath $archivePath) {
 }
 if (Test-Path -LiteralPath $checksumPath) {
     Remove-Item -LiteralPath $checksumPath -Force
+}
+if (Test-Path -LiteralPath $manifestPath) {
+    Remove-Item -LiteralPath $manifestPath -Force
 }
 
 New-Item -ItemType Directory -Force $pluginsDir | Out-Null
@@ -95,6 +99,25 @@ public pages are available without running developer build commands.
     Compress-Archive -LiteralPath $packageRoot -DestinationPath $archivePath -Force
     $hash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLower()
     "$hash  $archiveName" | Out-File -Encoding utf8 $checksumPath
+
+    # update-manifest.json is what the in-app update checker fetches from
+    # releases/latest/download/. Only meaningful for tagged builds.
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $manifest = [ordered]@{
+            version         = $Version
+            channel         = "stable"
+            notes_url       = "https://github.com/erosas/OOF_RL/releases/tag/$Version"
+            published_at    = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            artifact_url    = "https://github.com/erosas/OOF_RL/releases/download/$Version/$archiveName"
+            artifact_name   = $archiveName
+            artifact_sha256 = $hash
+        }
+        # WriteAllText with BOM-less UTF8: Windows PowerShell 5.1's
+        # Out-File -Encoding utf8 prepends a BOM, which JSON parsers reject.
+        $json = ($manifest | ConvertTo-Json)
+        [System.IO.File]::WriteAllText($manifestPath, $json, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "Created $manifestPath"
+    }
 
     Write-Host "Created $archivePath"
     Write-Host "Created $checksumPath"
