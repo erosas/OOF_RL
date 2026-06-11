@@ -1,4 +1,4 @@
-.PHONY: build run test cover icon profile profile-heap profile-goroutine \
+.PHONY: build run rebuild test cover icon profile profile-heap profile-goroutine \
         all-plugins release-package test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
@@ -15,10 +15,14 @@ build:
 release-package:
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1 -Version "$(VERSION)"
 
+# Regenerates icon.ico, then embeds it together with Windows VERSIONINFO
+# (CompanyName/ProductName/FileDescription/version) into rsrc.syso. The version
+# block is required: an exe with no version resource is a common antivirus
+# false-positive trigger. See docs/dev/antivirus.md.
+#   go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
 icon:
 	go run ./tools/genicon
-
-	$(shell go env GOPATH)/bin/rsrc -ico icon.ico -o rsrc.syso
+	$(shell go env GOPATH)/bin/goversioninfo -o rsrc.syso -icon icon.ico versioninfo.json
 
 run: build
 	./oof_rl.exe
@@ -52,6 +56,16 @@ wasm/%:
 
 # Build all WASM plugins
 all-plugins: $(addprefix wasm/, $(PLUGINS))
+
+# Clean all bundled plugin .wasm files, rebuild the app, then rebuild each plugin.
+# Comment out individual plugin lines below to test a build without that plugin.
+rebuild:
+	@powershell -NoProfile -Command "Get-ChildItem '$(PLUGINS_DIR)\*.wasm' -ErrorAction SilentlyContinue | Remove-Item -Force"
+	go build -o oof_rl.exe .
+	$(MAKE) wasm/live
+	$(MAKE) wasm/ranks
+	$(MAKE) wasm/session
+	$(MAKE) wasm/dashboard
 
 # Test the SDK (pure Go, no WASM runtime)
 test-sdk:
