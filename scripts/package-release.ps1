@@ -64,6 +64,24 @@ if ([string]::IsNullOrWhiteSpace($env:GOCACHE)) {
 
 Push-Location $repoRoot
 try {
+    # Embed Windows VERSIONINFO matching the release tag. An exe with no/stale
+    # version resource is a common antivirus false-positive trigger; goversioninfo
+    # writes CompanyName/ProductName/FileDescription plus the numeric version into
+    # rsrc.syso, which `go build` links automatically. See docs/dev/antivirus.md.
+    if (-not [string]::IsNullOrWhiteSpace($Version) -and ($Version -match '^v?(\d+)\.(\d+)\.(\d+)')) {
+        $verMajor = [int]$Matches[1]; $verMinor = [int]$Matches[2]; $verPatch = [int]$Matches[3]
+        $verStr = "$verMajor.$verMinor.$verPatch.0"
+        Invoke-Checked "go" @("install", "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest")
+        $gvi = Join-Path (& go env GOPATH) "bin\goversioninfo.exe"
+        Invoke-Checked $gvi @(
+            "-o", "rsrc.syso", "-icon", "icon.ico",
+            "-ver-major", "$verMajor", "-ver-minor", "$verMinor", "-ver-patch", "$verPatch", "-ver-build", "0",
+            "-product-ver-major", "$verMajor", "-product-ver-minor", "$verMinor", "-product-ver-patch", "$verPatch", "-product-ver-build", "0",
+            "-file-version", $verStr, "-product-version", $verStr,
+            "versioninfo.json"
+        )
+    }
+
     $exePath = Join-Path $packageRoot "oof_rl.exe"
     $ldflags = "-H windowsgui -s -w"
     if (-not [string]::IsNullOrWhiteSpace($Version)) {
