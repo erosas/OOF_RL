@@ -667,6 +667,13 @@ function historySummaryPill(label, value, color = 'var(--text)') {
 }
 
 window.pluginInit_history = function() {
+  window.registerView?.('history', {
+    onShow: loadHistory,
+    onPostMatch: loadHistory,
+    fullWidth: true,
+    densePadding: true,
+  });
+
   window.registerWidget?.({
     id: 'history-recent', pluginId: 'history', title: 'Recent Matches',
     defaultW: 6, defaultH: 10, minW: 4, minH: 6,

@@ -451,6 +451,9 @@ function liveTeamComparisonRow(label, blueValue, orangeValue) {
 }
 
 window.pluginInit_live = async function() {
+  // Live is WebSocket-driven, so it declares only its layout (no on-show fetch).
+  window.registerView?.('live', { fullWidth: true, densePadding: true });
+
   window.registerWidget?.({
     id: 'live-scoreboard', pluginId: 'live', title: 'Live Score',
     defaultW: 6, defaultH: 5, minW: 4, minH: 4,

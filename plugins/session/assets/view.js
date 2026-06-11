@@ -13,6 +13,13 @@ let _sessionMatchInstances   = [];
 let _sessionHistoryInstances = [];
 
 window.pluginInit_session = async function() {
+  window.registerView?.('session', {
+    onShow: refreshSession,
+    onPostMatch: () => { refreshSession(); loadSessionHistory(); },
+    fullWidth: true,
+    densePadding: true,
+  });
+
   window.registerWidget?.({
     id: 'session-summary', pluginId: 'session', title: 'Session Stats',
     defaultW: 6, defaultH: 6, minW: 4, minH: 4,

@@ -472,17 +472,14 @@ body:not(.overlay-mode) .view.active {
   overscroll-behavior: contain;
 }
 
-/* Dense workspace pages can use the full shell width while other views keep app-main width. */
-main.dash-active,
-main.history-active,
-main.session-active,
-main.live-active {
+/* Workspace pages declare their layout appetite via registerView (fullWidth /
+   densePadding); core adds these generic classes so styling is not tied to
+   specific plugin view names. */
+main.view-fullwidth {
   max-width: none;
 }
 
-main.history-active,
-main.session-active,
-main.live-active {
+main.view-dense {
   --oof-app-main-padding-x: var(--oof-space-4);
   --oof-app-main-padding-y: var(--oof-space-4);
 }

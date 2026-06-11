@@ -258,9 +258,12 @@ let _postMatchRefreshTimer = null;
 function refreshPostMatchViews() {
   clearTimeout(_postMatchRefreshTimer);
   _postMatchRefreshTimer = setTimeout(() => {
-    if (typeof refreshSession === 'function') refreshSession();
-    if (typeof loadSessionHistory === 'function') loadSessionHistory();
-    if (typeof loadHistory === 'function') loadHistory();
+    for (const id in viewRegistry) {
+      const fn = viewRegistry[id].onPostMatch;
+      if (typeof fn === 'function') {
+        try { fn(); } catch (err) { console.error(err); }
+      }
+    }
   }, 150);
 }
 
@@ -300,23 +303,34 @@ function runViewLoader(name, loader) {
   }
 }
 
+// Views register their on-show loader, post-match refresh, and layout
+// appetite via window.registerView (see below). showView and
+// refreshPostMatchViews drive everything from this registry so a new plugin
+// view works without editing this file. 'settings' is the one core-shell view
+// handled inline.
+const viewRegistry = Object.create(null);
+window.registerView = function(viewID, hooks) {
+  if (typeof viewID !== 'string' || !viewID) {
+    console.warn('[views] rejected registration: missing or invalid viewID');
+    return false;
+  }
+  viewRegistry[viewID] = hooks && typeof hooks === 'object' ? hooks : {};
+  return true;
+};
+
 function showView(name) {
   rememberActiveViewScroll();
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  const hooks = viewRegistry[name] || {};
   const main = document.querySelector('main');
-  main?.classList.toggle('dash-active', name === 'dashboard');
-  main?.classList.toggle('history-active', name === 'history');
-  main?.classList.toggle('session-active', name === 'session');
-  main?.classList.toggle('live-active', name === 'live');
+  // Layout appetite is declared by the view, not hardcoded per name.
+  main?.classList.toggle('view-fullwidth', !!hooks.fullWidth);
+  main?.classList.toggle('view-dense', !!hooks.densePadding);
   _activeViewName = name;
   window.oofActiveViewName = name;
-  if (name === 'history'   && typeof loadHistory      === 'function') runViewLoader(name, loadHistory);
   if (name === 'settings') runViewLoader(name, loadSettings);
-  if (name === 'bc'        && typeof loadBC            === 'function') runViewLoader(name, loadBC);
-  if (name === 'ranks'     && typeof refreshRanks      === 'function') runViewLoader(name, refreshRanks);
-  if (name === 'session'   && typeof refreshSession    === 'function') runViewLoader(name, refreshSession);
-  if (name === 'dashboard' && typeof loadDashboard     === 'function') runViewLoader(name, loadDashboard);
+  else if (typeof hooks.onShow === 'function') runViewLoader(name, hooks.onShow);
   if (name !== 'history') _historyDetailReRender = null;
   if (name !== 'ranks')   _ranksReRender = null;
   restoreViewScrollSoon(name);

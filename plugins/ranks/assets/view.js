@@ -6,6 +6,8 @@ let _ranksInstances = [];
 window.pluginInit_ranks = async function() {
   _ranksReRender = renderRanks;
 
+  window.registerView?.('ranks', { onShow: refreshRanks });
+
   window.registerWidget?.({
     id: 'ranks-display', pluginId: 'ranks', title: 'Player Ranks',
     defaultW: 4, defaultH: 8, minW: 3, minH: 4,
