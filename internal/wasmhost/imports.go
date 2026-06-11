@@ -243,7 +243,31 @@ func (p *Plugin) hostBroadcastWS(_ context.Context, m api.Module, ptr, length ui
 	p.hub.Broadcast(msg)
 }
 
+// publicConfigKeys are host config values any plugin may read. Everything
+// else is per-plugin: a plugin can only read keys it declares in its own
+// Settings metadata, so one plugin cannot read another's secrets (API keys)
+// and exfiltrate them via host_http_fetch.
+var publicConfigKeys = map[string]struct{}{
+	"app_version": {},
+	"data_dir":    {},
+	"dev_mode":    {},
+	"replay_dir":  {},
+}
+
+func (p *Plugin) configKeyAllowed(key string) bool {
+	if _, ok := publicConfigKeys[key]; ok {
+		return true
+	}
+	for _, s := range p.meta.Settings {
+		if s.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
 // hostGetConfig looks up a config key and writes the value string to outPtr.
+// Only public keys and the plugin's own declared settings keys are served.
 func (p *Plugin) hostGetConfig(_ context.Context, m api.Module, keyPtr, keyLen, outPtr, outMax uint32) uint32 {
 	if p.cfg == nil {
 		return 0
@@ -252,7 +276,12 @@ func (p *Plugin) hostGetConfig(_ context.Context, m api.Module, keyPtr, keyLen, 
 	if !ok {
 		return 0
 	}
-	val := p.cfg.Lookup(string(keyBytes))
+	key := string(keyBytes)
+	if !p.configKeyAllowed(key) {
+		log.Printf("[wasm:%s] host_get_config: key %q not declared in plugin settings, denied", p.meta.ID, key)
+		return 0
+	}
+	val := p.cfg.Lookup(key)
 	return p.writeResult(m, []byte(val), outPtr, outMax)
 }
 

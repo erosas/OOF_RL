@@ -304,6 +304,45 @@ func TestPostSettings(t *testing.T) {
 
 }
 
+// settingsRecorderPlugin captures what ApplySettings receives.
+type settingsRecorderPlugin struct {
+	testPlugin
+	received map[string]string
+	calls    int
+}
+
+func (p *settingsRecorderPlugin) ApplySettings(values map[string]string) error {
+	p.calls++
+	p.received = values
+	return nil
+}
+
+func TestPostSettingsDispatchesOnlyDeclaredKeys(t *testing.T) {
+	// Plugin settings can hold secrets (API keys); a plugin must only ever
+	// see the keys it declares in its own schema.
+	srv, _ := newTestServerWithConfig(t, config.Defaults())
+	rec := &settingsRecorderPlugin{testPlugin: testPlugin{id: "rec"}}
+	other := &settingsRecorderPlugin{testPlugin: testPlugin{id: "other"}}
+	srv.Use(rec)
+	srv.Use(other)
+
+	mux := http.NewServeMux()
+	srv.Register(mux)
+	w := postJSON(mux, "/api/settings", map[string]string{
+		"rec.enabled":   "true",
+		"unrelated_key": "secret",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d — body: %s", w.Code, w.Body.String())
+	}
+	if rec.calls != 1 || len(rec.received) != 1 || rec.received["rec.enabled"] != "true" {
+		t.Fatalf("rec plugin: calls=%d received=%v", rec.calls, rec.received)
+	}
+	if other.calls != 0 {
+		t.Fatalf("other plugin must not be called without declared keys, got %d calls with %v", other.calls, other.received)
+	}
+}
+
 func TestPostSettingsMethodNotAllowed(t *testing.T) {
 	mux, _ := newTestMux(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)

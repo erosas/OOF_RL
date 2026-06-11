@@ -41,7 +41,8 @@ All WASM plugins shipped with OOF RL (`plugins/`) are authored by the same team 
 
 - Plugins are loaded from `%LOCALAPPDATA%\OOF_RL\plugins` at startup.
 - The WASM sandbox enforces memory isolation between plugin and host; neither can read the other's memory directly without going through the host ABI.
-- However, plugins are *not* restricted by capability policy: any loaded plugin can call all available host imports (log, config-read, DB-read, DB-write, HTTP fetch, WS broadcast, etc.).
+- Config access is scoped: `host_get_config` serves only keys the plugin declares in its own settings metadata, plus a small public set (`data_dir`, `replay_dir`, `dev_mode`, `app_version`). `ApplySettings` likewise delivers only declared keys. One plugin cannot read another plugin's secrets.
+- Beyond that, plugins are *not* restricted by capability policy: any loaded plugin can call the remaining host imports (log, DB-read, DB-write, HTTP fetch, WS broadcast, etc.).
 - No plugin signature verification is performed at load time.
 
 ### Implications
@@ -51,7 +52,7 @@ All WASM plugins shipped with OOF RL (`plugins/`) are authored by the same team 
 
 ### Non-goals for the current model
 
-- Capability scoping (restricting which host imports a given plugin may call)
+- Capability scoping beyond config keys (restricting which host imports a given plugin may call)
 - Plugin signatures or publisher verification
 - Sandboxed network or filesystem access beyond the WASM linear-memory boundary
 

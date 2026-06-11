@@ -286,8 +286,10 @@ func (s *Server) handleDBOpenFolder(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, map[string]string{"status": "ok"})
 }
 
-// handleSettings dispatches a flat key→value map to every plugin's ApplySettings,
-// then persists config to disk.
+// handleSettings dispatches posted settings to each plugin's ApplySettings,
+// then persists config to disk. Each plugin receives only the keys it
+// declares in its settings schema — plugin settings can hold secrets (API
+// keys), and one plugin must not see another's.
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httputil.JSONError(w, 405, "method not allowed")
@@ -303,7 +305,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		s.cfg.Set(k, v)
 	}
 	for _, p := range s.plugins {
-		if err := p.ApplySettings(values); err != nil {
+		declared := declaredSettings(p, values)
+		if len(declared) == 0 {
+			continue
+		}
+		if err := p.ApplySettings(declared); err != nil {
 			httputil.JSONError(w, 500, fmt.Sprintf("plugin %s: %v", p.ID(), err))
 			log.Printf("[settings] plugin %s ApplySettings error: %v", p.ID(), err)
 			return
@@ -315,6 +321,21 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	s.reconnect()
 	httputil.WriteJSON(w, map[string]string{"status": "ok"})
+}
+
+// declaredSettings returns the subset of values whose keys appear in the
+// plugin's settings schema.
+func declaredSettings(p plugin.Plugin, values map[string]string) map[string]string {
+	var out map[string]string
+	for _, s := range p.SettingsSchema() {
+		if v, ok := values[s.Key]; ok {
+			if out == nil {
+				out = make(map[string]string)
+			}
+			out[s.Key] = v
+		}
+	}
+	return out
 }
 
 func (s *Server) handleDataDir(w http.ResponseWriter, r *http.Request) {
