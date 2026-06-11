@@ -11,6 +11,10 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// AppVersion is set by release builds with -ldflags
+// "-X OOF_RL/internal/config.AppVersion=v1.2.3". Development builds report "dev".
+var AppVersion = "dev"
+
 type StorageSettings struct {
 	BallHitEvents bool `toml:"ball_hit_events" json:"ball_hit_events"`
 	RawPackets    bool `toml:"raw_packets"     json:"raw_packets"`
@@ -145,6 +149,8 @@ func (c *Config) Set(key, value string) {
 		c.DevMode = value == "true" || value == "1" || value == "on"
 	case "replay_dir":
 		// read-only: detected from filesystem, not user-settable
+	case "app_version":
+		// read-only: set by release build flags
 	default:
 		if c.PluginSettings == nil {
 			c.PluginSettings = make(map[string]string)
@@ -166,6 +172,8 @@ func (c *Config) Lookup(key string) string {
 		return "false"
 	case "replay_dir":
 		return DetectReplayDir()
+	case "app_version":
+		return AppVersion
 	default:
 		return c.PluginSettings[key]
 	}

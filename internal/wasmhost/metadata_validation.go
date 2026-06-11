@@ -25,6 +25,7 @@ var reservedPluginIDs = map[string]struct{}{
 	"plugins":  {},
 	"settings": {},
 	"tracker":  {},
+	"update":   {},
 	"ws":       {},
 }
 

@@ -12,6 +12,7 @@ import (
 	_ "net/http/pprof"
 
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/arl/statsviz"
@@ -30,6 +31,7 @@ import (
 	"OOF_RL/internal/overlay"
 	"OOF_RL/internal/rl"
 	"OOF_RL/internal/singleinstance"
+	"OOF_RL/internal/update"
 )
 
 //go:embed web/*
@@ -104,6 +106,7 @@ func main() {
 	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
 		log.Fatalf("wasm plugin load: %v", err)
 	}
+	srv.SetUpdateChecker(update.New(config.AppVersion, filepath.Join(cfg.DataDir, "updates")))
 	srv.Register(mux)
 	if cfg.DevMode {
 		mux.Handle("/debug/pprof/", http.DefaultServeMux)
