@@ -621,6 +621,90 @@ document.getElementById('cfg-data-dir-open').addEventListener('click', () => {
   fetch('/api/db/open-folder', { method: 'POST' }).catch(() => {});
 });
 
+// --- Updates ---
+const _updCheckBtn    = document.getElementById('upd-check');
+const _updDownloadBtn = document.getElementById('upd-download');
+const _updStatusEl    = document.getElementById('upd-status');
+const _updNotesLink   = document.getElementById('upd-notes');
+const _updVersionEl   = document.getElementById('upd-version');
+let _updPollTimer = null;
+
+function fmtBytes(n) {
+  if (!n || n < 0) return '';
+  if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${n} B`;
+}
+
+function describeUpdateStatus(st) {
+  if (st.downloading) {
+    const total = st.bytes_total > 0 ? ` / ${fmtBytes(st.bytes_total)}` : '';
+    return `Downloading… ${fmtBytes(st.bytes_downloaded)}${total}`;
+  }
+  if (st.last_error) return `Error: ${st.last_error}`;
+  if (st.downloaded_path) return `Downloaded ${st.latest_version} to ${st.downloaded_path}`;
+  if (st.update_available) return `Update available: ${st.latest_version}`;
+  if (st.latest_version) return `Up to date (${st.latest_version})`;
+  return 'Not checked yet';
+}
+
+function renderUpdateStatus(st) {
+  if (!st) return;
+  _updVersionEl.textContent = st.current_version || '';
+  _updStatusEl.textContent = describeUpdateStatus(st);
+  _updDownloadBtn.classList.toggle('hidden', !(st.update_available && !st.downloaded_path));
+  _updDownloadBtn.disabled = !!st.downloading;
+  _updCheckBtn.disabled = !!st.downloading;
+  if (st.notes_url) {
+    _updNotesLink.href = st.notes_url;
+    _updNotesLink.classList.remove('hidden');
+  } else {
+    _updNotesLink.classList.add('hidden');
+  }
+  if (st.downloading && !_updPollTimer) {
+    _updPollTimer = setInterval(refreshUpdateStatus, 500);
+  } else if (!st.downloading && _updPollTimer) {
+    clearInterval(_updPollTimer);
+    _updPollTimer = null;
+  }
+}
+
+async function refreshUpdateStatus() {
+  try {
+    const res = await fetch('/api/update/status');
+    if (res.ok) renderUpdateStatus(await res.json());
+  } catch { /* server unreachable; leave last state */ }
+}
+
+_updCheckBtn.addEventListener('click', async () => {
+  _updCheckBtn.disabled = true;
+  _updStatusEl.textContent = 'Checking…';
+  try {
+    const res = await fetch('/api/update/check', { method: 'POST' });
+    renderUpdateStatus(await res.json());
+  } catch (e) {
+    _updStatusEl.textContent = `Error: ${e.message || e}`;
+  } finally {
+    _updCheckBtn.disabled = false;
+  }
+});
+
+_updDownloadBtn.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/update/download', { method: 'POST' });
+    const st = await res.json();
+    if (!res.ok) {
+      _updStatusEl.textContent = `Error: ${st.error || `HTTP ${res.status}`}`;
+      return;
+    }
+    renderUpdateStatus(st);
+  } catch (e) {
+    _updStatusEl.textContent = `Error: ${e.message || e}`;
+  }
+});
+
+refreshUpdateStatus();
+
 document.getElementById('cfg-overlay-opacity').addEventListener('input', e => {
   const alpha = parseInt(e.target.value);
   document.getElementById('cfg-overlay-opacity-pct').textContent = Math.round(alpha / 2.55) + '%';

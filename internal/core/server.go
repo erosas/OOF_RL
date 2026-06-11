@@ -19,6 +19,7 @@ import (
 	"OOF_RL/internal/oofevents"
 	"OOF_RL/internal/plugin"
 	"OOF_RL/internal/rlevents"
+	"OOF_RL/internal/update"
 	"OOF_RL/internal/wasmhost"
 )
 
@@ -49,7 +50,12 @@ type Server struct {
 	translator   *rlevents.Translator
 	histStore    *histstore.Store
 	histRecorder *histstore.Recorder
+	updates      *update.Checker
 }
+
+// SetUpdateChecker wires the host update checker. Call before Register;
+// nil leaves the /api/update routes unregistered.
+func (s *Server) SetUpdateChecker(u *update.Checker) { s.updates = u }
 
 func isHostCorePluginID(pluginID string) bool {
 	return pluginID == "history"
@@ -345,6 +351,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 		"/api/tracker/profile": "core",
 		"/api/db/open-folder":  "core",
 		"/api/data-dir":        "core",
+		"/api/update/status":   "core",
+		"/api/update/check":    "core",
+		"/api/update/download": "core",
 		"/plugins/history/":    "core",
 	}
 
@@ -364,6 +373,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tracker/profile", mmr.Handler(s.mmrProvider))
 	mux.HandleFunc("/api/db/open-folder", s.handleDBOpenFolder)
 	mux.HandleFunc("/api/data-dir", s.handleDataDir)
+	if s.updates != nil {
+		mux.HandleFunc("/api/update/status", s.updates.HandleStatus)
+		mux.HandleFunc("/api/update/check", s.updates.HandleCheck)
+		mux.HandleFunc("/api/update/download", s.updates.HandleDownload)
+	}
 
 	// History is host-core: mount its UI assets directly.
 	if histAssets, err := fs.Sub(histstore.Assets, "assets"); err == nil {

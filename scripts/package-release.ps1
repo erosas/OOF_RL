@@ -61,7 +61,11 @@ if ([string]::IsNullOrWhiteSpace($env:GOCACHE)) {
 Push-Location $repoRoot
 try {
     $exePath = Join-Path $packageRoot "oof_rl.exe"
-    Invoke-Checked "go" @("build", "-ldflags=-H windowsgui -s -w", "-o", $exePath, ".")
+    $ldflags = "-H windowsgui -s -w"
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $ldflags = "$ldflags -X OOF_RL/internal/config.AppVersion=$Version"
+    }
+    Invoke-Checked "go" @("build", "-ldflags=$ldflags", "-o", $exePath, ".")
 
     $oldGOOS = $env:GOOS
     $oldGOARCH = $env:GOARCH

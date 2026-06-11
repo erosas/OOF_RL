@@ -109,6 +109,23 @@
       <div id="plugin-settings-container"></div>
     </div>
 
+    <!-- Updates -->
+    <div class="settings-panel settings-section mt-5">
+      <div class="settings-panel-title">Updates</div>
+      <div class="settings-row">
+        <span class="settings-label">
+          Version <span id="upd-version" class="settings-suffix"></span>
+          <span class="help-icon">?<span class="help-tip">Checks the latest GitHub release and downloads the zip with SHA256 verification. Nothing is installed automatically.</span></span>
+        </span>
+        <button id="upd-check" class="btn-action">Check for updates</button>
+        <button id="upd-download" class="btn-action hidden">Download</button>
+      </div>
+      <div class="settings-row">
+        <span id="upd-status" class="settings-hint">Not checked yet</span>
+        <a id="upd-notes" href="#" target="_blank" class="settings-hint hover:text-rl-blue transition-colors ml-auto hidden">Release notes ↗</a>
+      </div>
+    </div>
+
     <!-- Advanced -->
     <details class="settings-advanced mt-5">
       <summary class="settings-details-summary">Advanced</summary>
