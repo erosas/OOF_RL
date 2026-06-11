@@ -80,7 +80,10 @@ func main() {
 		log.Fatalf("event bus: %v", err)
 	}
 
-	const trackerCacheTTL = 60 * time.Second
+	// Short TTL: the cache only collapses bursts (a match's players all looked
+	// up at once, or rapid re-opens of a view) into one upstream fetch. MMR
+	// changes every match, so we effectively re-fetch on any real revisit.
+	const trackerCacheTTL = 5 * time.Second
 	trnProvider := mmr.NewCachedProvider(
 		mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
 		database,
