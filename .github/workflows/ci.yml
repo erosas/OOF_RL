@@ -76,15 +76,18 @@ jobs:
         shell: pwsh
         run: ./scripts/package-release.ps1 -Version "${{ github.ref_name }}"
 
+      # Third-party actions in this job are pinned to commit SHAs: it has
+      # contents:write and publishes the binaries users run, so a hijacked
+      # version tag on the action repo must not be able to inject code here.
       - name: VirusTotal scan
-        uses: crazy-max/ghaction-virustotal@v4
+        uses: crazy-max/ghaction-virustotal@d34968c958ae283fe976efed637081b9f9dcf74f # v4
         id: virustotal
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           files: dist/OOF_RL/oof_rl.exe
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/OOF_RL-${{ github.ref_name }}.zip
@@ -92,7 +95,7 @@ jobs:
             dist/update-manifest.json
           generate_release_notes: true
           body: |
-            Download the release zip, extract the `OOF_RL` folder, and run `oof_rl.exe`.
+            Download the release zip, extract it, and run `install.ps1` from the extracted `OOF_RL` folder (right-click → Run with PowerShell, or `powershell -ExecutionPolicy Bypass -File install.ps1`). It installs or updates in place, creates a Start Menu shortcut, and launches the app — your data is untouched. You can also skip the script and run `oof_rl.exe` straight from the folder.
 
             The zip includes the public WASM plugins and assets needed for Live, Ranks, Session, and Dashboard.
 

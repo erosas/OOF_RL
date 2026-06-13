@@ -71,7 +71,10 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($Version) -and ($Version -match '^v?(\d+)\.(\d+)\.(\d+)')) {
         $verMajor = [int]$Matches[1]; $verMinor = [int]$Matches[2]; $verPatch = [int]$Matches[3]
         $verStr = "$verMajor.$verMinor.$verPatch.0"
-        Invoke-Checked "go" @("install", "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest")
+        # Pinned: this runs at release-build time and its output is linked into
+        # the shipped exe, so "@latest" would let a compromised or broken new
+        # version flow straight into a release.
+        Invoke-Checked "go" @("install", "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0")
         $gvi = Join-Path (& go env GOPATH) "bin\goversioninfo.exe"
         Invoke-Checked $gvi @(
             "-o", "rsrc.syso", "-icon", "icon.ico",
