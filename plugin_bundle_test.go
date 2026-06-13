@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ func TestCopyBundledWASMPluginsCopiesWASMAndAssets(t *testing.T) {
 	mustWrite(t, filepath.Join(src, "ballchasing", "view.html"), "<main>ballchasing</main>")
 	mustWrite(t, filepath.Join(src, "notes.txt"), "not copied")
 
-	if err := copyBundledWASMPlugins(src, dest); err != nil {
+	if err := copyBundledWASMPlugins(os.DirFS(src), dest); err != nil {
 		t.Fatalf("copyBundledWASMPlugins: %v", err)
 	}
 
@@ -40,7 +41,7 @@ func TestCopyBundledWASMPluginsUpdatesChangedFiles(t *testing.T) {
 	mustWrite(t, filepath.Join(src, "ranks.wasm"), "new")
 	mustWrite(t, filepath.Join(dest, "ranks.wasm"), "old")
 
-	if err := copyBundledWASMPlugins(src, dest); err != nil {
+	if err := copyBundledWASMPlugins(os.DirFS(src), dest); err != nil {
 		t.Fatalf("copyBundledWASMPlugins: %v", err)
 	}
 
@@ -60,7 +61,7 @@ func TestCopyBundledWASMPluginsPreservesCustomAppDataPlugins(t *testing.T) {
 	mustWrite(t, filepath.Join(dest, "custom", "view.html"), "custom app-data asset")
 	mustWrite(t, filepath.Join(dest, "notes.txt"), "unrelated")
 
-	if err := copyBundledWASMPlugins(src, dest); err != nil {
+	if err := copyBundledWASMPlugins(os.DirFS(src), dest); err != nil {
 		t.Fatalf("copyBundledWASMPlugins: %v", err)
 	}
 
@@ -78,7 +79,7 @@ func TestCopyBundledWASMPluginsPreservesUnrelatedFilesInPublicPluginDirs(t *test
 	mustWrite(t, filepath.Join(src, "session", "view.html"), "new session")
 	mustWrite(t, filepath.Join(dest, "session", "dev-only.txt"), "keep me")
 
-	if err := copyBundledWASMPlugins(src, dest); err != nil {
+	if err := copyBundledWASMPlugins(os.DirFS(src), dest); err != nil {
 		t.Fatalf("copyBundledWASMPlugins: %v", err)
 	}
 
@@ -96,6 +97,27 @@ func TestSeedBundledWASMPluginsNoSidecarNoops(t *testing.T) {
 	}
 	if _, err := os.Stat(dest); !os.IsNotExist(err) {
 		t.Fatalf("dest dir should not be created without sidecar plugins, stat err=%v", err)
+	}
+}
+
+func TestSeedEmbeddedWASMPluginsPlaceholderOnlyNoops(t *testing.T) {
+	// Dev builds embed only the .gitkeep placeholder; seeding must not
+	// create the destination directory for it. A local release build can
+	// leave real plugins staged under bundled/plugins, in which case the
+	// embed legitimately has content and this invariant no longer applies.
+	sub, err := fs.Sub(bundledPluginsFS, "bundled/plugins")
+	if err != nil {
+		t.Fatalf("sub embedded plugins: %v", err)
+	}
+	if hasBundledContent(sub) {
+		t.Skip("bundled/plugins has real embedded plugins; placeholder-only invariant not testable here")
+	}
+	dest := filepath.Join(t.TempDir(), "plugins")
+	if err := seedEmbeddedWASMPlugins(dest); err != nil {
+		t.Fatalf("seedEmbeddedWASMPlugins: %v", err)
+	}
+	if _, err := os.Stat(dest); !os.IsNotExist(err) {
+		t.Fatalf("dest dir should not be created from placeholder-only embed, stat err=%v", err)
 	}
 }
 
