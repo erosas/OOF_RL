@@ -31,7 +31,7 @@ const DefaultManifestURL = "https://github.com/erosas/OOF_RL/releases/latest/dow
 
 // DevManifestURL is the dev channel: a rolling "dev" prerelease whose manifest
 // asset is refreshed on every release (dev and stable), so dev-mode users are
-// offered the newest build of either kind. See docs/dev/release-channels.md.
+// offered the newest build of either kind. See docs/dev/auto-update.md.
 const DevManifestURL = "https://github.com/erosas/OOF_RL/releases/download/dev/update-manifest.json"
 
 // Manifest is the update-manifest.json attached to each GitHub release.
