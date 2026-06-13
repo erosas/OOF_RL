@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func manifestJSON(version, notesURL, artifactURL string) string {
@@ -92,7 +93,12 @@ func TestSafeReleaseURL(t *testing.T) {
 		"http://github.com/erosas/OOF_RL/releases", // not HTTPS
 		"https://github.com/evil/repo/releases",
 		"https://github.com/erosas/OOF_RL/../../evil/repo",
-		"https://github.com/erosas/OOF_RLx/releases", // prefix must end at the repo
+		"https://github.com/erosas/OOF_RL/%2e%2e/%2e%2e/evil/repo", // encoded traversal
+		"https://github.com/erosas/OOF_RL/%5c..%5cevil",           // encoded backslash
+		"https://github.com/erosas/OOF_RLx/releases",              // prefix must end at the repo
+		"https://user@github.com/erosas/OOF_RL/releases",          // userinfo
+		"https://github.com:8443/erosas/OOF_RL/releases",          // explicit port
+		"https://github.com.evil.test/erosas/OOF_RL/releases",     // host suffix trick
 		"javascript:alert(1)",
 	} {
 		if got := SafeReleaseURL(bad); got != "" {
@@ -154,6 +160,38 @@ func TestCheckReportsUpToDate(t *testing.T) {
 	st := c.Check(context.Background())
 	if st.LastError != "" || st.UpdateAvailable {
 		t.Fatalf("status: got %+v", st)
+	}
+}
+
+func TestRunPeriodic(t *testing.T) {
+	old := startupCheckDelay
+	startupCheckDelay = time.Millisecond
+	defer func() { startupCheckDelay = old }()
+
+	c := checkerForManifest(t, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		c.RunPeriodic(ctx, 5*time.Millisecond)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for c.Status().LastCheckedAt == "" {
+		if time.Now().After(deadline) {
+			t.Fatal("periodic check never ran")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if st := c.Status(); !st.UpdateAvailable {
+		t.Fatalf("status: got %+v", st)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunPeriodic did not stop on context cancel")
 	}
 }
 

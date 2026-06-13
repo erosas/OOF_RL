@@ -19,17 +19,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 )
 
 const DefaultManifestURL = "https://github.com/erosas/OOF_RL/releases/latest/download/update-manifest.json"
-
-// releaseURLPrefix is the only origin the UI is allowed to link to. The
-// manifest is unsigned; without this allowlist a tampered manifest could put
-// an arbitrary link in a dialog the user is primed to click.
-const releaseURLPrefix = "https://github.com/erosas/OOF_RL/"
 
 // Manifest is the update-manifest.json attached to each GitHub release.
 type Manifest struct {
@@ -81,12 +77,15 @@ func (c *Checker) Status() Status {
 	return c.status
 }
 
+// startupCheckDelay keeps the first manifest fetch out of the app's startup
+// path. Variable so tests can shrink it.
+var startupCheckDelay = 15 * time.Second
+
 // RunPeriodic checks once after a short startup delay, then every interval
-// until ctx is cancelled. The delay keeps the network fetch out of the
-// startup path.
+// until ctx is cancelled.
 func (c *Checker) RunPeriodic(ctx context.Context, interval time.Duration) {
 	select {
-	case <-time.After(15 * time.Second):
+	case <-time.After(startupCheckDelay):
 	case <-ctx.Done():
 		return
 	}
@@ -217,21 +216,32 @@ func parseVersion(v string) ([3]int, bool) {
 	return out, true
 }
 
-// SafeReleaseURL returns url only when it points inside the project's GitHub
+// SafeReleaseURL returns raw only when it points inside the project's GitHub
 // repo over HTTPS; otherwise "". Applied to every manifest URL before it
-// reaches the UI.
-func SafeReleaseURL(url string) string {
-	url = strings.TrimSpace(url)
-	if !strings.HasPrefix(url, releaseURLPrefix) {
+// reaches the UI: the manifest is unsigned, so without this allowlist a
+// tampered manifest could put an arbitrary link in a dialog the user is
+// primed to click.
+func SafeReleaseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil {
 		return ""
 	}
-	rest := url[len(releaseURLPrefix):]
-	// Reject anything that could escape the repo path or smuggle credentials;
-	// release/tag paths never contain these.
-	if strings.ContainsAny(rest, "\\@") || strings.Contains(rest, "..") {
+	if u.Scheme != "https" || u.Host != "github.com" || u.User != nil {
 		return ""
 	}
-	return url
+	if !strings.HasPrefix(u.Path, "/erosas/OOF_RL/") {
+		return ""
+	}
+	// Reject dot segments and backslashes in both the raw and the decoded
+	// path, so percent-encoded forms (%2e%2e, %5c) can't smuggle traversal
+	// past the prefix check; release/tag paths never contain either.
+	for _, p := range []string{u.EscapedPath(), u.Path} {
+		if strings.Contains(p, "..") || strings.Contains(p, "\\") {
+			return ""
+		}
+	}
+	return raw
 }
 
 // NormalizeSHA256 lowercases and validates a hex SHA256; returns "" if the

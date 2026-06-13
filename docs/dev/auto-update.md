@@ -31,10 +31,12 @@ and updates with the `install.ps1` shipped inside it.
 ## Link allowlist
 
 Because the manifest is unsigned, a tampered manifest could put an arbitrary
-link in a dialog the user is primed to click. `SafeReleaseURL` only lets
-`notes_url`/`artifact_url` through to the UI when they start with
-`https://github.com/erosas/OOF_RL/` (and contain no `..`/`\`/`@` after the
-prefix); anything else is dropped from the status.
+link in a dialog the user is primed to click. `SafeReleaseURL` parses each of
+`notes_url`/`artifact_url` and only lets it through to the UI when the scheme
+is `https`, the host is exactly `github.com`, there is no userinfo, and the
+path starts with `/erosas/OOF_RL/` with no dot segments or backslashes in
+either the raw or percent-decoded path (so `%2e%2e`/`%5c` can't smuggle
+traversal). Anything else is dropped from the status.
 
 ## Routes
 

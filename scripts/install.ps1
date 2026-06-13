@@ -41,8 +41,13 @@ if ($running) {
     Start-Sleep -Milliseconds 500
 }
 
-if ([System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\') -eq [System.IO.Path]::GetFullPath($sourceDir).TrimEnd('\')) {
-    throw "Install folder is the extracted folder itself - extract the zip somewhere else (e.g. Downloads) and run install.ps1 from there."
+# Installing into the extracted folder (or anywhere inside it) would
+# recursively copy the folder into itself.
+$resolvedInstall = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
+$resolvedSource = [System.IO.Path]::GetFullPath($sourceDir).TrimEnd('\')
+if ($resolvedInstall -eq $resolvedSource -or
+    $resolvedInstall.StartsWith($resolvedSource + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Install folder is inside the extracted folder - extract the zip somewhere else (e.g. Downloads) and run install.ps1 from there."
 }
 
 Write-Host "Installing to $InstallDir"
