@@ -183,6 +183,10 @@ running developer build commands.
         Write-Host $_.FullName.Substring($packageRoot.Length + 1)
     }
 } finally {
-    Reset-BundledPlugins
-    Pop-Location
+    # Reset staging even on failure, but never let its errors skip Pop-Location.
+    try {
+        Reset-BundledPlugins
+    } finally {
+        Pop-Location
+    }
 }

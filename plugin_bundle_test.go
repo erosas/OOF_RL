@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -101,7 +102,16 @@ func TestSeedBundledWASMPluginsNoSidecarNoops(t *testing.T) {
 
 func TestSeedEmbeddedWASMPluginsPlaceholderOnlyNoops(t *testing.T) {
 	// Dev builds embed only the .gitkeep placeholder; seeding must not
-	// create the destination directory for it.
+	// create the destination directory for it. A local release build can
+	// leave real plugins staged under bundled/plugins, in which case the
+	// embed legitimately has content and this invariant no longer applies.
+	sub, err := fs.Sub(bundledPluginsFS, "bundled/plugins")
+	if err != nil {
+		t.Fatalf("sub embedded plugins: %v", err)
+	}
+	if hasBundledContent(sub) {
+		t.Skip("bundled/plugins has real embedded plugins; placeholder-only invariant not testable here")
+	}
 	dest := filepath.Join(t.TempDir(), "plugins")
 	if err := seedEmbeddedWASMPlugins(dest); err != nil {
 		t.Fatalf("seedEmbeddedWASMPlugins: %v", err)

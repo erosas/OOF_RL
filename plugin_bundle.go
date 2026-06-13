@@ -74,7 +74,10 @@ func seedBundledWASMPluginsFromExecutable(exePath, destDir string) error {
 func hasBundledContent(src fs.FS) bool {
 	entries, err := fs.ReadDir(src, ".")
 	if err != nil {
-		return false
+		// Don't silently skip seeding on a broken/unreadable source: report
+		// "has content" so copyBundledWASMPlugins runs and surfaces the real
+		// error instead of a no-op that hides it.
+		return true
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
