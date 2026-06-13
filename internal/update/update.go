@@ -1,34 +1,35 @@
-// Package update implements the manual update checker: fetch a release
-// manifest, compare versions, and download the release zip with SHA256
-// verification.
+// Package update implements the update checker: fetch a release manifest,
+// compare versions, and surface release links for the user to download in
+// their browser.
 //
-// This is host-core rather than a plugin because the end state of an updater
-// (replace the running exe and restart) can never live inside the WASM
-// sandbox. Milestone 1 is check + verified download only: nothing is
-// installed, extracted, or restarted.
-//
-// Trust boundary: the SHA256 comes from the same unsigned manifest as the
-// artifact URL, so verification proves transport integrity, not authorship.
-// Signed manifests (Ed25519 detached signature, pinned public key) are a
-// prerequisite for any auto-install milestone.
+// This is host-core rather than a plugin because it reports on the host
+// binary itself and its routes are host-reserved. The app never downloads
+// release artifacts: the manifest is unsigned, so a SHA256 from the same
+// manifest as the artifact URL proves transport integrity, not authorship.
+// Instead the UI shows a dialog linking to the GitHub release page and the
+// user downloads with their browser. As a second guard, manifest URLs are
+// only surfaced to the UI when they point inside the project's GitHub repo
+// (see SafeReleaseURL).
 package update
 
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 )
 
 const DefaultManifestURL = "https://github.com/erosas/OOF_RL/releases/latest/download/update-manifest.json"
+
+// releaseURLPrefix is the only origin the UI is allowed to link to. The
+// manifest is unsigned; without this allowlist a tampered manifest could put
+// an arbitrary link in a dialog the user is primed to click.
+const releaseURLPrefix = "https://github.com/erosas/OOF_RL/"
 
 // Manifest is the update-manifest.json attached to each GitHub release.
 type Manifest struct {
@@ -43,52 +44,33 @@ type Manifest struct {
 
 // Status is the polling shape served by GET /api/update/status.
 type Status struct {
-	CurrentVersion   string `json:"current_version"`
-	LastCheckedAt    string `json:"last_checked_at,omitempty"`
-	LatestVersion    string `json:"latest_version,omitempty"`
-	NotesURL         string `json:"notes_url,omitempty"`
-	UpdateAvailable  bool   `json:"update_available"`
-	Downloading      bool   `json:"downloading"`
-	BytesDownloaded  int64  `json:"bytes_downloaded,omitempty"`
-	BytesTotal       int64  `json:"bytes_total,omitempty"`
-	DownloadedPath   string `json:"downloaded_path,omitempty"`
-	DownloadedSHA256 string `json:"downloaded_sha256,omitempty"`
-	LastError        string `json:"last_error,omitempty"`
+	CurrentVersion  string `json:"current_version"`
+	LastCheckedAt   string `json:"last_checked_at,omitempty"`
+	LatestVersion   string `json:"latest_version,omitempty"`
+	NotesURL        string `json:"notes_url,omitempty"`
+	DownloadURL     string `json:"download_url,omitempty"`
+	UpdateAvailable bool   `json:"update_available"`
+	LastError       string `json:"last_error,omitempty"`
 }
 
 // Checker holds update state. All exported methods are safe for concurrent
-// use; the download runs on its own goroutine and is observed via Status.
+// use.
 type Checker struct {
 	manifestURL string
 	version     string
-	downloadDir string
+	client      *http.Client
 
-	// client serves the small manifest fetch; a total timeout is fine there.
-	// dlClient streams release zips of arbitrary size over arbitrary links, so
-	// it bounds only connect/header latency, never the body read.
-	client   *http.Client
-	dlClient *http.Client
-
-	mu       sync.Mutex
-	status   Status
-	manifest Manifest
+	mu     sync.Mutex
+	status Status
 }
 
 // New creates a Checker for the given running version (config.AppVersion).
-// Downloads land in downloadDir.
-func New(version, downloadDir string) *Checker {
+func New(version string) *Checker {
 	return &Checker{
 		manifestURL: DefaultManifestURL,
 		version:     version,
-		downloadDir: downloadDir,
 		client:      &http.Client{Timeout: 30 * time.Second},
-		dlClient: &http.Client{
-			Transport: &http.Transport{
-				ResponseHeaderTimeout: 30 * time.Second,
-				Proxy:                 http.ProxyFromEnvironment,
-			},
-		},
-		status: Status{CurrentVersion: version},
+		status:      Status{CurrentVersion: version},
 	}
 }
 
@@ -97,6 +79,28 @@ func (c *Checker) Status() Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.status
+}
+
+// RunPeriodic checks once after a short startup delay, then every interval
+// until ctx is cancelled. The delay keeps the network fetch out of the
+// startup path.
+func (c *Checker) RunPeriodic(ctx context.Context, interval time.Duration) {
+	select {
+	case <-time.After(15 * time.Second):
+	case <-ctx.Done():
+		return
+	}
+	c.Check(ctx)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			c.Check(ctx)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // Check fetches and validates the manifest, then records whether the
@@ -126,14 +130,13 @@ func (c *Checker) Check(ctx context.Context) Status {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.manifest = manifest
 	c.status = Status{
 		CurrentVersion:  c.version,
 		LastCheckedAt:   time.Now().UTC().Format(time.RFC3339),
 		LatestVersion:   manifest.Version,
-		NotesURL:        manifest.NotesURL,
+		NotesURL:        SafeReleaseURL(manifest.NotesURL),
+		DownloadURL:     SafeReleaseURL(manifest.ArtifactURL),
 		UpdateAvailable: IsNewer(c.version, manifest.Version),
-		Downloading:     c.status.Downloading,
 	}
 	return c.status
 }
@@ -146,129 +149,10 @@ func (c *Checker) failCheck(msg string) Status {
 	return c.status
 }
 
-// StartDownload begins downloading the artifact from the last successful
-// Check on a background goroutine. Progress and the verified result are
-// observed via Status. A second call while a download is running is a no-op.
-func (c *Checker) StartDownload() (Status, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.status.Downloading {
-		return c.status, nil
-	}
-	if c.manifest.ArtifactURL == "" {
-		return c.status, fmt.Errorf("no checked update manifest available")
-	}
-	if !c.status.UpdateAvailable {
-		return c.status, fmt.Errorf("no update available")
-	}
-	manifest := c.manifest
-	c.status.Downloading = true
-	c.status.LastError = ""
-	c.status.BytesDownloaded = 0
-	c.status.BytesTotal = 0
-	c.status.DownloadedPath = ""
-	c.status.DownloadedSHA256 = ""
-	go c.download(manifest)
-	return c.status, nil
-}
-
-func (c *Checker) download(manifest Manifest) {
-	finish := func(fn func(s *Status)) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.status.Downloading = false
-		fn(&c.status)
-	}
-	fail := func(msg string) {
-		finish(func(s *Status) { s.LastError = msg })
-	}
-
-	name := SafeArtifactName(manifest.ArtifactName)
-	if name == "" {
-		name = "OOF_RL-" + strings.TrimPrefix(manifest.Version, "v") + ".zip"
-	}
-	if err := os.MkdirAll(c.downloadDir, 0755); err != nil {
-		fail("create download dir: " + err.Error())
-		return
-	}
-	dest := filepath.Join(c.downloadDir, name)
-
-	req, err := http.NewRequest(http.MethodGet, manifest.ArtifactURL, nil)
-	if err != nil {
-		fail("bad artifact request: " + err.Error())
-		return
-	}
-	req.Header.Set("Accept", "application/zip,application/octet-stream,*/*")
-	resp, err := c.dlClient.Do(req)
-	if err != nil {
-		fail(err.Error())
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		fail(fmt.Sprintf("download HTTP %d", resp.StatusCode))
-		return
-	}
-	c.mu.Lock()
-	c.status.BytesTotal = resp.ContentLength
-	c.mu.Unlock()
-
-	tmpPath := dest + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		fail("create file: " + err.Error())
-		return
-	}
-	hasher := sha256.New()
-	_, copyErr := io.Copy(io.MultiWriter(f, hasher, c.progressWriter()), resp.Body)
-	closeErr := f.Close()
-	if copyErr != nil {
-		_ = os.Remove(tmpPath)
-		fail("write file: " + copyErr.Error())
-		return
-	}
-	if closeErr != nil {
-		_ = os.Remove(tmpPath)
-		fail("close file: " + closeErr.Error())
-		return
-	}
-
-	got := fmt.Sprintf("%x", hasher.Sum(nil))
-	want := NormalizeSHA256(manifest.ArtifactSHA256)
-	if want == "" || got != want {
-		_ = os.Remove(tmpPath)
-		fail("download SHA256 mismatch")
-		return
-	}
-	if err := os.Rename(tmpPath, dest); err != nil {
-		_ = os.Remove(tmpPath)
-		fail("finalize file: " + err.Error())
-		return
-	}
-
-	finish(func(s *Status) {
-		s.DownloadedPath = dest
-		s.DownloadedSHA256 = got
-	})
-}
-
-// progressWriter counts streamed bytes into Status.BytesDownloaded so the
-// frontend can poll progress.
-func (c *Checker) progressWriter() io.Writer {
-	return writerFunc(func(p []byte) (int, error) {
-		c.mu.Lock()
-		c.status.BytesDownloaded += int64(len(p))
-		c.mu.Unlock()
-		return len(p), nil
-	})
-}
-
-type writerFunc func([]byte) (int, error)
-
-func (w writerFunc) Write(p []byte) (int, error) { return w(p) }
-
 // ParseManifest decodes and validates an update manifest. A UTF-8 BOM is
 // tolerated — Windows tooling (PowerShell 5.1 Out-File) likes to prepend one.
+// Only version is required: the checker compares versions and links out, it
+// never fetches artifacts.
 func ParseManifest(data []byte) (Manifest, error) {
 	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 	var m Manifest
@@ -282,15 +166,8 @@ func ParseManifest(data []byte) (Manifest, error) {
 	m.ArtifactURL = strings.TrimSpace(m.ArtifactURL)
 	m.ArtifactName = strings.TrimSpace(m.ArtifactName)
 	m.ArtifactSHA256 = NormalizeSHA256(m.ArtifactSHA256)
-	switch {
-	case m.Version == "":
+	if m.Version == "" {
 		return m, fmt.Errorf("manifest version required")
-	case m.ArtifactURL == "":
-		return m, fmt.Errorf("manifest artifact_url required")
-	case m.ArtifactName == "":
-		return m, fmt.Errorf("manifest artifact_name required")
-	case m.ArtifactSHA256 == "":
-		return m, fmt.Errorf("manifest artifact_sha256 required")
 	}
 	return m, nil
 }
@@ -340,15 +217,21 @@ func parseVersion(v string) ([3]int, bool) {
 	return out, true
 }
 
-// SafeArtifactName reduces a manifest-supplied file name to a bare base name
-// so it cannot traverse outside the download directory.
-func SafeArtifactName(name string) string {
-	name = strings.TrimSpace(name)
-	base := filepath.Base(filepath.FromSlash(strings.ReplaceAll(name, "\\", "/")))
-	if base == "." || base == ".." || base == string(filepath.Separator) || base == "" {
+// SafeReleaseURL returns url only when it points inside the project's GitHub
+// repo over HTTPS; otherwise "". Applied to every manifest URL before it
+// reaches the UI.
+func SafeReleaseURL(url string) string {
+	url = strings.TrimSpace(url)
+	if !strings.HasPrefix(url, releaseURLPrefix) {
 		return ""
 	}
-	return base
+	rest := url[len(releaseURLPrefix):]
+	// Reject anything that could escape the repo path or smuggle credentials;
+	// release/tag paths never contain these.
+	if strings.ContainsAny(rest, "\\@") || strings.Contains(rest, "..") {
+		return ""
+	}
+	return url
 }
 
 // NormalizeSHA256 lowercases and validates a hex SHA256; returns "" if the

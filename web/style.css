@@ -4561,3 +4561,29 @@ details[open] .settings-details-summary::before { transform: rotate(90deg); }
   background: linear-gradient(135deg, transparent 50%, #374151 50%);
 }
 .overlay-mode .overlay-resize-grip { display: block; }
+
+/* Update-available dialog */
+.upd-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.upd-dialog {
+  width: min(420px, calc(100vw - 48px));
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.upd-dialog-text {
+  font-size: 13px; color: var(--muted); line-height: 1.5;
+  margin: 8px 0 14px;
+}
+.upd-dialog-text strong { color: var(--rl-blue); }
+.upd-dialog-actions { display: flex; align-items: center; gap: 10px; }
+.upd-dialog-actions a.btn-action { text-decoration: none; display: inline-block; }
+.upd-dialog-dismiss {
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  font-family: inherit; cursor: pointer; margin-left: auto;
+  transition: color .12s, border-color .12s;
+}
+.upd-dialog-dismiss:hover { color: var(--rl-blue); border-color: var(--rl-blue); }

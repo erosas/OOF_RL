@@ -208,16 +208,13 @@ Local upload history: `{ "2024-01-01.replay": { "ballchasing_id": "...", "bc_url
 
 ## Updates
 
-Host-core manual update checker — see [auto-update.md](auto-update.md).
+Host-core update checker (check-only; the app never downloads artifacts) — see [auto-update.md](auto-update.md).
 
 ### `GET /api/update/status`
-Current update state: `{ "current_version", "latest_version", "update_available", "downloading", "bytes_downloaded", "bytes_total", "downloaded_path", "last_error", ... }`
+Current update state: `{ "current_version", "latest_version", "update_available", "notes_url", "download_url", "last_error", ... }`
 
 ### `POST /api/update/check`
 Fetches the GitHub release manifest and compares versions. Returns the updated status; `502` with the status body when the manifest fetch/parse fails.
-
-### `POST /api/update/download`
-Starts a background download of the release zip with SHA256 verification. Poll `/api/update/status` for progress. Returns `409` when no checked update is available.
 
 ---
 

@@ -34,18 +34,3 @@ func (c *Checker) HandleCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.WriteJSON(w, st)
 }
-
-// HandleDownload serves POST /api/update/download. The download itself runs
-// in the background; poll /api/update/status for progress and the result.
-func (c *Checker) HandleDownload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		httputil.JSONError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	st, err := c.StartDownload()
-	if err != nil {
-		httputil.JSONError(w, http.StatusConflict, err.Error())
-		return
-	}
-	httputil.WriteJSON(w, st)
-}
