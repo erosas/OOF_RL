@@ -266,6 +266,22 @@ func TestValidateRouteMeta(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("path smuggling", func(t *testing.T) {
+		// These pass the literal prefix check but read as one path while
+		// potentially matching another.
+		for _, path := range []string{
+			"/api/demo/../config",
+			"/api/demo/%2e%2e/config",
+			"/api/demo/a%2fb",
+			`/api/demo/..\config`,
+		} {
+			err := validateRouteMeta("demo", []sdk.RouteMeta{{Path: path, Method: "GET"}})
+			if err == nil {
+				t.Errorf("path %q: expected smuggling rejection", path)
+			}
+		}
+	})
 }
 
 func TestValidatePluginID(t *testing.T) {

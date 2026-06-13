@@ -71,7 +71,10 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($Version) -and ($Version -match '^v?(\d+)\.(\d+)\.(\d+)')) {
         $verMajor = [int]$Matches[1]; $verMinor = [int]$Matches[2]; $verPatch = [int]$Matches[3]
         $verStr = "$verMajor.$verMinor.$verPatch.0"
-        Invoke-Checked "go" @("install", "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest")
+        # Pinned: this runs at release-build time and its output is linked into
+        # the shipped exe, so "@latest" would let a compromised or broken new
+        # version flow straight into a release.
+        Invoke-Checked "go" @("install", "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0")
         $gvi = Join-Path (& go env GOPATH) "bin\goversioninfo.exe"
         Invoke-Checked $gvi @(
             "-o", "rsrc.syso", "-icon", "icon.ico",
@@ -104,10 +107,21 @@ try {
         $env:GOARCH = $oldGOARCH
     }
 
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot "install.ps1") -Destination $packageRoot
+
     @"
 OOF RL
 
-Run oof_rl.exe from this folder.
+Install or update (recommended): right-click install.ps1 and choose
+"Run with PowerShell", or from a terminal in this folder:
+
+    powershell -ExecutionPolicy Bypass -File install.ps1
+
+The script copies the app to %LOCALAPPDATA%\Programs\OOF_RL (stopping a
+running copy first), creates a Start Menu shortcut, and launches it. Your
+data (database, logs, settings) lives in %LOCALAPPDATA%\OOF_RL and is never
+touched. You can also skip the script and just run oof_rl.exe from this
+folder.
 
 This release includes bundled public plugins in the plugins folder. On startup,
 OOF RL copies those bundled plugins into %LOCALAPPDATA%\OOF_RL\plugins so the

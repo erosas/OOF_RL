@@ -59,6 +59,13 @@ func validateRouteMeta(pluginID string, routes []sdk.RouteMeta) error {
 		if !strings.HasPrefix(path, prefix) || len(path) == len(prefix) {
 			return fmt.Errorf("route path %q must be under %q", path, prefix)
 		}
+		// The prefix check above is a literal string comparison, so reject
+		// dot segments, percent-escapes, and backslashes outright — none have
+		// a legitimate use in a route pattern, and each is a way to register
+		// a pattern that reads as one path but matches another.
+		if strings.Contains(path, "..") || strings.ContainsAny(path, "%\\") {
+			return fmt.Errorf("route path %q must not contain '..', '%%', or '\\'", path)
+		}
 		if _, exists := seenPath[path]; exists {
 			return fmt.Errorf("duplicate route path %q", path)
 		}

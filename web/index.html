@@ -115,14 +115,13 @@
       <div class="settings-row">
         <span class="settings-label">
           Version <span id="upd-version" class="settings-suffix"></span>
-          <span class="help-icon">?<span class="help-tip">Checks the latest GitHub release and downloads the zip with SHA256 verification. Nothing is installed automatically.</span></span>
+          <span class="help-icon">?<span class="help-tip">Checks the latest GitHub release once a day and on demand. Downloads happen in your browser; nothing is fetched or installed automatically.</span></span>
         </span>
         <button id="upd-check" class="btn-action">Check for updates</button>
-        <button id="upd-download" class="btn-action hidden">Download</button>
       </div>
       <div class="settings-row">
         <span id="upd-status" class="settings-hint">Not checked yet</span>
-        <a id="upd-notes" href="#" target="_blank" class="settings-hint hover:text-rl-blue transition-colors ml-auto hidden">Release notes ↗</a>
+        <a id="upd-notes" href="#" target="_blank" rel="noopener noreferrer" class="settings-hint hover:text-rl-blue transition-colors ml-auto hidden">Release notes ↗</a>
       </div>
     </div>
 
@@ -175,7 +174,7 @@
           <div class="settings-panel-title">App URL</div>
           <div class="settings-row">
             <span class="settings-label text-gray-400 text-xs" id="cfg-app-url-display"></span>
-            <a id="cfg-app-url-link" href="#" target="_blank" class="settings-hint hover:text-rl-blue transition-colors ml-auto">Open ↗</a>
+            <a id="cfg-app-url-link" href="#" target="_blank" rel="noopener noreferrer" class="settings-hint hover:text-rl-blue transition-colors ml-auto">Open ↗</a>
           </div>
         </div>
 
@@ -197,6 +196,19 @@
   </section>
 
 </main>
+
+<!-- Update-available dialog -->
+<div id="upd-dialog" class="upd-dialog-backdrop hidden">
+  <div class="upd-dialog settings-panel">
+    <div class="settings-panel-title">Update available</div>
+    <p class="upd-dialog-text">A new version of OOF RL is out: <strong id="upd-dialog-version"></strong>. Download the zip, extract it, and run <code>install.ps1</code> to update.</p>
+    <div class="upd-dialog-actions">
+      <a id="upd-dialog-notes" href="#" target="_blank" rel="noopener noreferrer" class="btn-action">View release ↗</a>
+      <a id="upd-dialog-download" href="#" target="_blank" rel="noopener noreferrer" class="btn-action">Download zip ↗</a>
+      <button id="upd-dialog-dismiss" class="upd-dialog-dismiss">Dismiss</button>
+    </div>
+  </div>
+</div>
 
 <script src="/arena-names.js"></script>
 <script src="/app.js"></script>

@@ -12,7 +12,6 @@ import (
 	_ "net/http/pprof"
 
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/arl/statsviz"
@@ -109,7 +108,9 @@ func main() {
 	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
 		log.Fatalf("wasm plugin load: %v", err)
 	}
-	srv.SetUpdateChecker(update.New(config.AppVersion, filepath.Join(cfg.DataDir, "updates")))
+	updates := update.New(config.AppVersion)
+	srv.SetUpdateChecker(updates)
+	go updates.RunPeriodic(context.Background(), 24*time.Hour)
 	srv.Register(mux)
 	if cfg.DevMode {
 		mux.Handle("/debug/pprof/", http.DefaultServeMux)

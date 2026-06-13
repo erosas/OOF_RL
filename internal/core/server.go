@@ -353,7 +353,6 @@ func (s *Server) Register(mux *http.ServeMux) {
 		"/api/data-dir":        "core",
 		"/api/update/status":   "core",
 		"/api/update/check":    "core",
-		"/api/update/download": "core",
 		"/plugins/history/":    "core",
 	}
 
@@ -376,7 +375,6 @@ func (s *Server) Register(mux *http.ServeMux) {
 	if s.updates != nil {
 		mux.HandleFunc("/api/update/status", s.updates.HandleStatus)
 		mux.HandleFunc("/api/update/check", s.updates.HandleCheck)
-		mux.HandleFunc("/api/update/download", s.updates.HandleDownload)
 	}
 
 	// History is host-core: mount its UI assets directly.

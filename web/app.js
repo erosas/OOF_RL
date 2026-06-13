@@ -636,50 +636,49 @@ document.getElementById('cfg-data-dir-open').addEventListener('click', () => {
 });
 
 // --- Updates ---
-const _updCheckBtn    = document.getElementById('upd-check');
-const _updDownloadBtn = document.getElementById('upd-download');
-const _updStatusEl    = document.getElementById('upd-status');
-const _updNotesLink   = document.getElementById('upd-notes');
-const _updVersionEl   = document.getElementById('upd-version');
-let _updPollTimer = null;
-
-function fmtBytes(n) {
-  if (!n || n < 0) return '';
-  if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${n} B`;
-}
+// The app never downloads release artifacts (the manifest is unsigned, so an
+// in-app download can't prove who built the binary). The backend checks the
+// manifest daily; when a newer version shows up we surface a dialog that
+// links to the GitHub release and the user downloads in their browser.
+const _updCheckBtn  = document.getElementById('upd-check');
+const _updStatusEl  = document.getElementById('upd-status');
+const _updNotesLink = document.getElementById('upd-notes');
+const _updVersionEl = document.getElementById('upd-version');
+const _updDialog        = document.getElementById('upd-dialog');
+const _updDialogVersion = document.getElementById('upd-dialog-version');
+const _updDialogNotes   = document.getElementById('upd-dialog-notes');
+const _updDialogDl      = document.getElementById('upd-dialog-download');
+const UPD_DISMISS_KEY = 'oof-upd-dismissed';
 
 function describeUpdateStatus(st) {
-  if (st.downloading) {
-    const total = st.bytes_total > 0 ? ` / ${fmtBytes(st.bytes_total)}` : '';
-    return `Downloading… ${fmtBytes(st.bytes_downloaded)}${total}`;
-  }
   if (st.last_error) return `Error: ${st.last_error}`;
-  if (st.downloaded_path) return `Downloaded ${st.latest_version} to ${st.downloaded_path}`;
   if (st.update_available) return `Update available: ${st.latest_version}`;
   if (st.latest_version) return `Up to date (${st.latest_version})`;
   return 'Not checked yet';
 }
 
-function renderUpdateStatus(st) {
+function showUpdateDialog(st) {
+  _updDialogVersion.textContent = st.latest_version;
+  _updDialogNotes.classList.toggle('hidden', !st.notes_url);
+  if (st.notes_url) _updDialogNotes.href = st.notes_url;
+  _updDialogDl.classList.toggle('hidden', !st.download_url);
+  if (st.download_url) _updDialogDl.href = st.download_url;
+  _updDialog.classList.remove('hidden');
+}
+
+function renderUpdateStatus(st, { dialog = true } = {}) {
   if (!st) return;
   _updVersionEl.textContent = st.current_version || '';
   _updStatusEl.textContent = describeUpdateStatus(st);
-  _updDownloadBtn.classList.toggle('hidden', !(st.update_available && !st.downloaded_path));
-  _updDownloadBtn.disabled = !!st.downloading;
-  _updCheckBtn.disabled = !!st.downloading;
   if (st.notes_url) {
     _updNotesLink.href = st.notes_url;
     _updNotesLink.classList.remove('hidden');
   } else {
     _updNotesLink.classList.add('hidden');
   }
-  if (st.downloading && !_updPollTimer) {
-    _updPollTimer = setInterval(refreshUpdateStatus, 500);
-  } else if (!st.downloading && _updPollTimer) {
-    clearInterval(_updPollTimer);
-    _updPollTimer = null;
+  const dismissed = localStorage.getItem(UPD_DISMISS_KEY);
+  if (dialog && st.update_available && st.latest_version !== dismissed) {
+    showUpdateDialog(st);
   }
 }
 
@@ -690,9 +689,16 @@ async function refreshUpdateStatus() {
   } catch { /* server unreachable; leave last state */ }
 }
 
+document.getElementById('upd-dialog-dismiss').addEventListener('click', () => {
+  localStorage.setItem(UPD_DISMISS_KEY, _updDialogVersion.textContent);
+  _updDialog.classList.add('hidden');
+});
+
 _updCheckBtn.addEventListener('click', async () => {
   _updCheckBtn.disabled = true;
   _updStatusEl.textContent = 'Checking…';
+  // An explicit check should always surface the dialog again.
+  localStorage.removeItem(UPD_DISMISS_KEY);
   try {
     const res = await fetch('/api/update/check', { method: 'POST' });
     renderUpdateStatus(await res.json());
@@ -703,21 +709,10 @@ _updCheckBtn.addEventListener('click', async () => {
   }
 });
 
-_updDownloadBtn.addEventListener('click', async () => {
-  try {
-    const res = await fetch('/api/update/download', { method: 'POST' });
-    const st = await res.json();
-    if (!res.ok) {
-      _updStatusEl.textContent = `Error: ${st.error || `HTTP ${res.status}`}`;
-      return;
-    }
-    renderUpdateStatus(st);
-  } catch (e) {
-    _updStatusEl.textContent = `Error: ${e.message || e}`;
-  }
-});
-
 refreshUpdateStatus();
+// The backend re-checks daily; poll its status hourly so a result that landed
+// while this page was open still surfaces without a reload.
+setInterval(refreshUpdateStatus, 60 * 60 * 1000);
 
 document.getElementById('cfg-overlay-opacity').addEventListener('input', e => {
   const alpha = parseInt(e.target.value);

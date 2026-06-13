@@ -2,53 +2,57 @@ package update
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
-func manifestJSON(version, artifactURL, artifactSHA string) string {
+func manifestJSON(version, notesURL, artifactURL string) string {
 	b, _ := json.Marshal(Manifest{
 		Version:        version,
 		Channel:        "stable",
-		NotesURL:       "https://example.test/notes",
+		NotesURL:       notesURL,
 		PublishedAt:    "2026-06-06T12:00:00Z",
 		ArtifactURL:    artifactURL,
 		ArtifactName:   "OOF_RL.zip",
-		ArtifactSHA256: artifactSHA,
+		ArtifactSHA256: fmt.Sprintf("%064x", 1),
 	})
 	return string(b)
 }
 
+const (
+	goodNotesURL    = "https://github.com/erosas/OOF_RL/releases/tag/v1.1.0"
+	goodArtifactURL = "https://github.com/erosas/OOF_RL/releases/download/v1.1.0/OOF_RL-v1.1.0.zip"
+)
+
 func TestParseManifestValid(t *testing.T) {
-	hash := fmt.Sprintf("%064x", 1)
-	got, err := ParseManifest([]byte(manifestJSON("v1.2.3", "https://example.test/OOF_RL.zip", hash)))
+	got, err := ParseManifest([]byte(manifestJSON("v1.2.3", goodNotesURL, goodArtifactURL)))
 	if err != nil {
 		t.Fatalf("ParseManifest: %v", err)
 	}
-	if got.Version != "v1.2.3" || got.ArtifactSHA256 != hash {
+	if got.Version != "v1.2.3" || got.ArtifactURL != goodArtifactURL {
 		t.Fatalf("manifest: got %+v", got)
 	}
 }
 
 func TestParseManifestToleratesBOM(t *testing.T) {
-	hash := fmt.Sprintf("%064x", 1)
-	body := append([]byte{0xEF, 0xBB, 0xBF}, []byte(manifestJSON("v1.2.3", "https://example.test/OOF_RL.zip", hash))...)
+	body := append([]byte{0xEF, 0xBB, 0xBF}, []byte(manifestJSON("v1.2.3", goodNotesURL, goodArtifactURL))...)
 	if _, err := ParseManifest(body); err != nil {
 		t.Fatalf("ParseManifest with BOM: %v", err)
 	}
 }
 
-func TestParseManifestRejectsMissingRequiredFields(t *testing.T) {
+func TestParseManifestRequiresOnlyVersion(t *testing.T) {
+	// Artifact fields are optional now: the checker never fetches artifacts.
+	if _, err := ParseManifest([]byte(`{"version":"v1.2.3"}`)); err != nil {
+		t.Errorf("version-only manifest: %v", err)
+	}
 	for _, body := range []string{
-		`{"version":"v1.2.3"}`,
-		`{"artifact_url":"https://x/y.zip","artifact_name":"y.zip","artifact_sha256":"` + fmt.Sprintf("%064x", 1) + `"}`,
+		`{"artifact_url":"https://x/y.zip","artifact_name":"y.zip"}`,
+		`{"version":"  "}`,
 		`not json`,
 	} {
 		if _, err := ParseManifest([]byte(body)); err == nil {
@@ -77,15 +81,29 @@ func TestIsNewer(t *testing.T) {
 	}
 }
 
-func TestSafeArtifactName(t *testing.T) {
-	if got := SafeArtifactName(`..\bad.zip`); got != "bad.zip" {
-		t.Fatalf("got %q", got)
+func TestSafeReleaseURL(t *testing.T) {
+	for _, ok := range []string{goodNotesURL, goodArtifactURL} {
+		if got := SafeReleaseURL(ok); got != ok {
+			t.Errorf("%q: got %q, want unchanged", ok, got)
+		}
 	}
-	if got := SafeArtifactName("nested/OOF_RL.zip"); got != "OOF_RL.zip" {
-		t.Fatalf("got %q", got)
-	}
-	if got := SafeArtifactName(".."); got != "" {
-		t.Fatalf("got %q, want empty", got)
+	for _, bad := range []string{
+		"",
+		"https://evil.test/OOF_RL.zip",
+		"http://github.com/erosas/OOF_RL/releases", // not HTTPS
+		"https://github.com/evil/repo/releases",
+		"https://github.com/erosas/OOF_RL/../../evil/repo",
+		"https://github.com/erosas/OOF_RL/%2e%2e/%2e%2e/evil/repo", // encoded traversal
+		"https://github.com/erosas/OOF_RL/%5c..%5cevil",           // encoded backslash
+		"https://github.com/erosas/OOF_RLx/releases",              // prefix must end at the repo
+		"https://user@github.com/erosas/OOF_RL/releases",          // userinfo
+		"https://github.com:8443/erosas/OOF_RL/releases",          // explicit port
+		"https://github.com.evil.test/erosas/OOF_RL/releases",     // host suffix trick
+		"javascript:alert(1)",
+	} {
+		if got := SafeReleaseURL(bad); got != "" {
+			t.Errorf("%q: got %q, want empty", bad, got)
+		}
 	}
 }
 
@@ -101,38 +119,79 @@ func TestNormalizeSHA256(t *testing.T) {
 	}
 }
 
-func TestCheckReportsUpdateAvailable(t *testing.T) {
-	hash := fmt.Sprintf("%064x", 2)
+func checkerForManifest(t *testing.T, body string) *Checker {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, manifestJSON("v1.1.0", "https://example.test/OOF_RL.zip", hash))
+		fmt.Fprint(w, body)
 	}))
-	defer srv.Close()
-
-	c := New("v1.0.0", t.TempDir())
+	t.Cleanup(srv.Close)
+	c := New("v1.0.0")
 	c.manifestURL = srv.URL
+	return c
+}
 
+func TestCheckReportsUpdateAvailable(t *testing.T) {
+	c := checkerForManifest(t, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
 	st := c.Check(context.Background())
 	if st.LastError != "" {
 		t.Fatalf("Check: %s", st.LastError)
 	}
-	if !st.UpdateAvailable || st.LatestVersion != "v1.1.0" || st.NotesURL == "" {
+	if !st.UpdateAvailable || st.LatestVersion != "v1.1.0" {
 		t.Fatalf("status: got %+v", st)
+	}
+	if st.NotesURL != goodNotesURL || st.DownloadURL != goodArtifactURL {
+		t.Fatalf("links: got %+v", st)
+	}
+}
+
+func TestCheckFiltersUntrustedLinks(t *testing.T) {
+	c := checkerForManifest(t, manifestJSON("v1.1.0", "https://evil.test/notes", "https://evil.test/OOF_RL.zip"))
+	st := c.Check(context.Background())
+	if st.LastError != "" || !st.UpdateAvailable {
+		t.Fatalf("status: got %+v", st)
+	}
+	if st.NotesURL != "" || st.DownloadURL != "" {
+		t.Fatalf("untrusted links must not surface: got %+v", st)
 	}
 }
 
 func TestCheckReportsUpToDate(t *testing.T) {
-	hash := fmt.Sprintf("%064x", 3)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, manifestJSON("v1.0.0", "https://example.test/OOF_RL.zip", hash))
-	}))
-	defer srv.Close()
-
-	c := New("v1.0.0", t.TempDir())
-	c.manifestURL = srv.URL
-
+	c := checkerForManifest(t, manifestJSON("v1.0.0", goodNotesURL, goodArtifactURL))
 	st := c.Check(context.Background())
 	if st.LastError != "" || st.UpdateAvailable {
 		t.Fatalf("status: got %+v", st)
+	}
+}
+
+func TestRunPeriodic(t *testing.T) {
+	old := startupCheckDelay
+	startupCheckDelay = time.Millisecond
+	defer func() { startupCheckDelay = old }()
+
+	c := checkerForManifest(t, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		c.RunPeriodic(ctx, 5*time.Millisecond)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for c.Status().LastCheckedAt == "" {
+		if time.Now().After(deadline) {
+			t.Fatal("periodic check never ran")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if st := c.Status(); !st.UpdateAvailable {
+		t.Fatalf("status: got %+v", st)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunPeriodic did not stop on context cancel")
 	}
 }
 
@@ -142,7 +201,7 @@ func TestCheckRecordsFetchError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New("v1.0.0", t.TempDir())
+	c := New("v1.0.0")
 	c.manifestURL = srv.URL
 
 	st := c.Check(context.Background())
@@ -151,111 +210,8 @@ func TestCheckRecordsFetchError(t *testing.T) {
 	}
 }
 
-// waitDownload polls until the background download finishes.
-func waitDownload(t *testing.T, c *Checker) Status {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		st := c.Status()
-		if !st.Downloading {
-			return st
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("download did not finish")
-	return Status{}
-}
-
-func checkedChecker(t *testing.T, dir string, payload []byte, sha string) *Checker {
-	t.Helper()
-	artifact := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(payload)
-	}))
-	t.Cleanup(artifact.Close)
-	manifest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, manifestJSON("v1.1.0", artifact.URL+"/OOF_RL.zip", sha))
-	}))
-	t.Cleanup(manifest.Close)
-
-	c := New("v1.0.0", dir)
-	c.manifestURL = manifest.URL
-	if st := c.Check(context.Background()); st.LastError != "" {
-		t.Fatalf("Check: %s", st.LastError)
-	}
-	return c
-}
-
-func TestDownloadVerifiesSHA(t *testing.T) {
-	payload := []byte("release zip bytes")
-	sha := fmt.Sprintf("%x", sha256.Sum256(payload))
-	dir := t.TempDir()
-	c := checkedChecker(t, dir, payload, sha)
-
-	if _, err := c.StartDownload(); err != nil {
-		t.Fatalf("StartDownload: %v", err)
-	}
-	st := waitDownload(t, c)
-	if st.LastError != "" || st.DownloadedSHA256 != sha {
-		t.Fatalf("status: got %+v", st)
-	}
-	saved, err := os.ReadFile(filepath.Join(dir, "OOF_RL.zip"))
-	if err != nil {
-		t.Fatalf("read download: %v", err)
-	}
-	if string(saved) != string(payload) {
-		t.Fatalf("payload mismatch: got %q", saved)
-	}
-	if st.BytesDownloaded != int64(len(payload)) {
-		t.Errorf("bytes downloaded: got %d, want %d", st.BytesDownloaded, len(payload))
-	}
-}
-
-func TestDownloadRejectsSHAMismatch(t *testing.T) {
-	payload := []byte("release zip bytes")
-	dir := t.TempDir()
-	c := checkedChecker(t, dir, payload, fmt.Sprintf("%064x", 9))
-
-	if _, err := c.StartDownload(); err != nil {
-		t.Fatalf("StartDownload: %v", err)
-	}
-	st := waitDownload(t, c)
-	if st.LastError == "" || st.DownloadedPath != "" {
-		t.Fatalf("expected SHA mismatch, got %+v", st)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "OOF_RL.zip")); !os.IsNotExist(err) {
-		t.Fatal("rejected artifact must not be kept")
-	}
-	if _, err := os.Stat(filepath.Join(dir, "OOF_RL.zip.tmp")); !os.IsNotExist(err) {
-		t.Fatal("tmp file must be cleaned up")
-	}
-}
-
-func TestStartDownloadWithoutCheck(t *testing.T) {
-	c := New("v1.0.0", t.TempDir())
-	if _, err := c.StartDownload(); err == nil {
-		t.Fatal("expected error without a checked manifest")
-	}
-}
-
-func TestStartDownloadWhenUpToDate(t *testing.T) {
-	hash := fmt.Sprintf("%064x", 3)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, manifestJSON("v1.0.0", "https://example.test/OOF_RL.zip", hash))
-	}))
-	defer srv.Close()
-	c := New("v1.0.0", t.TempDir())
-	c.manifestURL = srv.URL
-	c.Check(context.Background())
-
-	if _, err := c.StartDownload(); err == nil {
-		t.Fatal("expected error when no update is available")
-	}
-}
-
 func TestHandlers(t *testing.T) {
-	payload := []byte("release zip bytes")
-	sha := fmt.Sprintf("%x", sha256.Sum256(payload))
-	c := checkedChecker(t, t.TempDir(), payload, sha)
+	c := checkerForManifest(t, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
 
 	w := httptest.NewRecorder()
 	c.HandleStatus(w, httptest.NewRequest(http.MethodGet, "/api/update/status", nil))
@@ -270,9 +226,15 @@ func TestHandlers(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	c.HandleDownload(w, httptest.NewRequest(http.MethodPost, "/api/update/download", nil))
+	c.HandleCheck(w, httptest.NewRequest(http.MethodPost, "/api/update/check", nil))
 	if w.Code != http.StatusOK {
-		t.Fatalf("download: got %d — %s", w.Code, w.Body.String())
+		t.Fatalf("check POST: got %d — %s", w.Code, w.Body.String())
 	}
-	waitDownload(t, c)
+	var st Status
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatalf("check body: %v", err)
+	}
+	if !st.UpdateAvailable || st.DownloadURL != goodArtifactURL {
+		t.Fatalf("check status: got %+v", st)
+	}
 }
