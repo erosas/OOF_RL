@@ -108,7 +108,7 @@ func main() {
 	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
 		log.Fatalf("wasm plugin load: %v", err)
 	}
-	updates := update.New(config.AppVersion)
+	updates := update.New(config.AppVersion, func() bool { return srv.Config().DevMode })
 	srv.SetUpdateChecker(updates)
 	go updates.RunPeriodic(context.Background(), 24*time.Hour)
 	srv.Register(mux)

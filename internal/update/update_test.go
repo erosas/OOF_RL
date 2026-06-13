@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -73,6 +74,15 @@ func TestIsNewer(t *testing.T) {
 		{"1.0.0", "v1.0.1", true},
 		{"dev", "v1.0.0", true}, // non-semver current: any release surfaces
 		{"v1.0.0", "", false},
+		// Prerelease (dev channel) ordering.
+		{"v1.2.3-dev.1", "v1.2.3-dev.2", true},   // later dev build is newer
+		{"v1.2.3-dev.2", "v1.2.3-dev.1", false},  // no phantom downgrade
+		{"v1.2.3-dev.2", "v1.2.3-dev.10", true},  // numeric, not lexical
+		{"v1.2.3-dev.1", "v1.2.3-dev.1", false},  // identical dev build
+		{"v1.2.3-dev.1", "v1.2.3", true},         // stable supersedes its prereleases
+		{"v1.2.3", "v1.2.3-dev.1", false},        // prerelease never beats its release
+		{"v1.2.3-dev.5", "v1.2.4", true},         // a higher core wins regardless of pre
+		{"v1.2.4", "v1.2.3-dev.9", false},        // ...and a lower core never surfaces
 	}
 	for _, c := range cases {
 		if got := IsNewer(c.current, c.latest); got != c.want {
@@ -125,9 +135,44 @@ func checkerForManifest(t *testing.T, body string) *Checker {
 		fmt.Fprint(w, body)
 	}))
 	t.Cleanup(srv.Close)
-	c := New("v1.0.0")
-	c.manifestURL = srv.URL
+	c := New("v1.0.0", nil)
+	c.stableURL = srv.URL
+	c.devURL = srv.URL
 	return c
+}
+
+func TestCheckSelectsChannelByDevMode(t *testing.T) {
+	var mu sync.Mutex
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotPath = r.URL.Path
+		mu.Unlock()
+		fmt.Fprint(w, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
+	}))
+	t.Cleanup(srv.Close)
+
+	dev := false
+	c := New("v1.0.0", func() bool { return dev })
+	c.stableURL = srv.URL + "/stable"
+	c.devURL = srv.URL + "/dev"
+
+	c.Check(context.Background())
+	mu.Lock()
+	stablePath := gotPath
+	mu.Unlock()
+	if stablePath != "/stable" {
+		t.Fatalf("dev mode off: requested %q, want /stable", stablePath)
+	}
+
+	dev = true // toggled live, mid-session
+	c.Check(context.Background())
+	mu.Lock()
+	devPath := gotPath
+	mu.Unlock()
+	if devPath != "/dev" {
+		t.Fatalf("dev mode on: requested %q, want /dev", devPath)
+	}
 }
 
 func TestCheckReportsUpdateAvailable(t *testing.T) {
@@ -201,8 +246,9 @@ func TestCheckRecordsFetchError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New("v1.0.0")
-	c.manifestURL = srv.URL
+	c := New("v1.0.0", nil)
+	c.stableURL = srv.URL
+	c.devURL = srv.URL
 
 	st := c.Check(context.Background())
 	if st.LastError == "" {

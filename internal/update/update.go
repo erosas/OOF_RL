@@ -25,7 +25,14 @@ import (
 	"time"
 )
 
+// DefaultManifestURL is the stable channel: GitHub's releases/latest excludes
+// prereleases, so regular users only ever see stable releases here.
 const DefaultManifestURL = "https://github.com/erosas/OOF_RL/releases/latest/download/update-manifest.json"
+
+// DevManifestURL is the dev channel: a rolling "dev" prerelease whose manifest
+// asset is refreshed on every release (dev and stable), so dev-mode users are
+// offered the newest build of either kind. See docs/dev/release-channels.md.
+const DevManifestURL = "https://github.com/erosas/OOF_RL/releases/download/dev/update-manifest.json"
 
 // Manifest is the update-manifest.json attached to each GitHub release.
 type Manifest struct {
@@ -52,22 +59,39 @@ type Status struct {
 // Checker holds update state. All exported methods are safe for concurrent
 // use.
 type Checker struct {
-	manifestURL string
-	version     string
-	client      *http.Client
+	stableURL string
+	devURL    string
+	isDev     func() bool
+	version   string
+	client    *http.Client
 
 	mu     sync.Mutex
 	status Status
 }
 
 // New creates a Checker for the given running version (config.AppVersion).
-func New(version string) *Checker {
-	return &Checker{
-		manifestURL: DefaultManifestURL,
-		version:     version,
-		client:      &http.Client{Timeout: 30 * time.Second},
-		status:      Status{CurrentVersion: version},
+// isDev is read on every check so toggling dev mode in Settings switches
+// channels without a restart; a nil isDev pins the checker to stable.
+func New(version string, isDev func() bool) *Checker {
+	if isDev == nil {
+		isDev = func() bool { return false }
 	}
+	return &Checker{
+		stableURL: DefaultManifestURL,
+		devURL:    DevManifestURL,
+		isDev:     isDev,
+		version:   version,
+		client:    &http.Client{Timeout: 30 * time.Second},
+		status:    Status{CurrentVersion: version},
+	}
+}
+
+// manifestURL selects the channel to poll based on the live dev-mode setting.
+func (c *Checker) manifestURL() string {
+	if c.isDev() {
+		return c.devURL
+	}
+	return c.stableURL
 }
 
 // Status returns a snapshot of the current update state.
@@ -105,7 +129,7 @@ func (c *Checker) RunPeriodic(ctx context.Context, interval time.Duration) {
 // Check fetches and validates the manifest, then records whether the
 // manifest version is newer than the running version.
 func (c *Checker) Check(ctx context.Context) Status {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.manifestURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.manifestURL(), nil)
 	if err != nil {
 		return c.failCheck("bad manifest request: " + err.Error())
 	}
@@ -171,49 +195,143 @@ func ParseManifest(data []byte) (Manifest, error) {
 	return m, nil
 }
 
-// IsNewer reports whether latest is a newer release than current. When both
-// parse as semver-ish (v)MAJOR.MINOR.PATCH they compare numerically; otherwise
-// any difference counts as newer so dev builds still surface releases.
+// IsNewer reports whether latest is a newer release than current using
+// semver-2 precedence: (v)MAJOR.MINOR.PATCH with an optional -prerelease
+// suffix. A prerelease ranks below its release (v1.2.3-dev.1 < v1.2.3) and
+// prerelease identifiers compare per the semver spec (numeric numerically,
+// numeric below alphanumeric, otherwise ASCII order). This is what keeps a dev
+// build from prompting a phantom downgrade to an earlier dev build, and makes
+// a stable release supersede its own prereleases. When either side isn't
+// semver-shaped (e.g. a local "dev" build), any difference counts as newer so
+// dev builds still surface releases.
 func IsNewer(current, latest string) bool {
 	current = strings.TrimSpace(current)
 	latest = strings.TrimSpace(latest)
 	if latest == "" || current == latest {
 		return false
 	}
-	cv, cok := parseVersion(current)
-	lv, lok := parseVersion(latest)
+	cv, cok := parseSemver(current)
+	lv, lok := parseSemver(latest)
 	if cok && lok {
-		for i := range lv {
-			if lv[i] != cv[i] {
-				return lv[i] > cv[i]
-			}
-		}
-		return false
+		return compareSemver(lv, cv) > 0
 	}
 	return true
 }
 
-func parseVersion(v string) ([3]int, bool) {
-	var out [3]int
+// semver is a parsed (v)MAJOR.MINOR.PATCH version with optional dot-separated
+// prerelease identifiers; pre is empty for a release.
+type semver struct {
+	nums [3]int
+	pre  []string
+}
+
+func parseSemver(v string) (semver, bool) {
+	var s semver
 	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	parts := strings.Split(v, ".")
+	// Build metadata (everything after '+') is ignored for precedence.
+	if plus := strings.IndexByte(v, '+'); plus >= 0 {
+		v = v[:plus]
+	}
+	core := v
+	if dash := strings.IndexByte(v, '-'); dash >= 0 {
+		core = v[:dash]
+		pre := v[dash+1:]
+		if pre == "" {
+			return s, false
+		}
+		s.pre = strings.Split(pre, ".")
+		for _, id := range s.pre {
+			if id == "" {
+				return s, false
+			}
+		}
+	}
+	parts := strings.Split(core, ".")
 	if len(parts) == 0 || len(parts) > 3 {
-		return out, false
+		return s, false
 	}
 	for i, part := range parts {
-		if part == "" {
-			return out, false
+		n, ok := atoiStrict(part)
+		if !ok {
+			return s, false
 		}
-		n := 0
-		for _, r := range part {
-			if r < '0' || r > '9' {
-				return out, false
-			}
-			n = n*10 + int(r-'0')
-		}
-		out[i] = n
+		s.nums[i] = n
 	}
-	return out, true
+	return s, true
+}
+
+// compareSemver returns -1, 0, or 1 as a is less than, equal to, or greater
+// than b under semver-2 precedence.
+func compareSemver(a, b semver) int {
+	for i := range a.nums {
+		if a.nums[i] != b.nums[i] {
+			if a.nums[i] > b.nums[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	// Equal core: a release outranks any prerelease of the same core.
+	switch {
+	case len(a.pre) == 0 && len(b.pre) == 0:
+		return 0
+	case len(a.pre) == 0:
+		return 1
+	case len(b.pre) == 0:
+		return -1
+	}
+	for i := 0; i < len(a.pre) && i < len(b.pre); i++ {
+		if c := comparePreID(a.pre[i], b.pre[i]); c != 0 {
+			return c
+		}
+	}
+	// All shared identifiers equal: more identifiers outrank fewer.
+	switch {
+	case len(a.pre) > len(b.pre):
+		return 1
+	case len(a.pre) < len(b.pre):
+		return -1
+	default:
+		return 0
+	}
+}
+
+// comparePreID compares two prerelease identifiers per semver-2: numeric
+// identifiers compare numerically and rank below alphanumeric ones.
+func comparePreID(a, b string) int {
+	an, aNum := atoiStrict(a)
+	bn, bNum := atoiStrict(b)
+	switch {
+	case aNum && bNum:
+		switch {
+		case an > bn:
+			return 1
+		case an < bn:
+			return -1
+		default:
+			return 0
+		}
+	case aNum:
+		return -1
+	case bNum:
+		return 1
+	default:
+		return strings.Compare(a, b)
+	}
+}
+
+func atoiStrict(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true
 }
 
 // SafeReleaseURL returns raw only when it points inside the project's GitHub
