@@ -246,8 +246,11 @@ func parseSemver(v string) (semver, bool) {
 			}
 		}
 	}
+	// Require a full MAJOR.MINOR.PATCH core. A short core (v1, v1.2) isn't
+	// semver-shaped, so it falls back to IsNewer's "any difference is newer"
+	// path rather than silently comparing with implied-zero components.
 	parts := strings.Split(core, ".")
-	if len(parts) == 0 || len(parts) > 3 {
+	if len(parts) != 3 {
 		return s, false
 	}
 	for i, part := range parts {
@@ -322,6 +325,11 @@ func comparePreID(a, b string) int {
 
 func atoiStrict(s string) (int, bool) {
 	if s == "" {
+		return 0, false
+	}
+	// Semver-2 numeric identifiers must not carry leading zeros; "0" is valid
+	// but "01" is not numeric and is compared as an alphanumeric identifier.
+	if len(s) > 1 && s[0] == '0' {
 		return 0, false
 	}
 	n := 0

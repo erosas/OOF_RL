@@ -83,6 +83,8 @@ func TestIsNewer(t *testing.T) {
 		{"v1.2.3", "v1.2.3-dev.1", false},        // prerelease never beats its release
 		{"v1.2.3-dev.5", "v1.2.4", true},         // a higher core wins regardless of pre
 		{"v1.2.4", "v1.2.3-dev.9", false},        // ...and a lower core never surfaces
+		{"v1.2", "v1.2.0", true},                 // short core isn't semver: falls back to any-difference
+		{"v1.2.3-dev.2", "v1.2.3-dev.02", true},  // leading-zero id is alphanumeric, outranks numeric 2
 	}
 	for _, c := range cases {
 		if got := IsNewer(c.current, c.latest); got != c.want {
