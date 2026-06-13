@@ -97,6 +97,6 @@ jobs:
           body: |
             Download the release zip, extract it, and run `install.ps1` from the extracted `OOF_RL` folder (right-click → Run with PowerShell, or `powershell -ExecutionPolicy Bypass -File install.ps1`). It installs or updates in place, creates a Start Menu shortcut, and launches the app — your data is untouched. You can also skip the script and run `oof_rl.exe` straight from the folder.
 
-            The zip includes the public WASM plugins and assets needed for Live, Ranks, Session, and Dashboard.
+            The public WASM plugins and assets for Live, Ranks, Session, and Dashboard are built into `oof_rl.exe`, so it runs fully self-contained — no separate plugins folder needed.
 
             **VirusTotal scan:** ${{ steps.virustotal.outputs.analysis }}
