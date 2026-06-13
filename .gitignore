@@ -19,6 +19,11 @@ coverage.html
 /corecov
 dist/
 
+# Release-build staging for go:embed — populated by package-release.ps1,
+# only the .gitkeep placeholder is tracked
+bundled/plugins/*
+!bundled/plugins/.gitkeep
+
 # Local config — may contain API keys and machine-specific paths
 config.toml
 

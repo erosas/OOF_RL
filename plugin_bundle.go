@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"io/fs"
 	"log"
@@ -9,6 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+// Release builds embed the public plugin wasm + assets here
+// (scripts/package-release.ps1 populates bundled/plugins before go build),
+// which makes oof_rl.exe fully self-contained: users keep the single exe
+// wherever they want and the app seeds %LOCALAPPDATA%\OOF_RL\plugins from
+// the embedded copies at startup. Dev builds embed only the .gitkeep
+// placeholder and seeding is a no-op.
+//
+//go:embed all:bundled/plugins
+var bundledPluginsFS embed.FS
 
 var bundledPublicPluginIDs = map[string]struct{}{
 	"dashboard": {},
@@ -18,6 +29,9 @@ var bundledPublicPluginIDs = map[string]struct{}{
 }
 
 func seedBundledWASMPlugins(destDir string) error {
+	if err := seedEmbeddedWASMPlugins(destDir); err != nil {
+		return err
+	}
 	exePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("locate executable: %w", err)
@@ -25,6 +39,21 @@ func seedBundledWASMPlugins(destDir string) error {
 	return seedBundledWASMPluginsFromExecutable(exePath, destDir)
 }
 
+func seedEmbeddedWASMPlugins(destDir string) error {
+	sub, err := fs.Sub(bundledPluginsFS, "bundled/plugins")
+	if err != nil {
+		return fmt.Errorf("embedded plugins: %w", err)
+	}
+	if !hasBundledContent(sub) {
+		return nil
+	}
+	return copyBundledWASMPlugins(sub, destDir)
+}
+
+// seedBundledWASMPluginsFromExecutable copies from a plugins folder next to
+// the exe. Kept alongside the embedded seeding for dev builds and for release
+// folders from the pre-portable zip layout; it runs second so a sidecar
+// folder wins over the embedded copies.
 func seedBundledWASMPluginsFromExecutable(exePath, destDir string) error {
 	srcDir := filepath.Join(filepath.Dir(exePath), "plugins")
 	info, err := os.Stat(srcDir)
@@ -37,11 +66,32 @@ func seedBundledWASMPluginsFromExecutable(exePath, destDir string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("bundled plugins path is not a directory: %s", srcDir)
 	}
-	return copyBundledWASMPlugins(srcDir, destDir)
+	return copyBundledWASMPlugins(os.DirFS(srcDir), destDir)
 }
 
-func copyBundledWASMPlugins(srcDir, destDir string) error {
-	entries, err := os.ReadDir(srcDir)
+// hasBundledContent reports whether src holds anything seeding would copy,
+// so an empty (placeholder-only) source doesn't create destDir.
+func hasBundledContent(src fs.FS) bool {
+	entries, err := fs.ReadDir(src, ".")
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			if isBundledPublicPluginID(strings.ToLower(entry.Name())) {
+				return true
+			}
+			continue
+		}
+		if _, ok := bundledPublicPluginIDFromWASM(entry.Name()); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func copyBundledWASMPlugins(src fs.FS, destDir string) error {
+	entries, err := fs.ReadDir(src, ".")
 	if err != nil {
 		return fmt.Errorf("read bundled plugins: %w", err)
 	}
@@ -50,13 +100,12 @@ func copyBundledWASMPlugins(srcDir, destDir string) error {
 	}
 
 	for _, entry := range entries {
-		srcPath := filepath.Join(srcDir, entry.Name())
 		if entry.IsDir() {
 			pluginID := strings.ToLower(entry.Name())
 			if !isBundledPublicPluginID(pluginID) {
 				continue
 			}
-			if err := copyPluginAssetDir(srcPath, filepath.Join(destDir, pluginID)); err != nil {
+			if err := copyPluginAssetDir(src, entry.Name(), filepath.Join(destDir, pluginID)); err != nil {
 				return err
 			}
 			continue
@@ -65,7 +114,7 @@ func copyBundledWASMPlugins(srcDir, destDir string) error {
 		if !ok {
 			continue
 		}
-		if changed, err := copyFileIfChanged(srcPath, filepath.Join(destDir, pluginID+".wasm")); err != nil {
+		if changed, err := copyFileIfChanged(src, entry.Name(), filepath.Join(destDir, pluginID+".wasm")); err != nil {
 			return err
 		} else if changed {
 			log.Printf("[core] installed bundled wasm plugin: %s.wasm", pluginID)
@@ -88,12 +137,12 @@ func isBundledPublicPluginID(pluginID string) bool {
 	return ok
 }
 
-func copyPluginAssetDir(srcDir, destDir string) error {
-	return filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, err error) error {
+func copyPluginAssetDir(src fs.FS, srcDir, destDir string) error {
+	return fs.WalkDir(src, srcDir, func(srcPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(srcDir, srcPath)
+		rel, err := filepath.Rel(srcDir, filepath.FromSlash(srcPath))
 		if err != nil {
 			return err
 		}
@@ -101,7 +150,7 @@ func copyPluginAssetDir(srcDir, destDir string) error {
 		if d.IsDir() {
 			return os.MkdirAll(destPath, 0755)
 		}
-		if changed, err := copyFileIfChanged(srcPath, destPath); err != nil {
+		if changed, err := copyFileIfChanged(src, srcPath, destPath); err != nil {
 			return err
 		} else if changed {
 			log.Printf("[core] installed bundled plugin asset: %s", filepath.Join(filepath.Base(destDir), rel))
@@ -110,8 +159,8 @@ func copyPluginAssetDir(srcDir, destDir string) error {
 	})
 }
 
-func copyFileIfChanged(srcPath, destPath string) (bool, error) {
-	src, err := os.ReadFile(srcPath)
+func copyFileIfChanged(srcFS fs.FS, srcPath, destPath string) (bool, error) {
+	src, err := fs.ReadFile(srcFS, srcPath)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", srcPath, err)
 	}

@@ -8,7 +8,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $distDir = Join-Path $repoRoot $OutputDir
 $packageRoot = Join-Path $distDir "OOF_RL"
-$pluginsDir = Join-Path $packageRoot "plugins"
+# WASM plugins + assets are staged here so go:embed (all:bundled/plugins in
+# plugin_bundle.go) links them into the exe. This is build-time staging only:
+# bundled/plugins/* is gitignored and reset to the .gitkeep placeholder when
+# the build finishes, preserving the "dev builds embed only the placeholder"
+# invariant.
+$bundledPluginsDir = Join-Path $repoRoot "bundled\plugins"
 $archiveName = if ([string]::IsNullOrWhiteSpace($Version)) { "OOF_RL.zip" } else { "OOF_RL-$Version.zip" }
 $archivePath = Join-Path $distDir $archiveName
 $checksumPath = "$archivePath.sha256"
@@ -35,13 +40,30 @@ function Copy-PluginAssets([string]$Plugin) {
     if (-not (Test-Path -LiteralPath $assets)) {
         return
     }
-    $dest = Join-Path $pluginsDir $Plugin
+    $dest = Join-Path $bundledPluginsDir $Plugin
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -Path (Join-Path $assets "*") -Destination $dest -Recurse -Force
 }
 
+# Remove only the wasm + asset dirs this script stages for embedding, leaving
+# the tracked .gitkeep placeholder so a plain `go build .` embeds nothing.
+# Scoped to $plugins so it can never delete an unexpected file.
+function Reset-BundledPlugins {
+    foreach ($plugin in $plugins) {
+        $wasm = Join-Path $bundledPluginsDir "$plugin.wasm"
+        if (Test-Path -LiteralPath $wasm) {
+            Remove-Item -LiteralPath $wasm -Force
+        }
+        $assetDir = Join-Path $bundledPluginsDir $plugin
+        if (Test-Path -LiteralPath $assetDir) {
+            Remove-Item -LiteralPath $assetDir -Recurse -Force
+        }
+    }
+}
+
 Assert-UnderRepo $distDir
 Assert-UnderRepo $packageRoot
+Assert-UnderRepo $bundledPluginsDir
 
 if (Test-Path -LiteralPath $packageRoot) {
     Remove-Item -LiteralPath $packageRoot -Recurse -Force
@@ -56,7 +78,8 @@ if (Test-Path -LiteralPath $manifestPath) {
     Remove-Item -LiteralPath $manifestPath -Force
 }
 
-New-Item -ItemType Directory -Force $pluginsDir | Out-Null
+New-Item -ItemType Directory -Force $packageRoot | Out-Null
+Reset-BundledPlugins
 if ([string]::IsNullOrWhiteSpace($env:GOCACHE)) {
     $env:GOCACHE = Join-Path $distDir ".gocache"
     New-Item -ItemType Directory -Force $env:GOCACHE | Out-Null
@@ -85,20 +108,16 @@ try {
         )
     }
 
-    $exePath = Join-Path $packageRoot "oof_rl.exe"
-    $ldflags = "-H windowsgui -s -w"
-    if (-not [string]::IsNullOrWhiteSpace($Version)) {
-        $ldflags = "$ldflags -X OOF_RL/internal/config.AppVersion=$Version"
-    }
-    Invoke-Checked "go" @("build", "-ldflags=$ldflags", "-o", $exePath, ".")
-
+    # Build the WASM plugins into the embed staging dir FIRST: go:embed runs at
+    # compile time, so these must exist before the exe build below or the exe
+    # would embed only the placeholder and ship with no public plugins.
     $oldGOOS = $env:GOOS
     $oldGOARCH = $env:GOARCH
     try {
         $env:GOOS = "wasip1"
         $env:GOARCH = "wasm"
         foreach ($plugin in $plugins) {
-            $wasmPath = Join-Path $pluginsDir "$plugin.wasm"
+            $wasmPath = Join-Path $bundledPluginsDir "$plugin.wasm"
             Invoke-Checked "go" @("-C", "plugins\$plugin", "build", "-buildmode=c-shared", "-o", $wasmPath, ".")
             Copy-PluginAssets $plugin
         }
@@ -106,6 +125,13 @@ try {
         $env:GOOS = $oldGOOS
         $env:GOARCH = $oldGOARCH
     }
+
+    $exePath = Join-Path $packageRoot "oof_rl.exe"
+    $ldflags = "-H windowsgui -s -w"
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $ldflags = "$ldflags -X OOF_RL/internal/config.AppVersion=$Version"
+    }
+    Invoke-Checked "go" @("build", "-ldflags=$ldflags", "-o", $exePath, ".")
 
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "install.ps1") -Destination $packageRoot
 
@@ -121,11 +147,11 @@ The script copies the app to %LOCALAPPDATA%\Programs\OOF_RL (stopping a
 running copy first), creates a Start Menu shortcut, and launches it. Your
 data (database, logs, settings) lives in %LOCALAPPDATA%\OOF_RL and is never
 touched. You can also skip the script and just run oof_rl.exe from this
-folder.
+folder, or copy oof_rl.exe anywhere - it is fully self-contained.
 
-This release includes bundled public plugins in the plugins folder. On startup,
-OOF RL copies those bundled plugins into %LOCALAPPDATA%\OOF_RL\plugins so the
-public pages are available without running developer build commands.
+The public plugins are built into oof_rl.exe. On startup, OOF RL copies them
+into %LOCALAPPDATA%\OOF_RL\plugins so the public pages are available without
+running developer build commands.
 "@ | Out-File -Encoding utf8 (Join-Path $packageRoot "README.txt")
 
     Compress-Archive -LiteralPath $packageRoot -DestinationPath $archivePath -Force
@@ -157,5 +183,6 @@ public pages are available without running developer build commands.
         Write-Host $_.FullName.Substring($packageRoot.Length + 1)
     }
 } finally {
+    Reset-BundledPlugins
     Pop-Location
 }
