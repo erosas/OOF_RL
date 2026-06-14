@@ -105,20 +105,24 @@ func (c *Checker) Status() Status {
 // path. Variable so tests can shrink it.
 var startupCheckDelay = 15 * time.Second
 
-// RunPeriodic checks once after a short startup delay, then every interval
-// until ctx is cancelled.
-func (c *Checker) RunPeriodic(ctx context.Context, interval time.Duration) {
+// RunPeriodic checks once after a short startup delay, then on a recurring
+// interval until ctx is cancelled. The interval is re-evaluated each cycle:
+// dev mode polls on the shorter dev interval so prereleases surface quickly.
+// Toggling dev mode at runtime takes effect on the next cycle, not mid-wait.
+func (c *Checker) RunPeriodic(ctx context.Context, stable, dev time.Duration) {
 	select {
 	case <-time.After(startupCheckDelay):
 	case <-ctx.Done():
 		return
 	}
 	c.Check(ctx)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 	for {
+		interval := stable
+		if c.isDev() {
+			interval = dev
+		}
 		select {
-		case <-ticker.C:
+		case <-time.After(interval):
 			c.Check(ctx)
 		case <-ctx.Done():
 			return
