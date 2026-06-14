@@ -219,7 +219,7 @@ func TestRunPeriodic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		c.RunPeriodic(ctx, 5*time.Millisecond)
+		c.RunPeriodic(ctx, 5*time.Millisecond, 5*time.Millisecond)
 		close(done)
 	}()
 

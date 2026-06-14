@@ -114,7 +114,7 @@ func main() {
 	// synchronization for just this field would be inconsistent and buy nothing.
 	updates := update.New(config.AppVersion, func() bool { return srv.Config().DevMode })
 	srv.SetUpdateChecker(updates)
-	go updates.RunPeriodic(context.Background(), 24*time.Hour)
+	go updates.RunPeriodic(context.Background(), 24*time.Hour, 15*time.Minute)
 	srv.Register(mux)
 	if cfg.DevMode {
 		mux.Handle("/debug/pprof/", http.DefaultServeMux)

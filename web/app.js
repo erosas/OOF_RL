@@ -22,8 +22,18 @@ function chip(cls, label, active) {
   return `<span class="status-chip${colorCls}${dimCls}">${label}</span>`;
 }
 
-// --- Tracker.gg rank cache ---
+// --- Tracker.gg rank display state ---
+// Last-known lookup per primary id, used only to render. This is NOT a cache of
+// record — the backend owns rank caching (main.go trackerCacheTTL); "fetch every
+// time" is cheap by design (see docs/dev/mmr-providers.md). The only reason for a
+// client-side freshness gate is to stop the re-render -> prefetch -> re-render
+// feedback loop and bound request rate; once an entry ages past TRACKER_TTL_MS we
+// re-fetch it. The previous code kept entries forever, so a player who stays
+// across matches (you) never refreshed while opponents — new each match — did,
+// leaving your row frozen at a stale "fetched X ago".
 const trackerCache = new Map();
+const trackerInflight = new Set();
+const TRACKER_TTL_MS = 5000;
 
 function platformFromId(primaryId) {
   if (!primaryId) return '';
@@ -107,14 +117,27 @@ function isMaskedName(name) {
 function prefetchTrackerRanks(players) {
   for (const p of players) {
     const id = p.PrimaryId;
-    if (!id || trackerCache.has(id)) continue;
-    if (isBot(id)) continue;
+    if (!id || isBot(id)) continue;
+    if (trackerInflight.has(id)) continue;          // a request for this id is already running
+
+    const entry = trackerCache.get(id);
+    if (entry) {
+      if (entry.status === 'masked') continue;      // masked identities never resolve
+      if (entry.fetchedAt &&
+          Date.now() - new Date(entry.fetchedAt).getTime() < TRACKER_TTL_MS) continue; // still fresh
+    }
+
     const plat = platformFromId(id);
     if (plat !== 'steam' && isMaskedName(p.Name)) {
       trackerCache.set(id, { profile: null, ranks: null, status: 'masked', fetchedAt: null });
       continue;
     }
-    trackerCache.set(id, undefined);
+
+    // First lookup shows the "···" spinner; a refresh leaves the prior ranks on
+    // screen until the new data lands, so a refreshing row never blinks empty.
+    if (!trackerCache.has(id)) trackerCache.set(id, undefined);
+    trackerInflight.add(id);
+
     const nameParam = plat && plat !== 'steam' && p.Name
       ? `&name=${encodeURIComponent(p.Name)}` : '';
     fetch(`/api/tracker/profile?id=${encodeURIComponent(id)}${nameParam}`)
@@ -123,11 +146,13 @@ function prefetchTrackerRanks(players) {
         return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
       })
       .then(({ json, status }) => {
-        trackerCache.set(id, { profile: null, ranks: parseRankData(json?.ranks), status, fetchedAt: json?.fetched_at || null });
+        trackerCache.set(id, { profile: null, ranks: parseRankData(json?.ranks), status, fetchedAt: json?.fetched_at || new Date().toISOString() });
+        trackerInflight.delete(id);
         onTrackerDataArrived();
       })
       .catch(e => {
-        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: null });
+        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: new Date().toISOString() });
+        trackerInflight.delete(id);
         onTrackerDataArrived();
       });
   }
@@ -848,13 +873,15 @@ async function injectPluginViews(enabledTabs, allSchema) {
 }
 
 async function initApp() {
-  const [tabs, schema] = await Promise.all([
+  const [tabs, schema, cfg] = await Promise.all([
     fetch('/api/nav').then(r => r.json()).catch(() => []),
     fetch('/api/settings/schema').then(r => r.json()).catch(() => []),
+    fetch('/api/config').then(r => r.json()).catch(() => ({})),
   ]);
   buildNav(tabs, schema);
   await injectPluginViews(tabs, schema);
   showView(tabs[0]?.id || 'settings');
+  document.getElementById('dev-badge')?.classList.toggle('hidden', !cfg.dev_mode);
   connectWS();
 }
 

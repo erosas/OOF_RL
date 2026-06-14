@@ -130,6 +130,18 @@
   color: var(--oof-color-accent);
 }
 
+.dev-badge {
+  margin-left: -0.25rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--oof-color-warning);
+  border: 1px solid rgb(var(--oof-color-warning-rgb) / .5);
+  background: rgb(var(--oof-color-warning-rgb) / .12);
+}
+
 .app-nav {
   min-width: 0;
 }
