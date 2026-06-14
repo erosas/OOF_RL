@@ -16,13 +16,19 @@ and updates with the `install.ps1` shipped inside it.
   `-ldflags "-X OOF_RL/internal/config.AppVersion=v1.2.3"`; local dev builds
   report `dev`). Which manifest is fetched depends on the channel — see
   [Release channels](#release-channels) below.
-- Checks run ~15s after startup, every 24h while running
-  (`Checker.RunPeriodic`, started in `main.go`), and on demand from the
-  Settings page's **Check for updates** button.
-- When a newer version is found, the UI shows an **Update available** dialog
-  with links to the GitHub release page (`notes_url`) and the zip
-  (`artifact_url`). Dismissing it stores the version in `localStorage`
-  (`oof-upd-dismissed`), so the dialog reappears only for the next release; a
+- Checks run ~15s after startup, then on a recurring interval that depends on
+  the channel — **hourly on stable, every 15 minutes in dev mode**
+  (`Checker.RunPeriodic`, started in `main.go`, re-evaluates the channel each
+  cycle) — plus on demand from the Settings page's **Check for updates** button.
+- When a check first finds a newer version, the backend pushes an `_Update`
+  event over the WebSocket (`Checker.OnUpdate` → `hub.Broadcast`), so open
+  clients surface it immediately instead of waiting for the next status poll.
+- When a newer version is available, the UI shows a persistent **Update
+  available** chip in the header plus an **Update available** dialog with links
+  to the GitHub release page (`notes_url`) and the zip (`artifact_url`).
+  Dismissing the dialog stores the version in `localStorage`
+  (`oof-upd-dismissed`) so it reappears only for the next release; the header
+  chip stays until you're up to date and reopens the dialog when clicked. A
   manual check clears the dismissal.
 - Nothing is downloaded, installed, extracted, replaced, or restarted by the
   app.

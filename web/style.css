@@ -142,6 +142,24 @@
   background: rgb(var(--oof-color-warning-rgb) / .12);
 }
 
+.upd-badge {
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  color: var(--oof-color-accent);
+  border: 1px solid rgb(var(--oof-color-accent-rgb) / .5);
+  background: rgb(var(--oof-color-accent-rgb) / .14);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.upd-badge:hover {
+  background: rgb(var(--oof-color-accent-rgb) / .24);
+  border-color: var(--oof-color-accent);
+}
+
 .app-nav {
   min-width: 0;
 }

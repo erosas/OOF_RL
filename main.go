@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -113,8 +114,15 @@ func main() {
 	// single-user, low-volume app, and a bool is a single-word read. Adding
 	// synchronization for just this field would be inconsistent and buy nothing.
 	updates := update.New(config.AppVersion, func() bool { return srv.Config().DevMode })
+	// Push to open browser clients the moment a check finds a new version, so the
+	// dev channel's 15-minute cadence surfaces without waiting for a status poll.
+	updates.OnUpdate(func(st update.Status) {
+		if b, err := json.Marshal(map[string]any{"Event": "_Update", "Data": st}); err == nil {
+			h.Broadcast(b)
+		}
+	})
 	srv.SetUpdateChecker(updates)
-	go updates.RunPeriodic(context.Background(), 24*time.Hour, 15*time.Minute)
+	go updates.RunPeriodic(context.Background(), time.Hour, 15*time.Minute)
 	srv.Register(mux)
 	if cfg.DevMode {
 		mux.Handle("/debug/pprof/", http.DefaultServeMux)

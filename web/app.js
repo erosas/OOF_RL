@@ -257,6 +257,10 @@ function connectWS() {
       if (!msg.Data.connected && typeof clearLive === 'function') clearLive();
       return;
     }
+    if (msg.Event === '_Update') {           // backend pushed a freshly-found update
+      renderUpdateStatus(msg.Data);
+      return;
+    }
     if ((msg.Event === 'MatchCreated' || msg.Event === 'MatchInitialized') && typeof handleSessionMatchStart === 'function') handleSessionMatchStart();
     if (typeof handleDebugAssistantEvent === 'function') handleDebugAssistantEvent(msg);
     if (msg.Event === 'UpdateState'    && typeof handleUpdateState  === 'function') handleUpdateState(msg.Data);
@@ -663,8 +667,9 @@ document.getElementById('cfg-data-dir-open').addEventListener('click', () => {
 // --- Updates ---
 // The app never downloads release artifacts (the manifest is unsigned, so an
 // in-app download can't prove who built the binary). The backend checks the
-// manifest daily; when a newer version shows up we surface a dialog that
-// links to the GitHub release and the user downloads in their browser.
+// manifest periodically (hourly on stable, every 15m in dev mode) and pushes an
+// `_Update` event the moment a new version appears; we surface a header chip
+// plus a dialog linking to the GitHub release for the user to download.
 const _updCheckBtn  = document.getElementById('upd-check');
 const _updStatusEl  = document.getElementById('upd-status');
 const _updNotesLink = document.getElementById('upd-notes');
@@ -673,7 +678,9 @@ const _updDialog        = document.getElementById('upd-dialog');
 const _updDialogVersion = document.getElementById('upd-dialog-version');
 const _updDialogNotes   = document.getElementById('upd-dialog-notes');
 const _updDialogDl      = document.getElementById('upd-dialog-download');
+const _updBadge         = document.getElementById('upd-badge');
 const UPD_DISMISS_KEY = 'oof-upd-dismissed';
+let _lastUpdStatus = null;
 
 function describeUpdateStatus(st) {
   if (st.last_error) return `Error: ${st.last_error}`;
@@ -693,6 +700,7 @@ function showUpdateDialog(st) {
 
 function renderUpdateStatus(st, { dialog = true } = {}) {
   if (!st) return;
+  _lastUpdStatus = st;
   _updVersionEl.textContent = st.current_version || '';
   _updStatusEl.textContent = describeUpdateStatus(st);
   if (st.notes_url) {
@@ -700,6 +708,13 @@ function renderUpdateStatus(st, { dialog = true } = {}) {
     _updNotesLink.classList.remove('hidden');
   } else {
     _updNotesLink.classList.add('hidden');
+  }
+  // Persistent header chip: stays visible while an update is available, even
+  // after the modal is dismissed. The modal is the one-time nag; the chip is
+  // the always-there reminder, and clicking it reopens the modal.
+  if (_updBadge) {
+    _updBadge.classList.toggle('hidden', !st.update_available);
+    if (st.update_available) _updBadge.textContent = `⬆ ${st.latest_version}`;
   }
   const dismissed = localStorage.getItem(UPD_DISMISS_KEY);
   if (dialog && st.update_available && st.latest_version !== dismissed) {
@@ -719,6 +734,14 @@ document.getElementById('upd-dialog-dismiss').addEventListener('click', () => {
   _updDialog.classList.add('hidden');
 });
 
+// Clicking the header chip reopens the dialog even after it was dismissed.
+_updBadge?.addEventListener('click', () => {
+  if (_lastUpdStatus?.update_available) {
+    localStorage.removeItem(UPD_DISMISS_KEY);
+    showUpdateDialog(_lastUpdStatus);
+  }
+});
+
 _updCheckBtn.addEventListener('click', async () => {
   _updCheckBtn.disabled = true;
   _updStatusEl.textContent = 'Checking…';
@@ -735,8 +758,8 @@ _updCheckBtn.addEventListener('click', async () => {
 });
 
 refreshUpdateStatus();
-// The backend re-checks daily; poll its status hourly so a result that landed
-// while this page was open still surfaces without a reload.
+// The backend pushes `_Update` on new versions, so this poll is just a fallback
+// (catches a result found before this page connected, or a missed socket push).
 setInterval(refreshUpdateStatus, 60 * 60 * 1000);
 
 document.getElementById('cfg-overlay-opacity').addEventListener('input', e => {
