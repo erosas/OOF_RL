@@ -274,6 +274,39 @@ func TestRunPeriodicUsesDevIntervalInDevMode(t *testing.T) {
 	}
 }
 
+func TestOnUpdateFiresOncePerNewVersion(t *testing.T) {
+	var mu sync.Mutex
+	body := manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		b := body
+		mu.Unlock()
+		fmt.Fprint(w, b)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := New("v1.0.0", nil)
+	c.stableURL = srv.URL
+	c.devURL = srv.URL
+
+	var got []string
+	c.OnUpdate(func(st Status) { got = append(got, st.LatestVersion) })
+
+	c.Check(context.Background()) // v1.1.0 available -> notify
+	c.Check(context.Background()) // same version still available -> no re-notify
+	if len(got) != 1 || got[0] != "v1.1.0" {
+		t.Fatalf("after repeat checks: notified %v, want one [v1.1.0]", got)
+	}
+
+	mu.Lock()
+	body = manifestJSON("v1.2.0", goodNotesURL, goodArtifactURL)
+	mu.Unlock()
+	c.Check(context.Background()) // newer version -> notify again
+	if len(got) != 2 || got[1] != "v1.2.0" {
+		t.Fatalf("after version bump: notified %v, want [v1.1.0 v1.2.0]", got)
+	}
+}
+
 func TestCheckRecordsFetchError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)

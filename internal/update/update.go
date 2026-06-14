@@ -64,6 +64,7 @@ type Checker struct {
 	isDev     func() bool
 	version   string
 	client    *http.Client
+	onUpdate  func(Status)
 
 	mu     sync.Mutex
 	status Status
@@ -85,6 +86,13 @@ func New(version string, isDev func() bool) *Checker {
 		status:    Status{CurrentVersion: version},
 	}
 }
+
+// OnUpdate registers a callback invoked when a check first finds a newer
+// version (or the offered version changes). It lets the server push an update
+// event to open clients instead of waiting for the next status poll — so the
+// dev channel's 15-minute cadence surfaces promptly. Set once before
+// RunPeriodic starts; it is not safe to change concurrently with checks.
+func (c *Checker) OnUpdate(fn func(Status)) { c.onUpdate = fn }
 
 // manifestURL selects the channel to poll based on the live dev-mode setting.
 func (c *Checker) manifestURL() string {
@@ -156,7 +164,7 @@ func (c *Checker) Check(ctx context.Context) Status {
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	prev := c.status
 	c.status = Status{
 		CurrentVersion:  c.version,
 		LastCheckedAt:   time.Now().UTC().Format(time.RFC3339),
@@ -165,7 +173,16 @@ func (c *Checker) Check(ctx context.Context) Status {
 		DownloadURL:     SafeReleaseURL(manifest.ArtifactURL),
 		UpdateAvailable: IsNewer(c.version, manifest.Version),
 	}
-	return c.status
+	st := c.status
+	c.mu.Unlock()
+
+	// Notify (outside the lock) only when an update first appears or the offered
+	// version changes, so a sitting update isn't re-pushed on every poll.
+	if c.onUpdate != nil && st.UpdateAvailable &&
+		(!prev.UpdateAvailable || prev.LatestVersion != st.LatestVersion) {
+		c.onUpdate(st)
+	}
+	return st
 }
 
 func (c *Checker) failCheck(msg string) Status {
