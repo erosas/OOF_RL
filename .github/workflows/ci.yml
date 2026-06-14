@@ -13,9 +13,9 @@ jobs:
     name: Test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -48,14 +48,18 @@ jobs:
           go -C plugins/dashboard test ./...
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ runner.temp }}/coverage.out
           fail_ci_if_error: false
 
   # ── Release package ───────────────────────────────────────────────────────
-  # Only runs when a version tag (e.g. v1.2.3) is pushed.
+  # Runs when a version tag is pushed. A plain tag (v1.2.3) is a stable release;
+  # a semver-prerelease tag (v1.2.3-dev.1) is a dev release — published as a
+  # GitHub prerelease so it stays out of regular users' releases/latest, while
+  # the rolling "dev" pointer is refreshed on every release so dev-mode users
+  # see the newest build of either kind. See docs/dev/auto-update.md.
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -65,9 +69,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -76,19 +80,29 @@ jobs:
         shell: pwsh
         run: ./scripts/package-release.ps1 -Version "${{ github.ref_name }}"
 
+      # A prerelease tag carries a semver prerelease suffix (the '-' in
+      # v1.2.3-dev.1); a plain v1.2.3 is stable.
+      - name: Determine channel
+        id: channel
+        shell: pwsh
+        run: |
+          $prerelease = if ('${{ github.ref_name }}' -match '-') { 'true' } else { 'false' }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "prerelease=$prerelease"
+
       # Third-party actions in this job are pinned to commit SHAs: it has
       # contents:write and publishes the binaries users run, so a hijacked
       # version tag on the action repo must not be able to inject code here.
       - name: VirusTotal scan
-        uses: crazy-max/ghaction-virustotal@d34968c958ae283fe976efed637081b9f9dcf74f # v4
+        uses: crazy-max/ghaction-virustotal@936d8c5c00afe97d3d9a1af26d017cfdf26800a2 # v5.0.0
         id: virustotal
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           files: dist/OOF_RL/oof_rl.exe
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
+          prerelease: ${{ steps.channel.outputs.prerelease == 'true' }}
           files: |
             dist/OOF_RL-${{ github.ref_name }}.zip
             dist/OOF_RL-${{ github.ref_name }}.zip.sha256
@@ -100,3 +114,20 @@ jobs:
             The public WASM plugins and assets for Live, Ranks, Session, and Dashboard are built into `oof_rl.exe`, so it runs fully self-contained — no separate plugins folder needed.
 
             **VirusTotal scan:** ${{ steps.virustotal.outputs.analysis }}
+
+      # Point the dev channel at this build. The "dev" release is a single
+      # rolling prerelease whose manifest asset is overwritten on every release
+      # (dev and stable), so dev-mode clients polling it are offered the newest
+      # build of either kind. Download links in the manifest resolve to the
+      # versioned release created above; this release only carries the pointer.
+      - name: Refresh rolling dev pointer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view dev 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create dev --prerelease --title "dev (rolling)" `
+              --notes "Rolling pointer to the latest build for dev-mode auto-update. Download links live on the versioned releases."
+          }
+          gh release upload dev dist/update-manifest.json --clobber

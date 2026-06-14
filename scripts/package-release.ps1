@@ -161,9 +161,14 @@ running developer build commands.
     # update-manifest.json is what the in-app update checker fetches from
     # releases/latest/download/. Only meaningful for tagged builds.
     if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        # A semver prerelease tag (e.g. v0.0.8-dev.1) is a dev-channel build;
+        # a plain vMAJOR.MINOR.PATCH tag is stable. The channel is informational
+        # in the manifest — which release the manifest is attached to is what
+        # actually gates who sees it (see .github/workflows/ci.yml).
+        $channel = if ($Version -match '-') { "dev" } else { "stable" }
         $manifest = [ordered]@{
             version         = $Version
-            channel         = "stable"
+            channel         = $channel
             notes_url       = "https://github.com/erosas/OOF_RL/releases/tag/$Version"
             published_at    = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             artifact_url    = "https://github.com/erosas/OOF_RL/releases/download/$Version/$archiveName"

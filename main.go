@@ -108,7 +108,11 @@ func main() {
 	if err := srv.LoadWASMPlugins(cfg.PluginsDir()); err != nil {
 		log.Fatalf("wasm plugin load: %v", err)
 	}
-	updates := update.New(config.AppVersion)
+	// DevMode is read lock-free on purpose: *config.Config is shared mutable
+	// state read/written across goroutines without locks throughout this
+	// single-user, low-volume app, and a bool is a single-word read. Adding
+	// synchronization for just this field would be inconsistent and buy nothing.
+	updates := update.New(config.AppVersion, func() bool { return srv.Config().DevMode })
 	srv.SetUpdateChecker(updates)
 	go updates.RunPeriodic(context.Background(), 24*time.Hour)
 	srv.Register(mux)
