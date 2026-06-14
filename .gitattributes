@@ -1,0 +1,11 @@
+# Normalize line endings: store text as LF in git, regardless of the
+# contributor's platform or core.autocrlf setting. Prevents CRLF churn and
+# keeps tools like gofmt from flagging every file on Windows checkouts.
+* text=auto eol=lf
+
+# Explicitly binary so git never touches their bytes.
+*.exe   binary
+*.wasm  binary
+*.png   binary
+*.ico   binary
+*.zip   binary

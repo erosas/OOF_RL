@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -239,6 +240,37 @@ func TestRunPeriodic(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("RunPeriodic did not stop on context cancel")
+	}
+}
+
+func TestRunPeriodicUsesDevIntervalInDevMode(t *testing.T) {
+	old := startupCheckDelay
+	startupCheckDelay = time.Millisecond
+	defer func() { startupCheckDelay = old }()
+
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		fmt.Fprint(w, manifestJSON("v1.1.0", goodNotesURL, goodArtifactURL))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := New("v1.0.0", func() bool { return true })
+	c.stableURL = srv.URL
+	c.devURL = srv.URL
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.RunPeriodic(ctx, time.Hour, 2*time.Millisecond)
+
+	// In dev mode the 2ms dev interval fires repeatedly; the 1h stable interval
+	// would have produced only the single post-startup check.
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&hits) < 3 {
+		if time.Now().After(deadline) {
+			t.Fatalf("dev cadence: got %d checks, want the dev interval to fire repeatedly", atomic.LoadInt32(&hits))
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
