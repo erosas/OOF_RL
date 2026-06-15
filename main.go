@@ -80,15 +80,20 @@ func main() {
 		log.Fatalf("event bus: %v", err)
 	}
 
-	// Short TTL: the cache only collapses bursts (a match's players all looked
-	// up at once, or rapid re-opens of a view) into one upstream fetch. MMR
-	// changes every match, so we effectively re-fetch on any real revisit.
-	const trackerCacheTTL = 5 * time.Second
+	// The TTL is just a safety backstop: match-boundary Invalidate() (below) is the
+	// real freshness control, so each match re-fetches each player once and then
+	// serves from cache instead of re-scraping tracker.gg on every in-match update.
+	const trackerCacheTTL = 3 * time.Minute
 	trnProvider := mmr.NewCachedProvider(
 		mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
 		database,
 		trackerCacheTTL,
 	)
+	// Refresh ranks once per match: a new match (or teardown) marks cached ranks
+	// stale so the first lookup re-fetches; mid-match joiners are just players we
+	// don't have yet, so they're fetched once without re-scraping everyone.
+	bus.Subscribe(oofevents.TypeMatchStarted, func(oofevents.OOFEvent) { trnProvider.Invalidate() })
+	bus.Subscribe(oofevents.TypeMatchDestroyed, func(oofevents.OOFEvent) { trnProvider.Invalidate() })
 
 	webSub, _ := fs.Sub(webFS, "web")
 	mux := http.NewServeMux()

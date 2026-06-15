@@ -106,9 +106,16 @@ mmr.Handler (continued)
  15. Write {"fetched_at":"...","source":"tracker.gg/rlstats.net","ranks":[...]} to client
 ```
 
-### Cache key
+### Caching, freshness, and resilience
 
-The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). In `main.go`, production wiring uses a hard-coded 5-second TTL — the cache exists only to collapse bursts (all players in a match looked up at once, or rapid view re-opens) into one upstream fetch. MMR changes every match, so any real revisit re-fetches. There is no user-editable `config.toml` field for this TTL. A cache hit short-circuits the fallback/provider chain.
+The cache key is `ranks:platform|primaryID` (e.g. `"ranks:steam|76561198144145654"`). MMR only changes between matches, so the `CachedProvider` is built to fetch each player **once per match**, not on a timer:
+
+- **Match-boundary invalidation is the real freshness control.** `CachedProvider` carries a generation counter; `main.go` subscribes to `match.started` / `match.destroyed` and calls `Invalidate()`, which bumps it. Entries fetched under an older generation are stale, so the first lookup of a new match re-fetches once and the rest of the match is served from cache instead of re-scraping on every in-match update. Mid-match joiners are simply players with no current-generation entry, so they're fetched once without disturbing anyone else.
+- **TTL is just a safety backstop** (a few minutes, hard-coded in `main.go`; no `config.toml` field) in case match-boundary events are missed.
+- **Serve-stale on error.** If a re-fetch fails (rate-limit/upstream blip) but a prior value exists, the cache returns that last good value instead of the error — so a transient failure never flips a populated rank back to "502". Cached entries are stored as `{gen, ranks}` JSON so a stale value survives a generation bump for exactly this fallback.
+- **Single-flight.** Concurrent lookups for the same key collapse into one upstream call; the rest share its result.
+
+A fresh cache hit short-circuits the fallback/provider chain entirely.
 
 ---
 
@@ -136,12 +143,14 @@ If every provider either doesn't support the platform or returns an error, `Fall
 cached := mmr.NewCachedProvider(
     mmr.NewFallbackProvider(trackergg.New(), rlstats.New()),
     database,
-    5*time.Second,
+    trackerCacheTTL, // backstop only; match boundaries drive freshness
 )
 ranks, err := cached.Lookup(ctx, id) // hits DB first, then network
+// On a match boundary, main.go calls cached.Invalidate() so the next lookup
+// per player re-fetches once. See "Caching, freshness, and resilience" above.
 ```
 
-Cache entries are stored as JSON under the key `"ranks:platform|primaryID"`.
+Cache entries are stored as `{gen, ranks}` JSON under the key `"ranks:platform|primaryID"`.
 
 ---
 
@@ -237,6 +246,7 @@ framework changes. The work is in flight on `feature/psynet-provider`
 (`GetPlayersSkills` + auth chain); the open blocker is the `go get` dependency
 resolution for `dank/rlapi` against the local-replaced plugin SDK module.
 
-The 5-second cache (above) makes "fetch every time" cheap regardless of which
-provider is primary: it only collapses same-player bursts, so once PsyNet lands
-the app effectively shows live MMR without hammering any single source.
+The per-match cache (above) keeps lookups cheap regardless of which provider is
+primary: each player is fetched once per match and served from cache otherwise,
+with single-flight and serve-stale-on-error shielding the upstream — so once
+PsyNet lands the app shows fresh MMR each match without hammering any source.
