@@ -123,8 +123,10 @@ function prefetchTrackerRanks(players) {
     const entry = trackerCache.get(id);
     if (entry) {
       if (entry.status === 'masked') continue;      // masked identities never resolve
-      if (entry.fetchedAt &&
-          Date.now() - new Date(entry.fetchedAt).getTime() < TRACKER_TTL_MS) continue; // still fresh
+      // Throttle on when WE last polled, not on the server's fetched_at (which is
+      // the real upstream scrape time and may be minutes old) — otherwise we'd
+      // re-poll on every UpdateState.
+      if (entry.polledAt && Date.now() - entry.polledAt < TRACKER_TTL_MS) continue;
     }
 
     const plat = platformFromId(id);
@@ -146,12 +148,12 @@ function prefetchTrackerRanks(players) {
         return r.ok ? r.json().then(j => ({ json: j, status })) : Promise.resolve({ json: null, status });
       })
       .then(({ json, status }) => {
-        trackerCache.set(id, { profile: null, ranks: parseRankData(json?.ranks), status, fetchedAt: json?.fetched_at || new Date().toISOString() });
+        trackerCache.set(id, { profile: null, ranks: parseRankData(json?.ranks), status, fetchedAt: json?.fetched_at || new Date().toISOString(), polledAt: Date.now() });
         trackerInflight.delete(id);
         onTrackerDataArrived();
       })
       .catch(e => {
-        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: new Date().toISOString() });
+        trackerCache.set(id, { profile: null, ranks: null, status: `Error: ${e.message}`, fetchedAt: new Date().toISOString(), polledAt: Date.now() });
         trackerInflight.delete(id);
         onTrackerDataArrived();
       });

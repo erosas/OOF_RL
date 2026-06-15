@@ -13,6 +13,12 @@ import (
 
 const trackerLookupTimeout = 15 * time.Second
 
+// metaLookuper is an optional Provider extension that also returns when the ranks
+// were actually fetched upstream. CachedProvider implements it.
+type metaLookuper interface {
+	LookupMeta(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, time.Time, error)
+}
+
 // Handler returns an http.HandlerFunc that looks up MMR ranks for a player.
 //
 // Query params:
@@ -54,7 +60,20 @@ func Handler(p Provider) http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), trackerLookupTimeout)
 		defer cancel()
 
-		ranks, err := p.Lookup(ctx, identity)
+		// Prefer the real upstream fetch time when the provider can report it (the
+		// cache does), so "fetched_at" reflects true data age instead of resetting
+		// to now on every cache-served poll.
+		var (
+			ranks     []PlaylistRank
+			fetchedAt time.Time
+			err       error
+		)
+		if mp, ok := p.(metaLookuper); ok {
+			ranks, fetchedAt, err = mp.LookupMeta(ctx, identity)
+		} else {
+			ranks, err = p.Lookup(ctx, identity)
+			fetchedAt = time.Now()
+		}
 		if err != nil {
 			log.Printf("[tracker] lookup failed for %s: %v", id, err)
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -64,9 +83,12 @@ func Handler(p Provider) http.HandlerFunc {
 			httputil.JSONError(w, 502, err.Error())
 			return
 		}
+		if fetchedAt.IsZero() {
+			fetchedAt = time.Now()
+		}
 
 		httputil.WriteJSON(w, map[string]any{
-			"fetched_at": time.Now().UTC().Format(time.RFC3339),
+			"fetched_at": fetchedAt.UTC().Format(time.RFC3339),
 			"source":     p.Name(),
 			"ranks":      ranks,
 		})

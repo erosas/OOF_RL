@@ -69,6 +69,19 @@ func (c *CachedProvider) Supports(p Platform) bool { return c.inner.Supports(p) 
 func (c *CachedProvider) Invalidate() { c.gen.Add(1) }
 
 func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, error) {
+	ranks, _, err := c.lookup(ctx, id)
+	return ranks, err
+}
+
+// LookupMeta is Lookup plus the time the returned ranks were actually fetched
+// upstream — the cached fetch time on a hit, now on a fresh fetch. It lets the
+// HTTP handler report a truthful "fetched_at" so the UI's "updated X ago" tracks
+// real data age instead of resetting to now on every cache-served poll.
+func (c *CachedProvider) LookupMeta(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, time.Time, error) {
+	return c.lookup(ctx, id)
+}
+
+func (c *CachedProvider) lookup(ctx context.Context, id PlayerIdentity) ([]PlaylistRank, time.Time, error) {
 	key := "ranks:" + string(id.Platform) + "|" + id.PrimaryID
 	gen := c.gen.Load()
 	cacheable := c.ttl > 0 && c.store != nil
@@ -87,21 +100,22 @@ func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]Playl
 				fetchedAt = fa
 			}
 		}
-		// Fresh hit: same generation and within TTL.
+		// Fresh hit: same generation and within TTL. Report the real cached time.
 		if haveCached && cached.Gen == gen && time.Since(fetchedAt) < c.ttl {
-			return cached.Ranks, nil
+			return cached.Ranks, fetchedAt, nil
 		}
 	}
 
 	ranks, err := c.lookupSingle(ctx, key, id, gen, cacheable)
 	if err != nil {
-		// Serve stale rather than propagate a transient upstream failure.
+		// Serve stale rather than propagate a transient upstream failure; keep the
+		// stale data's real fetch time so "X ago" stays truthful.
 		if haveCached && cached.Ranks != nil {
-			return cached.Ranks, nil
+			return cached.Ranks, fetchedAt, nil
 		}
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	return ranks, nil
+	return ranks, time.Now(), nil
 }
 
 // lookupSingle ensures only one in-flight upstream call exists per key; concurrent

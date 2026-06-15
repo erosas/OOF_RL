@@ -284,6 +284,31 @@ func TestCachedProvider_Invalidate_RefetchesWithinTTL(t *testing.T) {
 	}
 }
 
+func TestCachedProvider_LookupMeta_FetchTimeStableAcrossHits(t *testing.T) {
+	inner := &stubProvider{name: "p", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}}}
+	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
+	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
+
+	_, _, _ = cp.LookupMeta(context.Background(), id) // fresh fetch, populates cache
+	_, t1, err := cp.LookupMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	_, t2, err := cp.LookupMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inner.calls != 1 {
+		t.Fatalf("inner calls = %d, want 1 (both reads should hit cache)", inner.calls)
+	}
+	// The user-visible property: cache-served polls report the same fetch time,
+	// so "updated X ago" doesn't reset to now on every poll.
+	if !t2.Equal(t1) {
+		t.Fatalf("cache-hit fetch time drifted: t1=%v t2=%v", t1, t2)
+	}
+}
+
 func TestCachedProvider_ServeStaleOnError(t *testing.T) {
 	inner := &stubProvider{name: "p", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}}}
 	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
