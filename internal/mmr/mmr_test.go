@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -254,6 +256,101 @@ func TestCachedProvider_InnerError_NotCached(t *testing.T) {
 	}
 	if len(store.data) != 0 {
 		t.Error("error result should not be written to cache")
+	}
+}
+
+func TestCachedProvider_Invalidate_RefetchesWithinTTL(t *testing.T) {
+	inner := &stubProvider{name: "p", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}}}
+	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
+	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
+
+	_, _ = cp.Lookup(context.Background(), id) // populate at gen 0
+	_, _ = cp.Lookup(context.Background(), id) // fresh hit
+	if inner.calls != 1 {
+		t.Fatalf("inner calls = %d, want 1 before invalidate", inner.calls)
+	}
+
+	cp.Invalidate() // a new match boundary
+	if _, err := cp.Lookup(context.Background(), id); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inner.calls != 2 {
+		t.Fatalf("inner calls = %d, want 2 (invalidate forces one re-fetch even within TTL)", inner.calls)
+	}
+}
+
+func TestCachedProvider_ServeStaleOnError(t *testing.T) {
+	inner := &stubProvider{name: "p", supports: true, ranks: []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}}}
+	cp := mmr.NewCachedProvider(inner, newStubStore(), time.Minute)
+	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
+
+	_, _ = cp.Lookup(context.Background(), id) // cache MMR 500
+
+	// Upstream now fails; force a re-fetch and confirm the last good value is
+	// served instead of the error (so a transient 502 never flips a rank).
+	inner.ranks = nil
+	inner.err = errors.New("rate limited")
+	cp.Invalidate()
+	ranks, err := cp.Lookup(context.Background(), id)
+	if err != nil {
+		t.Fatalf("expected stale served, got error: %v", err)
+	}
+	if len(ranks) != 1 || ranks[0].MMR != 500 {
+		t.Fatalf("expected stale ranks (MMR 500), got %+v", ranks)
+	}
+}
+
+// blockingProvider holds its first Lookup open until released, so a test can
+// line up concurrent callers and prove they share one upstream call.
+type blockingProvider struct {
+	calls   atomic.Int32
+	entered chan struct{}
+	release chan struct{}
+	ranks   []mmr.PlaylistRank
+}
+
+func (b *blockingProvider) Name() string                 { return "block" }
+func (b *blockingProvider) Supports(_ mmr.Platform) bool { return true }
+func (b *blockingProvider) Lookup(_ context.Context, _ mmr.PlayerIdentity) ([]mmr.PlaylistRank, error) {
+	b.calls.Add(1)
+	b.entered <- struct{}{}
+	<-b.release
+	return b.ranks, nil
+}
+
+func TestCachedProvider_SingleFlight_CollapsesConcurrent(t *testing.T) {
+	bp := &blockingProvider{
+		entered: make(chan struct{}, 1),
+		release: make(chan struct{}),
+		ranks:   []mmr.PlaylistRank{{PlaylistID: 10, MMR: 500}},
+	}
+	cp := mmr.NewCachedProvider(bp, newStubStore(), time.Minute)
+	id := mmr.PlayerIdentity{Platform: mmr.PlatformSteam, PrimaryID: "123"}
+
+	const n = 8
+	results := make([][]mmr.PlaylistRank, n)
+	var wg sync.WaitGroup
+
+	// Start the leader and wait until it's inside the provider, so the followers
+	// are guaranteed to join the in-flight call rather than start their own.
+	wg.Add(1)
+	go func() { defer wg.Done(); results[0], _ = cp.Lookup(context.Background(), id) }()
+	<-bp.entered
+	for i := 1; i < n; i++ {
+		wg.Add(1)
+		go func(i int) { defer wg.Done(); results[i], _ = cp.Lookup(context.Background(), id) }(i)
+	}
+	time.Sleep(50 * time.Millisecond) // let followers queue on the in-flight call
+	close(bp.release)
+	wg.Wait()
+
+	if got := bp.calls.Load(); got != 1 {
+		t.Fatalf("inner calls = %d, want 1 (concurrent lookups should collapse)", got)
+	}
+	for i, r := range results {
+		if len(r) != 1 || r[0].MMR != 500 {
+			t.Fatalf("result[%d] = %+v, want shared ranks", i, r)
+		}
 	}
 }
 
