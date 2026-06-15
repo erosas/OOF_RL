@@ -93,7 +93,7 @@ func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]Playl
 		}
 	}
 
-	ranks, err := c.lookupSingle(ctx, key, id)
+	ranks, err := c.lookupSingle(ctx, key, id, gen, cacheable)
 	if err != nil {
 		// Serve stale rather than propagate a transient upstream failure.
 		if haveCached && cached.Ranks != nil {
@@ -101,18 +101,14 @@ func (c *CachedProvider) Lookup(ctx context.Context, id PlayerIdentity) ([]Playl
 		}
 		return nil, err
 	}
-
-	if cacheable {
-		if b, merr := json.Marshal(cacheEntry{Gen: gen, Ranks: ranks}); merr == nil {
-			_ = c.store.UpsertTrackerCache(key, string(b))
-		}
-	}
 	return ranks, nil
 }
 
 // lookupSingle ensures only one in-flight upstream call exists per key; concurrent
-// callers wait for and share its result instead of each hitting the provider.
-func (c *CachedProvider) lookupSingle(ctx context.Context, key string, id PlayerIdentity) ([]PlaylistRank, error) {
+// callers wait for and share its result instead of each hitting the provider. The
+// leader (the goroutine that performs the call) is also the only one that writes
+// the result to the cache, so followers don't issue redundant store writes.
+func (c *CachedProvider) lookupSingle(ctx context.Context, key string, id PlayerIdentity, gen int64, cacheable bool) ([]PlaylistRank, error) {
 	c.mu.Lock()
 	if call, ok := c.inflight[key]; ok {
 		c.mu.Unlock()
@@ -128,6 +124,11 @@ func (c *CachedProvider) lookupSingle(ctx context.Context, key string, id Player
 	c.mu.Unlock()
 
 	call.ranks, call.err = c.inner.Lookup(ctx, id)
+	if call.err == nil && cacheable {
+		if b, merr := json.Marshal(cacheEntry{Gen: gen, Ranks: call.ranks}); merr == nil {
+			_ = c.store.UpsertTrackerCache(key, string(b))
+		}
+	}
 	close(call.done)
 
 	c.mu.Lock()

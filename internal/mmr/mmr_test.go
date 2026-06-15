@@ -150,6 +150,7 @@ func (s *stubProvider) Lookup(_ context.Context, _ mmr.PlayerIdentity) ([]mmr.Pl
 }
 
 type stubStore struct {
+	mu        sync.Mutex
 	data      map[string]string
 	fetchedAt map[string]time.Time
 	getErr    error
@@ -163,11 +164,15 @@ func (s *stubStore) GetTrackerCache(key string) (string, time.Time, bool, error)
 	if s.getErr != nil {
 		return "", time.Time{}, false, s.getErr
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, ok := s.data[key]
 	return d, s.fetchedAt[key], ok, nil
 }
 
 func (s *stubStore) UpsertTrackerCache(key, data string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.data[key] = data
 	s.fetchedAt[key] = time.Now()
 	return nil
