@@ -18,7 +18,7 @@ $archiveName = if ([string]::IsNullOrWhiteSpace($Version)) { "OOF_RL.zip" } else
 $archivePath = Join-Path $distDir $archiveName
 $checksumPath = "$archivePath.sha256"
 $manifestPath = Join-Path $distDir "update-manifest.json"
-$plugins = @("live", "ranks", "session", "dashboard")
+$plugins = @("live", "ranks", "dejavu", "session", "dashboard")
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     & $Command @Arguments
