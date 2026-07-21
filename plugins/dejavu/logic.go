@@ -318,6 +318,13 @@ func validTeam(teamNum int) bool {
 	return teamNum == 0 || teamNum == 1
 }
 
+// validTeam64 is validTeam for values read straight from the DB, which arrive as
+// int64. Comparing without narrowing to int avoids a lossy conversion on the
+// 32-bit wasm target.
+func validTeam64(teamNum int64) bool {
+	return teamNum == 0 || teamNum == 1
+}
+
 func isUsableStableID(primaryID string) bool {
 	id := normalizePrimaryID(primaryID)
 	if id == "" {
@@ -440,9 +447,9 @@ func aggregateEncounterRows(rows []map[string]any, matchGUID string, targetIDs [
 		if rowStr(row, "match_guid") == matchGUID {
 			continue
 		}
-		targetTeam := int(rowInt(row, "target_team_num"))
-		anchorTeam := int(rowInt(row, "anchor_team_num"))
-		if !validTeam(targetTeam) || !validTeam(anchorTeam) {
+		targetTeam := rowInt(row, "target_team_num")
+		anchorTeam := rowInt(row, "anchor_team_num")
+		if !validTeam64(targetTeam) || !validTeam64(anchorTeam) {
 			continue
 		}
 		matchID := rowInt(row, "match_id")
@@ -468,11 +475,11 @@ func aggregateEncounterRows(rows []map[string]any, matchGUID string, targetIDs [
 		}
 		agg.PriorCount = agg.WithCount + agg.AgainstCount
 
-		winnerTeam := int(rowInt(row, "winner_team_num"))
+		winnerTeam := rowInt(row, "winner_team_num")
 		// Only a winner of 0 or 1 is a decided result. Treat missing (<0) or
 		// out-of-range winner values as no-result rather than silently scoring
 		// them as an anchor loss.
-		resultEligible := !rowBool(row, "incomplete") && validTeam(winnerTeam)
+		resultEligible := !rowBool(row, "incomplete") && validTeam64(winnerTeam)
 		if resultEligible {
 			win := anchorTeam == winnerTeam
 			if with && win {

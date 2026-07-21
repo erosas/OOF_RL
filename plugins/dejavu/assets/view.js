@@ -32,7 +32,12 @@ function loadDejavuPlayerNames() {
   if (_dejavuPlayerNamesLoaded) return Promise.resolve();
   if (_dejavuPlayerNamesPromise) return _dejavuPlayerNamesPromise;
   _dejavuPlayerNamesPromise = fetch('/api/players')
-    .then(res => res.ok ? res.json() : [])
+    .then(res => {
+      // Don't mark names as loaded on a failed response; leaving the flag unset
+      // lets a later refresh retry instead of permanently falling back to IDs.
+      if (!res.ok) throw new Error('players ' + res.status);
+      return res.json();
+    })
     .then(players => {
       const next = new Map();
       for (const p of players || []) {
