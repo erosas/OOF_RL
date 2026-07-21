@@ -264,6 +264,51 @@ func TestHistoricalRelationshipSwitchingAndSessionParityWL(t *testing.T) {
 	}
 }
 
+func TestMalformedWinnerTeamCountsAsNoResult(t *testing.T) {
+	resetPlugin(t)
+	stubHistoryQuery(t, func(string, []string) []map[string]any {
+		return []map[string]any{
+			// Out-of-range winner value must not be scored as a decided result.
+			encounter("steam|target", 1, "m1", 0, 0, 7, false, "2024-01-01T12:00:00Z"),
+		}
+	})
+	pushState(t, "live-g", testPlayer{ID: "steam|selected", Name: "Tracked", TeamNum: 0},
+		testPlayer{ID: "steam|target", Name: "Target", TeamNum: 0})
+
+	row := byID(recall(t, "steam|selected").Players, "steam|target")
+	if row.PriorCount != 1 || row.WithCount != 1 {
+		t.Fatalf("prior/with counts: %+v", row)
+	}
+	if row.WithWins != 0 || row.WithLosses != 0 || row.WithNoResult != 1 {
+		t.Fatalf("malformed winner should be no-result, not a loss: %+v", row)
+	}
+}
+
+func TestDuplicateRosterStableIDShownAndQueriedOnce(t *testing.T) {
+	resetPlugin(t)
+	stubHistoryQuery(t, func(sql string, _ []string) []map[string]any {
+		if !strings.Contains(sql, "target.primary_id IN (?)") {
+			t.Fatalf("duplicate roster IDs should query once, got SQL: %s", sql)
+		}
+		return []map[string]any{
+			encounter("steam|dup", 1, "prior", 1, 0, 0, false, "2024-01-01T12:00:00Z"),
+		}
+	})
+	pushState(t, "live-g", testPlayer{ID: "steam|selected", Name: "Tracked", TeamNum: 0},
+		testPlayer{ID: "steam|dup", Name: "Dup A", TeamNum: 1, Shortcut: 1},
+		testPlayer{ID: "steam|dup", Name: "Dup B", TeamNum: 1, Shortcut: 2})
+
+	resp := recall(t, "steam|selected")
+	if len(resp.Players) != 2 {
+		t.Fatalf("both duplicate roster entries should be shown: %+v", resp.Players)
+	}
+	for _, row := range resp.Players {
+		if row.PrimaryID != "steam|dup" || row.PriorCount != 1 {
+			t.Fatalf("duplicate row should carry history: %+v", row)
+		}
+	}
+}
+
 func TestDuplicateEncounterRowsCountOnce(t *testing.T) {
 	resetPlugin(t)
 	stubHistoryQuery(t, func(string, []string) []map[string]any {

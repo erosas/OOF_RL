@@ -28,6 +28,10 @@ var (
 	currentState *liveState
 	cache        historyCache
 
+	// queryMu serializes the cache-miss path so concurrent recalls for the same
+	// key collapse into a single history query instead of each hitting the DB.
+	queryMu sync.Mutex
+
 	dbQuery = sdk.DBQuery
 )
 
@@ -266,11 +270,12 @@ func buildRosterRows(st liveState, selectedID string, selectedTeam int) ([]recal
 		}
 		stable := isUsableStableID(pid)
 		if stable {
-			if _, seen := seenStable[pid]; seen {
-				continue
+			// A stable ID should never repeat within a single live roster, but
+			// if it does, still show every roster entry and query the ID once.
+			if _, seen := seenStable[pid]; !seen {
+				seenStable[pid] = struct{}{}
+				stableIDs = append(stableIDs, pid)
 			}
-			seenStable[pid] = struct{}{}
-			stableIDs = append(stableIDs, pid)
 		}
 		rows = append(rows, recallPlayer{
 			RowID:            liveRowID(st.MatchGUID, p, i, stable),
@@ -331,14 +336,18 @@ func historyKey(matchGUID, selectedID string, targetIDs []string) string {
 }
 
 func cachedHistory(key, selectedID, matchGUID string, targetIDs []string) (map[string]historyAgg, string) {
-	mu.RLock()
-	if cache.Ready && cache.Key == key {
-		aggs := cloneAggs(cache.Aggregates)
-		errText := cache.Error
-		mu.RUnlock()
+	if aggs, errText, ok := readCachedHistory(key); ok {
 		return aggs, errText
 	}
-	mu.RUnlock()
+
+	queryMu.Lock()
+	defer queryMu.Unlock()
+
+	// Re-check under queryMu: another goroutine may have populated the cache
+	// for this key while we were waiting.
+	if aggs, errText, ok := readCachedHistory(key); ok {
+		return aggs, errText
+	}
 
 	aggs := map[string]historyAgg{}
 	errText := ""
@@ -361,6 +370,15 @@ func cachedHistory(key, selectedID, matchGUID string, targetIDs []string) (map[s
 	mu.Unlock()
 
 	return aggs, errText
+}
+
+func readCachedHistory(key string) (map[string]historyAgg, string, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
+	if cache.Ready && cache.Key == key {
+		return cloneAggs(cache.Aggregates), cache.Error, true
+	}
+	return nil, "", false
 }
 
 func invalidateCachedHistoryError(key string) bool {
@@ -451,7 +469,10 @@ func aggregateEncounterRows(rows []map[string]any, matchGUID string, targetIDs [
 		agg.PriorCount = agg.WithCount + agg.AgainstCount
 
 		winnerTeam := int(rowInt(row, "winner_team_num"))
-		resultEligible := !rowBool(row, "incomplete") && winnerTeam >= 0
+		// Only a winner of 0 or 1 is a decided result. Treat missing (<0) or
+		// out-of-range winner values as no-result rather than silently scoring
+		// them as an anchor loss.
+		resultEligible := !rowBool(row, "incomplete") && validTeam(winnerTeam)
 		if resultEligible {
 			win := anchorTeam == winnerTeam
 			if with && win {
