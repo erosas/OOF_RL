@@ -6,6 +6,7 @@ use (
 	./plugins/live
 	./plugins/ballchasing
 	./plugins/ranks
+	./plugins/dejavu
 	./plugins/session
 	./plugins/dashboard
 )

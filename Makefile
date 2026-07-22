@@ -2,7 +2,7 @@
         all-plugins release-package test-all test-plugins test-sdk $(addprefix wasm/, $(PLUGINS)) $(addprefix test-plugin/, $(PLUGINS))
 
 PORT    ?= 8080
-PLUGINS := live ballchasing ranks session dashboard
+PLUGINS := live ballchasing ranks dejavu session dashboard
 VERSION ?=
 
 # WASM plugins are installed into the same data directory the app reads at runtime.
@@ -64,6 +64,7 @@ rebuild:
 	go build -o oof_rl.exe .
 	$(MAKE) wasm/live
 	$(MAKE) wasm/ranks
+	$(MAKE) wasm/dejavu
 	$(MAKE) wasm/session
 	$(MAKE) wasm/dashboard
 

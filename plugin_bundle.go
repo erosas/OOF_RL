@@ -23,6 +23,7 @@ var bundledPluginsFS embed.FS
 
 var bundledPublicPluginIDs = map[string]struct{}{
 	"dashboard": {},
+	"dejavu":    {},
 	"live":      {},
 	"ranks":     {},
 	"session":   {},
